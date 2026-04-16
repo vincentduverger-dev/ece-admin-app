@@ -1,13 +1,146 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+enum ApplicationStatus {
+  RECEIVED
+  IN_REVIEW
+  ACCEPTED
+  REFUSED
+}
+
+enum StudentGender {
+  BOY
+  GIRL
+  UNKNOWN
+}
+
+enum EmailType {
+  ACCEPTANCE
+  REFUSAL
+  CUSTOM
+}
+
+enum EmailSendStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model SchoolYear {
+  id           String        @id @default(cuid())
+  label        String        @unique
+  startYear    Int
+  endYear      Int
+  isActive     Boolean       @default(false)
+  applications Application[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Family {
+  id                 String  @id @default(cuid())
+  fatherLastName     String?
+  fatherFirstName    String?
+  fatherCity         String?
+  motherLastName     String?
+  motherFirstName    String?
+  motherCity         String?
+  familyStatus       String?
+  contactEmail       String
+  contactPhone       String?
+  postalAddress      String?
+  googleAccountEmail String?
+
+  applications Application[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([contactEmail])
+}
+
+model Application {
+  id                    String            @id @default(cuid())
+  familyId              String
+  schoolYearId          String
+  submittedAt           DateTime
+  declaredChildrenCount Int?
+  discoverySource       String?
+  status                ApplicationStatus @default(RECEIVED)
+  isPriority            Boolean           @default(false)
+  decisionAt            DateTime?
+  decisionNote          String?
+  rawCsvRowHash         String?           @unique
+
+  family     Family                @relation(fields: [familyId], references: [id], onDelete: Restrict)
+  schoolYear SchoolYear            @relation(fields: [schoolYearId], references: [id], onDelete: Restrict)
+  students   Student[]
+  emailLogs  ApplicationEmailLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([familyId])
+  @@index([schoolYearId])
+  @@index([status])
+  @@index([isPriority])
+}
+
+model Student {
+  id            String        @id @default(cuid())
+  applicationId String
+  levelId       String
+  lastName      String
+  firstName     String
+  gender        StudentGender @default(UNKNOWN)
+  birthDate     DateTime
+  rankInForm    Int?
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  level       Level       @relation(fields: [levelId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([applicationId])
+  @@index([levelId])
+}
+
+model Level {
+  id              String @id @default(cuid())
+  code            String @unique
+  label           String
+  sortOrder       Int    @default(0)
+  availablePlaces Int    @default(0)
+
+  students Student[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sortOrder])
+}
+
+model ApplicationEmailLog {
+  id             String          @id @default(cuid())
+  applicationId  String
+  emailType      EmailType
+  recipientEmail String
+  subject        String
+  bodySnapshot   String
+  sentAt         DateTime?
+  sendStatus     EmailSendStatus @default(PENDING)
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([applicationId])
+  @@index([sendStatus])
 }
