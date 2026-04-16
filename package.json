@@ -1,0 +1,28 @@
+{
+  "name": "ece-admin-app",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "apps/web",
+    "apps/api"
+  ],
+  "description": "Application web de gestion des demandes d'inscription - Projet ECE",
+  "main": "index.js",
+  "scripts": {
+    "dev:web": "npm run dev -w apps/web",
+    "dev:api": "npm run dev -w apps/api",
+    "install:all": "npm install --workspaces"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vincentduverger-dev/ece-admin-app.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/vincentduverger-dev/ece-admin-app/issues"
+  },
+  "homepage": "https://github.com/vincentduverger-dev/ece-admin-app#readme"
+}
