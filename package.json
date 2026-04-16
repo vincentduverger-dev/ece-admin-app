@@ -11,7 +11,8 @@
   "scripts": {
     "dev:web": "npm run dev -w apps/web",
     "dev:api": "npm run dev -w apps/api",
-    "install:all": "npm install --workspaces"
+    "install:all": "npm install --workspaces",
+    "prisma:generate": "prisma generate"
   },
   "repository": {
     "type": "git",
@@ -24,5 +25,8 @@
   "bugs": {
     "url": "https://github.com/vincentduverger-dev/ece-admin-app/issues"
   },
-  "homepage": "https://github.com/vincentduverger-dev/ece-admin-app#readme"
+  "homepage": "https://github.com/vincentduverger-dev/ece-admin-app#readme",
+  "devDependencies": {
+    "prisma": "^7.7.0"
+  }
 }
