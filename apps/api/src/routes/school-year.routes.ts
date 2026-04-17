@@ -1,9 +1,13 @@
 import { Router } from "express";
 
-import { getSchoolYears } from "../controllers/school-year.controller";
+import {
+  getActiveSchoolYear,
+  getSchoolYears
+} from "../controllers/school-year.controller";
 
 const router = Router();
 
+router.get("/school-years/active", getActiveSchoolYear);
 router.get("/school-years", getSchoolYears);
 
 export default router;
