@@ -32,6 +32,14 @@ const isApplicationStatus = (value: string): value is ApplicationStatus => {
   return Object.values(ApplicationStatus).includes(value as ApplicationStatus);
 };
 
+type ApplicationDecisionStatus = "ACCEPTED" | "REFUSED";
+
+const isApplicationDecisionStatus = (
+  value: string
+): value is ApplicationDecisionStatus => {
+  return value === "ACCEPTED" || value === "REFUSED";
+};
+
 export const getApplications = async (req: Request, res: Response): Promise<void> => {
   try {
     const status = getQueryParam(req.query.status);
@@ -220,6 +228,43 @@ export const updateApplicationPriority = async (req: Request, res: Response): Pr
     res.status(200).json(updatedApplication);
   } catch (error) {
     console.error("Failed to update application priority:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const updateApplicationDecision = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const applicationId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const status = getQueryParam(req.body?.status);
+    const decisionNote = typeof req.body?.decisionNote === "string" ? req.body.decisionNote : null;
+
+    if (!status || !isApplicationDecisionStatus(status)) {
+      res.status(400).json({ message: "Invalid application decision status" });
+      return;
+    }
+
+    const existingApplication = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: { id: true }
+    });
+
+    if (!existingApplication) {
+      res.status(404).json({ message: "Application not found" });
+      return;
+    }
+
+    const updatedApplication = await prisma.application.update({
+      where: { id: applicationId },
+      data: {
+        status,
+        decisionAt: new Date(),
+        decisionNote
+      }
+    });
+
+    res.status(200).json(updatedApplication);
+  } catch (error) {
+    console.error("Failed to update application decision:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
