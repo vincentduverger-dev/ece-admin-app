@@ -4,6 +4,7 @@ import {
   updateApplicationDecision,
   getApplicationById,
   getApplications,
+  sendApplicationEmail,
   updateApplicationPriority,
   updateApplicationStatus
 } from "../controllers/application.controller";
@@ -15,5 +16,6 @@ router.get("/applications/:id", getApplicationById);
 router.patch("/applications/:id/status", updateApplicationStatus);
 router.patch("/applications/:id/priority", updateApplicationPriority);
 router.patch("/applications/:id/decision", updateApplicationDecision);
+router.post("/applications/:id/send-email", sendApplicationEmail);
 
 export default router;

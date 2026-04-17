@@ -1,5 +1,7 @@
 import {
   ApplicationStatus,
+  EmailSendStatus,
+  EmailType,
   type Prisma
 } from "@prisma/client";
 import type { Request, Response } from "express";
@@ -33,11 +35,20 @@ const isApplicationStatus = (value: string): value is ApplicationStatus => {
 };
 
 type ApplicationDecisionStatus = "ACCEPTED" | "REFUSED";
+type ApplicationEmailType = "ACCEPTANCE" | "REFUSAL" | "CUSTOM";
 
 const isApplicationDecisionStatus = (
   value: string
 ): value is ApplicationDecisionStatus => {
   return value === "ACCEPTED" || value === "REFUSED";
+};
+
+const isApplicationEmailType = (value: string): value is ApplicationEmailType => {
+  return (
+    value === EmailType.ACCEPTANCE ||
+    value === EmailType.REFUSAL ||
+    value === EmailType.CUSTOM
+  );
 };
 
 export const getApplications = async (req: Request, res: Response): Promise<void> => {
@@ -265,6 +276,61 @@ export const updateApplicationDecision = async (req: Request, res: Response): Pr
     res.status(200).json(updatedApplication);
   } catch (error) {
     console.error("Failed to update application decision:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const sendApplicationEmail = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const applicationId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const emailType = getQueryParam(req.body?.emailType);
+    const subject = getQueryParam(req.body?.subject);
+    const body = getQueryParam(req.body?.body);
+
+    if (!emailType || !isApplicationEmailType(emailType)) {
+      res.status(400).json({ message: "Invalid email type" });
+      return;
+    }
+
+    if (!subject || !body) {
+      res.status(400).json({ message: "Invalid email payload" });
+      return;
+    }
+
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      include: {
+        family: true
+      }
+    });
+
+    if (!application) {
+      res.status(404).json({ message: "Application not found" });
+      return;
+    }
+
+    const recipientEmail = application.family.contactEmail.trim();
+
+    if (!recipientEmail) {
+      res.status(400).json({ message: "Missing recipient email" });
+      return;
+    }
+
+    const emailLog = await prisma.applicationEmailLog.create({
+      data: {
+        applicationId: application.id,
+        emailType,
+        recipientEmail,
+        subject,
+        bodySnapshot: body,
+        sentAt: new Date(),
+        sendStatus: EmailSendStatus.SENT
+      }
+    });
+
+    res.status(201).json(emailLog);
+  } catch (error) {
+    console.error("Failed to send application email:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
