@@ -159,3 +159,35 @@ export const getApplicationById = async (req: Request, res: Response): Promise<v
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+export const updateApplicationStatus = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const applicationId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const status = getQueryParam(req.body?.status);
+
+    if (!status || !isApplicationStatus(status)) {
+      res.status(400).json({ message: "Invalid application status" });
+      return;
+    }
+
+    const existingApplication = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: { id: true }
+    });
+
+    if (!existingApplication) {
+      res.status(404).json({ message: "Application not found" });
+      return;
+    }
+
+    const updatedApplication = await prisma.application.update({
+      where: { id: applicationId },
+      data: { status }
+    });
+
+    res.status(200).json(updatedApplication);
+  } catch (error) {
+    console.error("Failed to update application status:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
