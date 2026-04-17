@@ -23,3 +23,35 @@ export const getApplications = async (_req: Request, res: Response): Promise<voi
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+export const getApplicationById = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const applicationId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      include: {
+        family: true,
+        schoolYear: true,
+        students: {
+          include: {
+            level: true
+          }
+        },
+        emailLogs: {
+          orderBy: { createdAt: "desc" }
+        }
+      }
+    });
+
+    if (!application) {
+      res.status(404).json({ message: "Application not found" });
+      return;
+    }
+
+    res.status(200).json(application);
+  } catch (error) {
+    console.error("Failed to fetch application:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
