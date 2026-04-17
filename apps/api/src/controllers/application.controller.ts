@@ -1,10 +1,114 @@
+import {
+  ApplicationStatus,
+  type Prisma
+} from "@prisma/client";
 import type { Request, Response } from "express";
 
 import { prisma } from "../prisma/client";
 
-export const getApplications = async (_req: Request, res: Response): Promise<void> => {
+const getQueryParam = (value: unknown): string | undefined => {
+  if (typeof value === "string") {
+    const trimmedValue = value.trim();
+
+    return trimmedValue.length > 0 ? trimmedValue : undefined;
+  }
+
+  if (Array.isArray(value)) {
+    const firstStringValue = value.find((item): item is string => typeof item === "string");
+
+    if (!firstStringValue) {
+      return undefined;
+    }
+
+    const trimmedValue = firstStringValue.trim();
+
+    return trimmedValue.length > 0 ? trimmedValue : undefined;
+  }
+
+  return undefined;
+};
+
+const isApplicationStatus = (value: string): value is ApplicationStatus => {
+  return Object.values(ApplicationStatus).includes(value as ApplicationStatus);
+};
+
+export const getApplications = async (req: Request, res: Response): Promise<void> => {
   try {
+    const status = getQueryParam(req.query.status);
+    const schoolYearId = getQueryParam(req.query.schoolYearId);
+    const search = getQueryParam(req.query.search);
+    const where: Prisma.ApplicationWhereInput = {};
+
+    if (status) {
+      if (!isApplicationStatus(status)) {
+        res.status(400).json({ message: "Invalid application status" });
+        return;
+      }
+
+      where.status = status;
+    }
+
+    if (schoolYearId) {
+      where.schoolYearId = schoolYearId;
+    }
+
+    if (search) {
+      where.OR = [
+        {
+          family: {
+            is: {
+              contactEmail: {
+                contains: search,
+                mode: "insensitive"
+              }
+            }
+          }
+        },
+        {
+          family: {
+            is: {
+              fatherLastName: {
+                contains: search,
+                mode: "insensitive"
+              }
+            }
+          }
+        },
+        {
+          family: {
+            is: {
+              motherLastName: {
+                contains: search,
+                mode: "insensitive"
+              }
+            }
+          }
+        },
+        {
+          students: {
+            some: {
+              firstName: {
+                contains: search,
+                mode: "insensitive"
+              }
+            }
+          }
+        },
+        {
+          students: {
+            some: {
+              lastName: {
+                contains: search,
+                mode: "insensitive"
+              }
+            }
+          }
+        }
+      ];
+    }
+
     const applications = await prisma.application.findMany({
+      where,
       orderBy: { createdAt: "desc" },
       include: {
         family: true,
