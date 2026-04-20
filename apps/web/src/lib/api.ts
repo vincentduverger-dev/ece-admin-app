@@ -3,6 +3,7 @@ import type {
   ApplicationFilterParams,
   ApplicationEmailLog,
   ApplicationListItem,
+  ApplicationPriorityUpdateResult,
   ApplicationStatus,
   ApplicationStatusUpdateResult,
   SchoolYearSummary
@@ -119,6 +120,25 @@ export const updateApplicationStatus = async (
         ...init?.headers
       },
       body: JSON.stringify({ status })
+    }
+  );
+};
+
+export const updateApplicationPriority = async (
+  applicationId: string,
+  isPriority: boolean,
+  init?: RequestInit
+): Promise<ApplicationPriorityUpdateResult> => {
+  return fetchJson<ApplicationPriorityUpdateResult>(
+    `/api/applications/${encodeURIComponent(applicationId)}/priority`,
+    {
+      ...init,
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...init?.headers
+      },
+      body: JSON.stringify({ isPriority })
     }
   );
 };

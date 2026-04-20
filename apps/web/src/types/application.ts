@@ -85,6 +85,11 @@ export type ApplicationStatusUpdateResult = {
   status: ApplicationStatus;
 };
 
+export type ApplicationPriorityUpdateResult = {
+  id: string;
+  isPriority: boolean;
+};
+
 export type ApplicationFilterParams = {
   status?: ApplicationStatus;
   schoolYearId?: string;

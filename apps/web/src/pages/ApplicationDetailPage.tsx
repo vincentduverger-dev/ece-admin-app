@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import {
   getApplicationById,
   getApplicationEmailLogs,
+  updateApplicationPriority,
   updateApplicationStatus
 } from "../lib/api";
 import type {
@@ -264,6 +265,9 @@ const ApplicationDetailPage = ({
   const [statusActionError, setStatusActionError] = useState<string | null>(null);
   const [statusActionSuccess, setStatusActionSuccess] = useState<string | null>(null);
   const [isStatusSubmitting, setIsStatusSubmitting] = useState(false);
+  const [priorityActionError, setPriorityActionError] = useState<string | null>(null);
+  const [priorityActionSuccess, setPriorityActionSuccess] = useState<string | null>(null);
+  const [isPrioritySubmitting, setIsPrioritySubmitting] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -354,6 +358,49 @@ const ApplicationDetailPage = ({
       );
     } finally {
       setIsStatusSubmitting(false);
+    }
+  };
+
+  const handlePriorityToggle = async (): Promise<void> => {
+    if (!application) {
+      return;
+    }
+
+    const nextPriorityValue = !application.isPriority;
+
+    setIsPrioritySubmitting(true);
+    setPriorityActionError(null);
+    setPriorityActionSuccess(null);
+
+    try {
+      const updatedApplication = await updateApplicationPriority(
+        application.id,
+        nextPriorityValue
+      );
+
+      setApplication((currentApplication) => {
+        if (!currentApplication || currentApplication.id !== updatedApplication.id) {
+          return currentApplication;
+        }
+
+        return {
+          ...currentApplication,
+          isPriority: updatedApplication.isPriority
+        };
+      });
+      setPriorityActionSuccess(
+        nextPriorityValue
+          ? "La demande est maintenant prioritaire."
+          : "La priorité a été retirée."
+      );
+    } catch (updateError) {
+      setPriorityActionError(
+        updateError instanceof Error
+          ? updateError.message
+          : "Impossible de mettre à jour la priorité."
+      );
+    } finally {
+      setIsPrioritySubmitting(false);
     }
   };
 
@@ -476,6 +523,53 @@ const ApplicationDetailPage = ({
                   ) : null}
                 </div>
               </form>
+
+              <div className="mt-6 border-t border-slate-200 pt-6">
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Priorité actuelle
+                    </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {application.isPriority ? (
+                        <span className="rounded-full bg-secondary/20 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-secondaryDark">
+                          Prioritaire
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-700">
+                          Standard
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => void handlePriorityToggle()}
+                    disabled={isPrioritySubmitting}
+                    className="inline-flex items-center rounded-full border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                  >
+                    {isPrioritySubmitting
+                      ? "Mise à jour..."
+                      : application.isPriority
+                        ? "Désactiver la priorité"
+                        : "Activer la priorité"}
+                  </button>
+
+                  <div className="space-y-2" aria-live="polite">
+                    {priorityActionSuccess ? (
+                      <p className="rounded-2xl border border-success/20 bg-success/10 px-4 py-3 text-sm text-success">
+                        {priorityActionSuccess}
+                      </p>
+                    ) : null}
+                    {priorityActionError ? (
+                      <p className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger">
+                        {priorityActionError}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
             </SectionCard>
 
             <SectionCard
