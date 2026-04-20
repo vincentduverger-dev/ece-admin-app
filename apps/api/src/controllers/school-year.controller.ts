@@ -51,3 +51,46 @@ export const getActiveSchoolYear = async (_req: Request, res: Response): Promise
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+export const activateSchoolYear = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const schoolYearId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+    const existingSchoolYear = await prisma.schoolYear.findUnique({
+      where: { id: schoolYearId },
+      select: { id: true }
+    });
+
+    if (!existingSchoolYear) {
+      res.status(404).json({ message: "School year not found" });
+      return;
+    }
+
+    const [, activatedSchoolYear] = await prisma.$transaction([
+      prisma.schoolYear.updateMany({
+        where: {
+          id: { not: schoolYearId }
+        },
+        data: { isActive: false }
+      }),
+      prisma.schoolYear.update({
+        where: { id: schoolYearId },
+        data: { isActive: true },
+        select: {
+          id: true,
+          label: true,
+          startYear: true,
+          endYear: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true
+        }
+      })
+    ]);
+
+    res.status(200).json(activatedSchoolYear);
+  } catch (error) {
+    console.error("Failed to activate school year:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
