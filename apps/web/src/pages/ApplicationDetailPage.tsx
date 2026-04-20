@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 
-import { getApplicationById, getApplicationEmailLogs } from "../lib/api";
+import {
+  getApplicationById,
+  getApplicationEmailLogs,
+  updateApplicationStatus
+} from "../lib/api";
 import type {
   ApplicationDetail,
   ApplicationEmailLog,
@@ -62,6 +66,16 @@ const dateTimeFormatter = new Intl.DateTimeFormat("fr-FR", {
 const dateFormatter = new Intl.DateTimeFormat("fr-FR", {
   dateStyle: "medium"
 });
+
+const statusOptions: Array<{
+  value: ApplicationStatus;
+  label: string;
+}> = [
+  { value: "RECEIVED", label: "Reçue" },
+  { value: "IN_REVIEW", label: "En revue" },
+  { value: "ACCEPTED", label: "Acceptée" },
+  { value: "REFUSED", label: "Refusée" }
+];
 
 const isAbortError = (error: unknown): boolean => {
   return error instanceof DOMException && error.name === "AbortError";
@@ -199,6 +213,20 @@ const DetailField = ({
   );
 };
 
+const StatusBadge = ({
+  status
+}: {
+  status: ApplicationStatus;
+}) => {
+  return (
+    <span
+      className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ring-1 ${statusStyles[status]}`}
+    >
+      {statusLabels[status]}
+    </span>
+  );
+};
+
 const SectionCard = ({
   title,
   subtitle,
@@ -232,6 +260,10 @@ const ApplicationDetailPage = ({
   const [emailLogs, setEmailLogs] = useState<ApplicationEmailLog[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedStatus, setSelectedStatus] = useState<ApplicationStatus>("RECEIVED");
+  const [statusActionError, setStatusActionError] = useState<string | null>(null);
+  const [statusActionSuccess, setStatusActionSuccess] = useState<string | null>(null);
+  const [isStatusSubmitting, setIsStatusSubmitting] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -278,6 +310,53 @@ const ApplicationDetailPage = ({
     };
   }, [applicationId]);
 
+  useEffect(() => {
+    if (application) {
+      setSelectedStatus(application.status);
+    }
+  }, [application]);
+
+  const handleStatusSubmit = async (
+    event: React.FormEvent<HTMLFormElement>
+  ): Promise<void> => {
+    event.preventDefault();
+
+    if (!application || selectedStatus === application.status) {
+      return;
+    }
+
+    setIsStatusSubmitting(true);
+    setStatusActionError(null);
+    setStatusActionSuccess(null);
+
+    try {
+      const updatedApplication = await updateApplicationStatus(
+        application.id,
+        selectedStatus
+      );
+
+      setApplication((currentApplication) => {
+        if (!currentApplication || currentApplication.id !== updatedApplication.id) {
+          return currentApplication;
+        }
+
+        return {
+          ...currentApplication,
+          status: updatedApplication.status
+        };
+      });
+      setStatusActionSuccess("Le statut a bien été mis à jour.");
+    } catch (updateError) {
+      setStatusActionError(
+        updateError instanceof Error
+          ? updateError.message
+          : "Impossible de mettre à jour le statut."
+      );
+    } finally {
+      setIsStatusSubmitting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <main className="min-h-screen bg-background px-4 py-10 text-slate-900 sm:px-6 lg:px-8">
@@ -312,7 +391,14 @@ const ApplicationDetailPage = ({
                 label="Créée le"
                 value={formatOptionalDateTime(application.createdAt)}
               />
-              <DetailField label="Statut" value={statusLabels[application.status]} />
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Statut
+                </p>
+                <div className="mt-2">
+                  <StatusBadge status={application.status} />
+                </div>
+              </div>
               <DetailField
                 label="Priorité"
                 value={application.isPriority ? "Oui" : "Non"}
@@ -328,18 +414,83 @@ const ApplicationDetailPage = ({
             </div>
           </SectionCard>
 
-          <SectionCard
-            title="Année scolaire"
-            subtitle="Campagne d'inscription associée à cette demande."
-          >
-            <div className="grid gap-4">
-              <DetailField label="Libellé" value={application.schoolYear.label} />
-              <DetailField
-                label="Statut"
-                value={application.schoolYear.isActive ? "Année active" : "Historique"}
-              />
-            </div>
-          </SectionCard>
+          <div className="space-y-6">
+            <SectionCard
+              title="Actions"
+              subtitle="Mettre à jour le statut administratif sans recharger toute l'application."
+            >
+              <form className="space-y-4" onSubmit={(event) => void handleStatusSubmit(event)}>
+                <div className="space-y-2">
+                  <label
+                    htmlFor="application-status"
+                    className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
+                  >
+                    Nouveau statut
+                  </label>
+                  <select
+                    id="application-status"
+                    value={selectedStatus}
+                    onChange={(event) => {
+                      setSelectedStatus(event.target.value as ApplicationStatus);
+                      setStatusActionError(null);
+                      setStatusActionSuccess(null);
+                    }}
+                    disabled={isStatusSubmitting}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
+                  >
+                    {statusOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Statut actuel
+                  </p>
+                  <div className="mt-2">
+                    <StatusBadge status={application.status} />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isStatusSubmitting || selectedStatus === application.status}
+                  className="inline-flex items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  {isStatusSubmitting ? "Mise à jour..." : "Mettre à jour le statut"}
+                </button>
+
+                <div className="space-y-2" aria-live="polite">
+                  {statusActionSuccess ? (
+                    <p className="rounded-2xl border border-success/20 bg-success/10 px-4 py-3 text-sm text-success">
+                      {statusActionSuccess}
+                    </p>
+                  ) : null}
+                  {statusActionError ? (
+                    <p className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger">
+                      {statusActionError}
+                    </p>
+                  ) : null}
+                </div>
+              </form>
+            </SectionCard>
+
+            <SectionCard
+              title="Année scolaire"
+              subtitle="Campagne d'inscription associée à cette demande."
+            >
+              <div className="grid gap-4">
+                <DetailField label="Libellé" value={application.schoolYear.label} />
+                <DetailField
+                  label="Statut"
+                  value={application.schoolYear.isActive ? "Année active" : "Historique"}
+                />
+              </div>
+            </SectionCard>
+          </div>
         </div>
 
         <div className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
