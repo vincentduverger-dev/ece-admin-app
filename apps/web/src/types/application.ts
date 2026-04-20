@@ -9,6 +9,10 @@ export type ApplicationLevel = {
   label: string;
 };
 
+export type ApplicationGender = "BOY" | "GIRL" | "UNKNOWN";
+export type ApplicationEmailType = "ACCEPTANCE" | "REFUSAL" | "CUSTOM";
+export type ApplicationEmailSendStatus = "PENDING" | "SENT" | "FAILED";
+
 export type ApplicationStudent = {
   id: string;
   firstName: string;
@@ -16,10 +20,24 @@ export type ApplicationStudent = {
   level: ApplicationLevel;
 };
 
+export type ApplicationDetailStudent = ApplicationStudent & {
+  gender: ApplicationGender;
+  birthDate: string;
+  rankInForm: number | null;
+};
+
 export type ApplicationFamily = {
   contactEmail: string | null;
   fatherLastName: string | null;
   motherLastName: string | null;
+};
+
+export type ApplicationDetailFamily = ApplicationFamily & {
+  contactPhone: string | null;
+  fatherFirstName: string | null;
+  motherFirstName: string | null;
+  postalAddress: string | null;
+  familyStatus: string | null;
 };
 
 export type ApplicationSchoolYear = {
@@ -36,6 +54,30 @@ export type ApplicationListItem = {
   family: ApplicationFamily;
   schoolYear: ApplicationSchoolYear;
   students: ApplicationStudent[];
+};
+
+export type ApplicationDetail = {
+  id: string;
+  status: ApplicationStatus;
+  isPriority: boolean;
+  createdAt: string;
+  decisionAt: string | null;
+  decisionNote: string | null;
+  family: ApplicationDetailFamily;
+  schoolYear: ApplicationSchoolYear;
+  students: ApplicationDetailStudent[];
+};
+
+export type ApplicationEmailLog = {
+  id: string;
+  applicationId: string;
+  emailType: ApplicationEmailType;
+  recipientEmail: string;
+  subject: string;
+  bodySnapshot: string;
+  sentAt: string | null;
+  sendStatus: ApplicationEmailSendStatus;
+  createdAt: string;
 };
 
 export type ApplicationFilterParams = {

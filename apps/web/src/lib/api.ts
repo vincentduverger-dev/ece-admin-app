@@ -1,5 +1,7 @@
 import type {
+  ApplicationDetail,
   ApplicationFilterParams,
+  ApplicationEmailLog,
   ApplicationListItem,
   SchoolYearSummary
 } from "../types/application";
@@ -78,6 +80,26 @@ export const getApplications = async (
   });
 
   return fetchJson<ApplicationListItem[]>(`/api/applications${queryString}`, init);
+};
+
+export const getApplicationById = async (
+  applicationId: string,
+  init?: RequestInit
+): Promise<ApplicationDetail> => {
+  return fetchJson<ApplicationDetail>(
+    `/api/applications/${encodeURIComponent(applicationId)}`,
+    init
+  );
+};
+
+export const getApplicationEmailLogs = async (
+  applicationId: string,
+  init?: RequestInit
+): Promise<ApplicationEmailLog[]> => {
+  return fetchJson<ApplicationEmailLog[]>(
+    `/api/applications/${encodeURIComponent(applicationId)}/email-logs`,
+    init
+  );
 };
 
 export const getSchoolYears = async (
