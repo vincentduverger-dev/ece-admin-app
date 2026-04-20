@@ -1,8 +1,6 @@
-export type DashboardApplicationStatus =
-  | "RECEIVED"
-  | "IN_REVIEW"
-  | "ACCEPTED"
-  | "REFUSED";
+import type { ApplicationStatus } from "./application";
+
+export type DashboardApplicationStatus = ApplicationStatus;
 
 export type DashboardStats = {
   totalApplications: number;
