@@ -1,5 +1,8 @@
 import { useDeferredValue, useEffect, useState } from "react";
 
+import EmptyState from "../components/ui/EmptyState";
+import ErrorState from "../components/ui/ErrorState";
+import LoadingState from "../components/ui/LoadingState";
 import { getApplications, getSchoolYears } from "../lib/api";
 import type {
   ApplicationFilterParams,
@@ -126,66 +129,6 @@ const getFamilyDisplayName = (application: ApplicationListItem): string => {
   return "Famille non renseignée";
 };
 
-const LoadingState = () => {
-  return (
-    <section className="space-y-4" aria-live="polite" aria-busy="true">
-      {Array.from({ length: 4 }, (_, index) => (
-        <div
-          key={index}
-          className="h-64 animate-pulse rounded-3xl border border-white/70 bg-white/70"
-        />
-      ))}
-    </section>
-  );
-};
-
-const ErrorState = ({
-  message,
-  onRetry
-}: {
-  message: string;
-  onRetry: () => void;
-}) => {
-  return (
-    <section className="rounded-3xl border border-danger/20 bg-white/90 p-8 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.35)]">
-      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-danger">
-        Erreur API
-      </p>
-      <h2 className="mt-3 text-2xl font-semibold text-slate-900">
-        Impossible de charger les demandes
-      </h2>
-      <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">{message}</p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="mt-6 inline-flex items-center rounded-full bg-danger px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
-      >
-        Réessayer
-      </button>
-    </section>
-  );
-};
-
-const EmptyState = ({ hasActiveFilters }: { hasActiveFilters: boolean }) => {
-  return (
-    <section className="rounded-3xl border border-dashed border-border bg-white/85 p-10 text-center shadow-[0_20px_45px_-30px_rgba(15,23,42,0.35)]">
-      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primaryLight">
-        Aucun résultat
-      </p>
-      <h2 className="mt-3 text-2xl font-semibold text-slate-900">
-        {hasActiveFilters
-          ? "Aucune demande ne correspond aux filtres"
-          : "Aucune demande n'est disponible"}
-      </h2>
-      <p className="mt-3 text-sm leading-6 text-slate-600">
-        {hasActiveFilters
-          ? "Essayez un autre statut, une autre année scolaire ou élargissez la recherche."
-          : "La liste se remplira automatiquement dès qu'une demande sera présente en base."}
-      </p>
-    </section>
-  );
-};
-
 const ApplicationsPage = () => {
   const [filters, setFilters] = useState<FilterState>({
     status: "",
@@ -209,6 +152,16 @@ const ApplicationsPage = () => {
     filters.schoolYearId !== "" ||
     filters.isPriority !== "" ||
     filters.search.trim().length > 0;
+
+  const resetFilters = (): void => {
+    setFilters({
+      status: "",
+      schoolYearId: "",
+      isPriority: "",
+      search: ""
+    });
+    setSort("createdAtDesc");
+  };
 
   const loadApplications = async (signal?: AbortSignal): Promise<void> => {
     setIsLoading(true);
@@ -313,7 +266,7 @@ const ApplicationsPage = () => {
     return (
       <main className="min-h-screen bg-background px-4 py-10 text-slate-900 sm:px-6 lg:px-8">
         <ApplicationsShell>
-          <LoadingState />
+          <LoadingState variant="page" />
         </ApplicationsShell>
       </main>
     );
@@ -323,7 +276,11 @@ const ApplicationsPage = () => {
     return (
       <main className="min-h-screen bg-background px-4 py-10 text-slate-900 sm:px-6 lg:px-8">
         <ApplicationsShell>
-          <ErrorState message={error} onRetry={() => void loadApplications()} />
+          <ErrorState
+            message={error}
+            actionLabel="Réessayer"
+            onAction={() => void loadApplications()}
+          />
         </ApplicationsShell>
       </main>
     );
@@ -350,15 +307,7 @@ const ApplicationsPage = () => {
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  setFilters({
-                    status: "",
-                    schoolYearId: "",
-                    isPriority: "",
-                    search: ""
-                  });
-                  setSort("createdAtDesc");
-                }}
+                onClick={resetFilters}
                 disabled={!hasActiveFilters && sort === "createdAtDesc"}
                 className="inline-flex items-center rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -471,23 +420,32 @@ const ApplicationsPage = () => {
             </p>
           ) : null}
 
-          {error && applications.length > 0 ? (
-            <p className="mt-4 rounded-2xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-slate-700">
-              Impossible d&apos;actualiser la liste avec les filtres courants. Les
-              derniers résultats chargés restent affichés.
-            </p>
-          ) : null}
         </section>
 
         <section className="mt-6 space-y-4">
-          {isLoading ? (
-            <div className="rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3 text-sm text-primaryDark">
-              Mise à jour des demandes en cours...
-            </div>
+          {isLoading && hasLoadedOnce ? (
+            <LoadingState variant="card" />
+          ) : null}
+
+          {error && applications.length > 0 ? (
+            <ErrorState
+              message={`${error} Les derniers résultats chargés restent affichés.`}
+              actionLabel="Réessayer"
+              onAction={() => void loadApplications()}
+            />
           ) : null}
 
           {!isLoading && applications.length === 0 ? (
-            <EmptyState hasActiveFilters={hasActiveFilters} />
+            <EmptyState
+              title="Aucune donnée disponible"
+              description={
+                hasActiveFilters
+                  ? "Aucune demande ne correspond aux filtres actuels. Réinitialisez les filtres ou élargissez la recherche."
+                  : "La liste se remplira automatiquement dès qu'une demande sera présente en base."
+              }
+              actionLabel={hasActiveFilters ? "Réinitialiser les filtres" : undefined}
+              onAction={hasActiveFilters ? resetFilters : undefined}
+            />
           ) : null}
 
           {displayedApplications.map((application) => (

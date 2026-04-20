@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import ErrorState from "../components/ui/ErrorState";
+import LoadingState from "../components/ui/LoadingState";
 import {
   getApplicationById,
   getApplicationEmailLogs,
@@ -226,59 +228,6 @@ const getApplicationFamilyTitle = (
   }
 
   return "Famille non renseignée";
-};
-
-const LoadingState = () => {
-  return (
-    <section className="space-y-6" aria-live="polite" aria-busy="true">
-      <div className="h-56 animate-pulse rounded-3xl border border-white/70 bg-white/70" />
-      <div className="grid gap-6 xl:grid-cols-2">
-        <div className="h-80 animate-pulse rounded-3xl border border-white/70 bg-white/70" />
-        <div className="h-80 animate-pulse rounded-3xl border border-white/70 bg-white/70" />
-      </div>
-      <div className="h-72 animate-pulse rounded-3xl border border-white/70 bg-white/70" />
-    </section>
-  );
-};
-
-const ErrorState = ({
-  message
-}: {
-  message: string;
-}) => {
-  const isNotFound = message === "Application not found";
-
-  return (
-    <section className="rounded-3xl border border-danger/20 bg-white/90 p-8 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.35)]">
-      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-danger">
-        {isNotFound ? "Demande introuvable" : "Erreur API"}
-      </p>
-      <h2 className="mt-3 text-2xl font-semibold text-slate-900">
-        {isNotFound
-          ? "Cette demande n'existe pas ou n'est plus accessible"
-          : "Impossible de charger le détail de la demande"}
-      </h2>
-      <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-        {isNotFound
-          ? "Revenez à la liste des demandes et vérifiez l'identifiant ciblé."
-          : message}
-      </p>
-      <div className="mt-6 flex flex-wrap gap-3">
-        <a
-          href="/applications"
-          className="inline-flex items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primaryDark"
-        >
-          Retour à la liste
-        </a>
-        <a
-          href="/"
-          className="inline-flex items-center rounded-full border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-        >
-          Retour au dashboard
-        </a>
-      </div>
-    </section>
-  );
 };
 
 const DetailField = ({
@@ -670,10 +619,25 @@ const ApplicationDetailPage = ({
   }
 
   if (error || !application) {
+    const errorMessage = error ?? "Application not found";
+    const isApplicationNotFound = errorMessage === "Application not found";
+
     return (
       <main className="min-h-screen bg-background px-4 py-10 text-slate-900 sm:px-6 lg:px-8">
         <ApplicationDetailShell application={null}>
-          <ErrorState message={error ?? "Application not found"} />
+          <ErrorState
+            title={isApplicationNotFound ? "Demande introuvable" : undefined}
+            message={
+              isApplicationNotFound
+                ? "Revenez à la liste des demandes et vérifiez l'identifiant ciblé."
+                : errorMessage
+            }
+            actionLabel={isApplicationNotFound ? undefined : "Actualiser"}
+            onAction={
+              isApplicationNotFound ? undefined : () => window.location.reload()
+            }
+            backLink="/applications"
+          />
         </ApplicationDetailShell>
       </main>
     );
