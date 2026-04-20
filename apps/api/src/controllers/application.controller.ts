@@ -55,6 +55,7 @@ export const getApplications = async (req: Request, res: Response): Promise<void
   try {
     const status = getQueryParam(req.query.status);
     const schoolYearId = getQueryParam(req.query.schoolYearId);
+    const isPriority = getQueryParam(req.query.isPriority);
     const search = getQueryParam(req.query.search);
     const where: Prisma.ApplicationWhereInput = {};
 
@@ -69,6 +70,15 @@ export const getApplications = async (req: Request, res: Response): Promise<void
 
     if (schoolYearId) {
       where.schoolYearId = schoolYearId;
+    }
+
+    if (isPriority) {
+      if (isPriority !== "true" && isPriority !== "false") {
+        res.status(400).json({ message: "Invalid priority filter" });
+        return;
+      }
+
+      where.isPriority = isPriority === "true";
     }
 
     if (search) {
