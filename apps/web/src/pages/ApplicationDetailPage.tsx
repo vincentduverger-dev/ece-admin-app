@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import ErrorState from "../components/ui/ErrorState";
 import LoadingState from "../components/ui/LoadingState";
+import { useToast } from "../context/ToastContext";
 import {
   getApplicationById,
   getApplicationEmailLogs,
@@ -203,6 +204,18 @@ const getEmailActionErrorMessage = (error: unknown): string => {
   }
 };
 
+const getActionErrorMessage = (fallbackMessage: string, error: unknown): string => {
+  if (!(error instanceof Error) || error.message.trim().length === 0) {
+    return fallbackMessage;
+  }
+
+  if (error.message === fallbackMessage) {
+    return fallbackMessage;
+  }
+
+  return `${fallbackMessage} ${error.message}`;
+};
+
 const getApplicationFamilyTitle = (
   application: ApplicationDetail | null
 ): string => {
@@ -290,22 +303,17 @@ const ApplicationDetailPage = ({
 }: {
   applicationId: string;
 }) => {
+  const { showError, showSuccess } = useToast();
   const [application, setApplication] = useState<ApplicationDetail | null>(null);
   const [emailLogs, setEmailLogs] = useState<ApplicationEmailLog[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedStatus, setSelectedStatus] = useState<ApplicationStatus>("RECEIVED");
-  const [statusActionError, setStatusActionError] = useState<string | null>(null);
-  const [statusActionSuccess, setStatusActionSuccess] = useState<string | null>(null);
   const [isStatusSubmitting, setIsStatusSubmitting] = useState(false);
-  const [priorityActionError, setPriorityActionError] = useState<string | null>(null);
-  const [priorityActionSuccess, setPriorityActionSuccess] = useState<string | null>(null);
   const [isPrioritySubmitting, setIsPrioritySubmitting] = useState(false);
   const [selectedDecisionStatus, setSelectedDecisionStatus] =
     useState<ApplicationDecisionStatus>("ACCEPTED");
   const [decisionNote, setDecisionNote] = useState("");
-  const [decisionActionError, setDecisionActionError] = useState<string | null>(null);
-  const [decisionActionSuccess, setDecisionActionSuccess] = useState<string | null>(null);
   const [isDecisionSubmitting, setIsDecisionSubmitting] = useState(false);
   const [selectedEmailType, setSelectedEmailType] =
     useState<ApplicationEmailType>("ACCEPTANCE");
@@ -313,8 +321,6 @@ const ApplicationDetailPage = ({
   const [emailBody, setEmailBody] = useState(emailTemplates.ACCEPTANCE.body);
   const [isEmailSubjectDirty, setIsEmailSubjectDirty] = useState(false);
   const [isEmailBodyDirty, setIsEmailBodyDirty] = useState(false);
-  const [emailActionError, setEmailActionError] = useState<string | null>(null);
-  const [emailActionSuccess, setEmailActionSuccess] = useState<string | null>(null);
   const [isEmailSubmitting, setIsEmailSubmitting] = useState(false);
 
   const resetEmailForm = (): void => {
@@ -327,8 +333,6 @@ const ApplicationDetailPage = ({
 
   const handleEmailTypeChange = (emailType: ApplicationEmailType): void => {
     setSelectedEmailType(emailType);
-    setEmailActionError(null);
-    setEmailActionSuccess(null);
 
     if (emailType === "CUSTOM") {
       setEmailSubject("");
@@ -359,11 +363,7 @@ const ApplicationDetailPage = ({
         setEmailLogs(emailLogsData);
         setSelectedDecisionStatus(getDecisionSelection(applicationData.status));
         setDecisionNote(applicationData.decisionNote ?? "");
-        setDecisionActionError(null);
-        setDecisionActionSuccess(null);
         resetEmailForm();
-        setEmailActionError(null);
-        setEmailActionSuccess(null);
       } catch (loadError) {
         if (isAbortError(loadError) || controller.signal.aborted) {
           return;
@@ -412,21 +412,6 @@ const ApplicationDetailPage = ({
     }
   }, [selectedEmailType, isEmailSubjectDirty, isEmailBodyDirty]);
 
-  useEffect(() => {
-    if (!emailActionSuccess && !emailActionError) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setEmailActionSuccess(null);
-      setEmailActionError(null);
-    }, 3000);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [emailActionSuccess, emailActionError]);
-
   const handleStatusSubmit = async (
     event: React.FormEvent<HTMLFormElement>
   ): Promise<void> => {
@@ -437,8 +422,6 @@ const ApplicationDetailPage = ({
     }
 
     setIsStatusSubmitting(true);
-    setStatusActionError(null);
-    setStatusActionSuccess(null);
 
     try {
       const updatedApplication = await updateApplicationStatus(
@@ -459,12 +442,10 @@ const ApplicationDetailPage = ({
       if (isDecisionStatus(updatedApplication.status)) {
         setSelectedDecisionStatus(updatedApplication.status);
       }
-      setStatusActionSuccess("Le statut a bien été mis à jour.");
+      showSuccess("Le statut a bien été mis à jour.");
     } catch (updateError) {
-      setStatusActionError(
-        updateError instanceof Error
-          ? updateError.message
-          : "Impossible de mettre à jour le statut."
+      showError(
+        getActionErrorMessage("Impossible de mettre à jour le statut.", updateError)
       );
     } finally {
       setIsStatusSubmitting(false);
@@ -479,8 +460,6 @@ const ApplicationDetailPage = ({
     const nextPriorityValue = !application.isPriority;
 
     setIsPrioritySubmitting(true);
-    setPriorityActionError(null);
-    setPriorityActionSuccess(null);
 
     try {
       const updatedApplication = await updateApplicationPriority(
@@ -498,16 +477,17 @@ const ApplicationDetailPage = ({
           isPriority: updatedApplication.isPriority
         };
       });
-      setPriorityActionSuccess(
+      showSuccess(
         nextPriorityValue
           ? "La demande est maintenant prioritaire."
           : "La priorité a été retirée."
       );
     } catch (updateError) {
-      setPriorityActionError(
-        updateError instanceof Error
-          ? updateError.message
-          : "Impossible de mettre à jour la priorité."
+      showError(
+        getActionErrorMessage(
+          "Impossible de mettre à jour la priorité.",
+          updateError
+        )
       );
     } finally {
       setIsPrioritySubmitting(false);
@@ -524,8 +504,6 @@ const ApplicationDetailPage = ({
     }
 
     setIsDecisionSubmitting(true);
-    setDecisionActionError(null);
-    setDecisionActionSuccess(null);
 
     const normalizedDecisionNote = decisionNote.trim();
 
@@ -549,12 +527,13 @@ const ApplicationDetailPage = ({
       });
       setSelectedDecisionStatus(updatedApplication.status);
       setDecisionNote(updatedApplication.decisionNote ?? "");
-      setDecisionActionSuccess("La décision finale a bien été enregistrée.");
+      showSuccess("La décision finale a bien été enregistrée.");
     } catch (updateError) {
-      setDecisionActionError(
-        updateError instanceof Error
-          ? updateError.message
-          : "Impossible d'enregistrer la décision finale."
+      showError(
+        getActionErrorMessage(
+          "Impossible d'enregistrer la décision finale.",
+          updateError
+        )
       );
     } finally {
       setIsDecisionSubmitting(false);
@@ -574,20 +553,16 @@ const ApplicationDetailPage = ({
     const normalizedBody = emailBody.trim();
 
     if (normalizedSubject.length === 0) {
-      setEmailActionSuccess(null);
-      setEmailActionError("Le sujet est obligatoire.");
+      showError("Le sujet est obligatoire.");
       return;
     }
 
     if (normalizedBody.length === 0) {
-      setEmailActionSuccess(null);
-      setEmailActionError("Le message est obligatoire.");
+      showError("Le message est obligatoire.");
       return;
     }
 
     setIsEmailSubmitting(true);
-    setEmailActionError(null);
-    setEmailActionSuccess(null);
 
     const payload: ApplicationEmailSendPayload = {
       emailType: selectedEmailType,
@@ -600,9 +575,9 @@ const ApplicationDetailPage = ({
 
       setEmailLogs((currentEmailLogs) => [createdEmailLog, ...currentEmailLogs]);
       resetEmailForm();
-      setEmailActionSuccess("L'email a été envoyé et enregistré dans l'historique.");
+      showSuccess("L'email a été envoyé et enregistré dans l'historique.");
     } catch (sendError) {
-      setEmailActionError(getEmailActionErrorMessage(sendError));
+      showError(getEmailActionErrorMessage(sendError));
     } finally {
       setIsEmailSubmitting(false);
     }
@@ -696,11 +671,9 @@ const ApplicationDetailPage = ({
                   <select
                     id="application-status"
                     value={selectedStatus}
-                    onChange={(event) => {
-                      setSelectedStatus(event.target.value as ApplicationStatus);
-                      setStatusActionError(null);
-                      setStatusActionSuccess(null);
-                    }}
+                    onChange={(event) =>
+                      setSelectedStatus(event.target.value as ApplicationStatus)
+                    }
                     disabled={isStatusSubmitting}
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
                   >
@@ -728,19 +701,6 @@ const ApplicationDetailPage = ({
                 >
                   {isStatusSubmitting ? "Mise à jour..." : "Mettre à jour le statut"}
                 </button>
-
-                <div className="space-y-2" aria-live="polite">
-                  {statusActionSuccess ? (
-                    <p className="rounded-2xl border border-success/20 bg-success/10 px-4 py-3 text-sm text-success">
-                      {statusActionSuccess}
-                    </p>
-                  ) : null}
-                  {statusActionError ? (
-                    <p className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger">
-                      {statusActionError}
-                    </p>
-                  ) : null}
-                </div>
               </form>
 
               <div className="mt-6 border-t border-slate-200 pt-6">
@@ -774,19 +734,6 @@ const ApplicationDetailPage = ({
                         ? "Désactiver la priorité"
                         : "Activer la priorité"}
                   </button>
-
-                  <div className="space-y-2" aria-live="polite">
-                    {priorityActionSuccess ? (
-                      <p className="rounded-2xl border border-success/20 bg-success/10 px-4 py-3 text-sm text-success">
-                        {priorityActionSuccess}
-                      </p>
-                    ) : null}
-                    {priorityActionError ? (
-                      <p className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger">
-                        {priorityActionError}
-                      </p>
-                    ) : null}
-                  </div>
                 </div>
               </div>
 
@@ -815,13 +762,11 @@ const ApplicationDetailPage = ({
                     <select
                       id="application-decision-status"
                       value={selectedDecisionStatus}
-                      onChange={(event) => {
+                      onChange={(event) =>
                         setSelectedDecisionStatus(
                           event.target.value as ApplicationDecisionStatus
-                        );
-                        setDecisionActionError(null);
-                        setDecisionActionSuccess(null);
-                      }}
+                        )
+                      }
                       disabled={isDecisionSubmitting}
                       className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
                     >
@@ -843,11 +788,7 @@ const ApplicationDetailPage = ({
                     <textarea
                       id="application-decision-note"
                       value={decisionNote}
-                      onChange={(event) => {
-                        setDecisionNote(event.target.value);
-                        setDecisionActionError(null);
-                        setDecisionActionSuccess(null);
-                      }}
+                      onChange={(event) => setDecisionNote(event.target.value)}
                       disabled={isDecisionSubmitting}
                       rows={4}
                       className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
@@ -879,19 +820,6 @@ const ApplicationDetailPage = ({
                       ? "Enregistrement..."
                       : "Enregistrer la décision finale"}
                   </button>
-
-                  <div className="space-y-2" aria-live="polite">
-                    {decisionActionSuccess ? (
-                      <p className="rounded-2xl border border-success/20 bg-success/10 px-4 py-3 text-sm text-success">
-                        {decisionActionSuccess}
-                      </p>
-                    ) : null}
-                    {decisionActionError ? (
-                      <p className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger">
-                        {decisionActionError}
-                      </p>
-                    ) : null}
-                  </div>
                 </form>
               </div>
 
@@ -947,8 +875,6 @@ const ApplicationDetailPage = ({
                       onChange={(event) => {
                         setEmailSubject(event.target.value);
                         setIsEmailSubjectDirty(true);
-                        setEmailActionError(null);
-                        setEmailActionSuccess(null);
                       }}
                       disabled={isEmailSubmitting}
                       className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
@@ -973,8 +899,6 @@ const ApplicationDetailPage = ({
                       onChange={(event) => {
                         setEmailBody(event.target.value);
                         setIsEmailBodyDirty(true);
-                        setEmailActionError(null);
-                        setEmailActionSuccess(null);
                       }}
                       disabled={isEmailSubmitting}
                       rows={5}
@@ -994,19 +918,6 @@ const ApplicationDetailPage = ({
                   >
                     {isEmailSubmitting ? "Envoi en cours..." : "Envoyer l'email"}
                   </button>
-
-                  <div className="space-y-2" aria-live="polite">
-                    {emailActionSuccess ? (
-                      <p className="rounded-2xl border border-success/20 bg-success/10 px-4 py-3 text-sm text-success">
-                        {emailActionSuccess}
-                      </p>
-                    ) : null}
-                    {emailActionError ? (
-                      <p className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger">
-                        {emailActionError}
-                      </p>
-                    ) : null}
-                  </div>
                 </form>
               </div>
             </SectionCard>
