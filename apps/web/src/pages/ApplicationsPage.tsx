@@ -15,8 +15,15 @@ type FilterState = {
   search: string;
 };
 
+type SortOption = "createdAtDesc" | "createdAtAsc" | "priorityDesc";
+
 type StatusOption = {
   value: "" | ApplicationStatus;
+  label: string;
+};
+
+type ApplicationsSortOption = {
+  value: SortOption;
   label: string;
 };
 
@@ -26,6 +33,12 @@ const statusOptions: StatusOption[] = [
   { value: "IN_REVIEW", label: "En revue" },
   { value: "ACCEPTED", label: "Acceptées" },
   { value: "REFUSED", label: "Refusées" }
+];
+
+const sortOptions: ApplicationsSortOption[] = [
+  { value: "createdAtDesc", label: "Plus récentes d'abord" },
+  { value: "createdAtAsc", label: "Plus anciennes d'abord" },
+  { value: "priorityDesc", label: "Prioritaires d'abord" }
 ];
 
 const statusLabels: Record<ApplicationStatus, string> = {
@@ -49,6 +62,43 @@ const createdAtFormatter = new Intl.DateTimeFormat("fr-FR", {
 
 const isAbortError = (error: unknown): boolean => {
   return error instanceof DOMException && error.name === "AbortError";
+};
+
+const compareApplicationsByCreatedAtDesc = (
+  leftApplication: ApplicationListItem,
+  rightApplication: ApplicationListItem
+): number => {
+  return (
+    new Date(rightApplication.createdAt).getTime() -
+    new Date(leftApplication.createdAt).getTime()
+  );
+};
+
+const sortApplications = (
+  applications: ApplicationListItem[],
+  sort: SortOption
+): ApplicationListItem[] => {
+  const sortedApplications = [...applications];
+
+  if (sort === "createdAtAsc") {
+    return sortedApplications.sort(
+      (leftApplication, rightApplication) =>
+        new Date(leftApplication.createdAt).getTime() -
+        new Date(rightApplication.createdAt).getTime()
+    );
+  }
+
+  if (sort === "priorityDesc") {
+    return sortedApplications.sort((leftApplication, rightApplication) => {
+      if (leftApplication.isPriority !== rightApplication.isPriority) {
+        return Number(rightApplication.isPriority) - Number(leftApplication.isPriority);
+      }
+
+      return compareApplicationsByCreatedAtDesc(leftApplication, rightApplication);
+    });
+  }
+
+  return sortedApplications.sort(compareApplicationsByCreatedAtDesc);
 };
 
 const getFamilyDisplayName = (application: ApplicationListItem): string => {
@@ -143,6 +193,7 @@ const ApplicationsPage = () => {
     isPriority: "",
     search: ""
   });
+  const [sort, setSort] = useState<SortOption>("createdAtDesc");
   const [applications, setApplications] = useState<ApplicationListItem[]>([]);
   const [schoolYears, setSchoolYears] = useState<SchoolYearSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -151,6 +202,7 @@ const ApplicationsPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSchoolYearsLoading, setIsSchoolYearsLoading] = useState(true);
   const deferredSearch = useDeferredValue(filters.search);
+  const displayedApplications = sortApplications(applications, sort);
 
   const hasActiveFilters =
     filters.status !== "" ||
@@ -294,19 +346,20 @@ const ApplicationsPage = () => {
               <div className="rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3 text-sm text-primaryDark">
                 {isLoading
                   ? "Actualisation en cours..."
-                  : `${applications.length} demande${applications.length > 1 ? "s" : ""}`}
+                  : `${displayedApplications.length} demande${displayedApplications.length > 1 ? "s" : ""}`}
               </div>
               <button
                 type="button"
-                onClick={() =>
+                onClick={() => {
                   setFilters({
                     status: "",
                     schoolYearId: "",
                     isPriority: "",
                     search: ""
-                  })
-                }
-                disabled={!hasActiveFilters}
+                  });
+                  setSort("createdAtDesc");
+                }}
+                disabled={!hasActiveFilters && sort === "createdAtDesc"}
                 className="inline-flex items-center rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Réinitialiser
@@ -314,7 +367,7 @@ const ApplicationsPage = () => {
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-[220px_260px_220px_minmax(0,1fr)]">
+          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-[220px_260px_220px_220px_minmax(0,1fr)]">
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Statut</span>
               <select
@@ -380,6 +433,21 @@ const ApplicationsPage = () => {
             </label>
 
             <label className="block">
+              <span className="text-sm font-medium text-slate-700">Tri</span>
+              <select
+                value={sort}
+                onChange={(event) => setSort(event.target.value as SortOption)}
+                className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+              >
+                {sortOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
               <span className="text-sm font-medium text-slate-700">Recherche</span>
               <input
                 type="search"
@@ -422,7 +490,7 @@ const ApplicationsPage = () => {
             <EmptyState hasActiveFilters={hasActiveFilters} />
           ) : null}
 
-          {applications.map((application) => (
+          {displayedApplications.map((application) => (
             <article
               key={application.id}
               className="rounded-3xl border border-white/80 bg-white/90 p-6 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.35)] backdrop-blur"
