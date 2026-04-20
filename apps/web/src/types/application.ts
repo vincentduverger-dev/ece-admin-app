@@ -80,6 +80,11 @@ export type ApplicationEmailLog = {
   createdAt: string;
 };
 
+export type ApplicationStatusUpdateResult = {
+  id: string;
+  status: ApplicationStatus;
+};
+
 export type ApplicationFilterParams = {
   status?: ApplicationStatus;
   schoolYearId?: string;

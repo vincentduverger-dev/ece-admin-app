@@ -3,6 +3,8 @@ import type {
   ApplicationFilterParams,
   ApplicationEmailLog,
   ApplicationListItem,
+  ApplicationStatus,
+  ApplicationStatusUpdateResult,
   SchoolYearSummary
 } from "../types/application";
 import type { DashboardStats } from "../types/dashboard";
@@ -99,6 +101,25 @@ export const getApplicationEmailLogs = async (
   return fetchJson<ApplicationEmailLog[]>(
     `/api/applications/${encodeURIComponent(applicationId)}/email-logs`,
     init
+  );
+};
+
+export const updateApplicationStatus = async (
+  applicationId: string,
+  status: ApplicationStatus,
+  init?: RequestInit
+): Promise<ApplicationStatusUpdateResult> => {
+  return fetchJson<ApplicationStatusUpdateResult>(
+    `/api/applications/${encodeURIComponent(applicationId)}/status`,
+    {
+      ...init,
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...init?.headers
+      },
+      body: JSON.stringify({ status })
+    }
   );
 };
 
