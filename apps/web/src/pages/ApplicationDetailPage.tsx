@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import {
   getApplicationById,
   getApplicationEmailLogs,
+  sendApplicationEmail,
   updateApplicationDecision,
   updateApplicationPriority,
   updateApplicationStatus
@@ -12,6 +13,7 @@ import type {
   ApplicationDetail,
   ApplicationEmailLog,
   ApplicationEmailSendStatus,
+  ApplicationEmailSendPayload,
   ApplicationEmailType,
   ApplicationGender,
   ApplicationStatus
@@ -86,6 +88,15 @@ const decisionOptions: Array<{
 }> = [
   { value: "ACCEPTED", label: "Acceptée" },
   { value: "REFUSED", label: "Refusée" }
+];
+
+const emailTypeOptions: Array<{
+  value: ApplicationEmailType;
+  label: string;
+}> = [
+  { value: "ACCEPTANCE", label: "Acceptation" },
+  { value: "REFUSAL", label: "Refus" },
+  { value: "CUSTOM", label: "Personnalisé" }
 ];
 
 const isAbortError = (error: unknown): boolean => {
@@ -296,6 +307,13 @@ const ApplicationDetailPage = ({
   const [decisionActionError, setDecisionActionError] = useState<string | null>(null);
   const [decisionActionSuccess, setDecisionActionSuccess] = useState<string | null>(null);
   const [isDecisionSubmitting, setIsDecisionSubmitting] = useState(false);
+  const [selectedEmailType, setSelectedEmailType] =
+    useState<ApplicationEmailType>("CUSTOM");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [emailActionError, setEmailActionError] = useState<string | null>(null);
+  const [emailActionSuccess, setEmailActionSuccess] = useState<string | null>(null);
+  const [isEmailSubmitting, setIsEmailSubmitting] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -320,6 +338,11 @@ const ApplicationDetailPage = ({
         setDecisionNote(applicationData.decisionNote ?? "");
         setDecisionActionError(null);
         setDecisionActionSuccess(null);
+        setSelectedEmailType("CUSTOM");
+        setEmailSubject("");
+        setEmailBody("");
+        setEmailActionError(null);
+        setEmailActionSuccess(null);
       } catch (loadError) {
         if (isAbortError(loadError) || controller.signal.aborted) {
           return;
@@ -486,6 +509,58 @@ const ApplicationDetailPage = ({
     }
   };
 
+  const handleEmailSubmit = async (
+    event: React.FormEvent<HTMLFormElement>
+  ): Promise<void> => {
+    event.preventDefault();
+
+    if (!application) {
+      return;
+    }
+
+    const normalizedSubject = emailSubject.trim();
+    const normalizedBody = emailBody.trim();
+
+    if (normalizedSubject.length === 0) {
+      setEmailActionSuccess(null);
+      setEmailActionError("Le sujet est obligatoire.");
+      return;
+    }
+
+    if (normalizedBody.length === 0) {
+      setEmailActionSuccess(null);
+      setEmailActionError("Le message est obligatoire.");
+      return;
+    }
+
+    setIsEmailSubmitting(true);
+    setEmailActionError(null);
+    setEmailActionSuccess(null);
+
+    const payload: ApplicationEmailSendPayload = {
+      emailType: selectedEmailType,
+      subject: normalizedSubject,
+      body: normalizedBody
+    };
+
+    try {
+      const createdEmailLog = await sendApplicationEmail(application.id, payload);
+
+      setEmailLogs((currentEmailLogs) => [createdEmailLog, ...currentEmailLogs]);
+      setEmailSubject("");
+      setEmailBody("");
+      setEmailActionSuccess("L'email a bien été enregistré dans l'historique.");
+    } catch (sendError) {
+      setEmailActionError(
+        sendError instanceof Error
+          ? sendError.message
+          : "Impossible d'envoyer l'email."
+      );
+    } finally {
+      setIsEmailSubmitting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <main className="min-h-screen bg-background px-4 py-10 text-slate-900 sm:px-6 lg:px-8">
@@ -546,7 +621,7 @@ const ApplicationDetailPage = ({
           <div className="space-y-6">
             <SectionCard
               title="Actions"
-              subtitle="Mettre à jour le statut administratif, la priorité et la décision finale sans recharger toute l'application."
+              subtitle="Mettre à jour le statut administratif, la priorité, la décision finale et les emails sans recharger toute l'application."
             >
               <form className="space-y-4" onSubmit={(event) => void handleStatusSubmit(event)}>
                 <div className="space-y-2">
@@ -752,6 +827,111 @@ const ApplicationDetailPage = ({
                     {decisionActionError ? (
                       <p className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger">
                         {decisionActionError}
+                      </p>
+                    ) : null}
+                  </div>
+                </form>
+              </div>
+
+              <div className="mt-6 border-t border-slate-200 pt-6">
+                <form className="space-y-4" onSubmit={(event) => void handleEmailSubmit(event)}>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">
+                      Envoyer un email
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Enregistrer un email envoyé et rafraîchir immédiatement
+                      l'historique visible.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="application-email-type"
+                      className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
+                    >
+                      Type d'email
+                    </label>
+                    <select
+                      id="application-email-type"
+                      value={selectedEmailType}
+                      onChange={(event) => {
+                        setSelectedEmailType(event.target.value as ApplicationEmailType);
+                        setEmailActionError(null);
+                        setEmailActionSuccess(null);
+                      }}
+                      disabled={isEmailSubmitting}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
+                    >
+                      {emailTypeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="application-email-subject"
+                      className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
+                    >
+                      Sujet
+                    </label>
+                    <input
+                      id="application-email-subject"
+                      type="text"
+                      value={emailSubject}
+                      onChange={(event) => {
+                        setEmailSubject(event.target.value);
+                        setEmailActionError(null);
+                        setEmailActionSuccess(null);
+                      }}
+                      disabled={isEmailSubmitting}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
+                      placeholder="ECE - décision d'admission"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="application-email-body"
+                      className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
+                    >
+                      Message
+                    </label>
+                    <textarea
+                      id="application-email-body"
+                      value={emailBody}
+                      onChange={(event) => {
+                        setEmailBody(event.target.value);
+                        setEmailActionError(null);
+                        setEmailActionSuccess(null);
+                      }}
+                      disabled={isEmailSubmitting}
+                      rows={5}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
+                      placeholder="Votre demande a été acceptée."
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isEmailSubmitting}
+                    className="inline-flex items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-not-allowed disabled:bg-slate-300"
+                  >
+                    {isEmailSubmitting ? "Envoi en cours..." : "Envoyer l'email"}
+                  </button>
+
+                  <div className="space-y-2" aria-live="polite">
+                    {emailActionSuccess ? (
+                      <p className="rounded-2xl border border-success/20 bg-success/10 px-4 py-3 text-sm text-success">
+                        {emailActionSuccess}
+                      </p>
+                    ) : null}
+                    {emailActionError ? (
+                      <p className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger">
+                        {emailActionError}
                       </p>
                     ) : null}
                   </div>

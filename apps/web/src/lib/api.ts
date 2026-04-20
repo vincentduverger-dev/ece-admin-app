@@ -2,6 +2,7 @@ import type {
   ApplicationDecisionUpdatePayload,
   ApplicationDecisionUpdateResult,
   ApplicationDetail,
+  ApplicationEmailSendPayload,
   ApplicationFilterParams,
   ApplicationEmailLog,
   ApplicationListItem,
@@ -104,6 +105,25 @@ export const getApplicationEmailLogs = async (
   return fetchJson<ApplicationEmailLog[]>(
     `/api/applications/${encodeURIComponent(applicationId)}/email-logs`,
     init
+  );
+};
+
+export const sendApplicationEmail = async (
+  applicationId: string,
+  payload: ApplicationEmailSendPayload,
+  init?: RequestInit
+): Promise<ApplicationEmailLog> => {
+  return fetchJson<ApplicationEmailLog>(
+    `/api/applications/${encodeURIComponent(applicationId)}/send-email`,
+    {
+      ...init,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...init?.headers
+      },
+      body: JSON.stringify(payload)
+    }
   );
 };
 
