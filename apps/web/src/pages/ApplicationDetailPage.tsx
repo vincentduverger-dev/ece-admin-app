@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 
 import ErrorState from "../components/ui/ErrorState";
 import LoadingState from "../components/ui/LoadingState";
+import PriorityBadge from "../components/ui/PriorityBadge";
+import StatusBadge from "../components/ui/StatusBadge";
 import { useToast } from "../context/ToastContext";
 import {
   getApplicationById,
@@ -21,20 +23,6 @@ import type {
   ApplicationGender,
   ApplicationStatus
 } from "../types/application";
-
-const statusLabels: Record<ApplicationStatus, string> = {
-  RECEIVED: "Reçue",
-  IN_REVIEW: "En revue",
-  ACCEPTED: "Acceptée",
-  REFUSED: "Refusée"
-};
-
-const statusStyles: Record<ApplicationStatus, string> = {
-  RECEIVED: "bg-slate-100 text-slate-700 ring-slate-200",
-  IN_REVIEW: "bg-info/15 text-info ring-info/20",
-  ACCEPTED: "bg-success/15 text-success ring-success/20",
-  REFUSED: "bg-danger/15 text-danger ring-danger/20"
-};
 
 const emailTypeLabels: Record<ApplicationEmailType, string> = {
   ACCEPTANCE: "Acceptation",
@@ -257,20 +245,6 @@ const DetailField = ({
       </p>
       <p className="mt-2 text-sm font-semibold text-slate-900">{value}</p>
     </div>
-  );
-};
-
-const StatusBadge = ({
-  status
-}: {
-  status: ApplicationStatus;
-}) => {
-  return (
-    <span
-      className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ring-1 ${statusStyles[status]}`}
-    >
-      {statusLabels[status]}
-    </span>
   );
 };
 
@@ -710,15 +684,10 @@ const ApplicationDetailPage = ({
                       Priorité actuelle
                     </p>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      {application.isPriority ? (
-                        <span className="rounded-full bg-secondary/20 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-secondaryDark">
-                          Prioritaire
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-700">
-                          Standard
-                        </span>
-                      )}
+                      <PriorityBadge isPriority={application.isPriority} />
+                      {!application.isPriority ? (
+                        <span className="text-sm text-slate-600">Aucune priorité</span>
+                      ) : null}
                     </div>
                   </div>
 
@@ -1135,16 +1104,8 @@ const ApplicationDetailShell = ({
           <div className="flex flex-wrap items-center gap-2">
             {application ? (
               <>
-                {application.isPriority ? (
-                  <span className="rounded-full bg-secondary/20 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-secondaryDark">
-                    Prioritaire
-                  </span>
-                ) : null}
-                <span
-                  className={`rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] ring-1 ${statusStyles[application.status]}`}
-                >
-                  {statusLabels[application.status]}
-                </span>
+                <PriorityBadge isPriority={application.isPriority} />
+                <StatusBadge status={application.status} />
               </>
             ) : (
               <span className="rounded-full border border-primary/10 bg-primary/5 px-4 py-2 text-sm text-primaryDark">

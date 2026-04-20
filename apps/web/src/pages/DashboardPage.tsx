@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import EmptyState from "../components/ui/EmptyState";
 import ErrorState from "../components/ui/ErrorState";
 import LoadingState from "../components/ui/LoadingState";
+import PriorityBadge from "../components/ui/PriorityBadge";
+import StatusBadge from "../components/ui/StatusBadge";
 import { fetchDashboardStats } from "../lib/api";
 import type {
   DashboardApplicationStatus,
@@ -43,20 +45,6 @@ const statusCards: StatusCardConfig[] = [
     valueClassName: "text-danger"
   }
 ];
-
-const priorityStatusStyles: Record<DashboardApplicationStatus, string> = {
-  RECEIVED: "bg-slate-100 text-slate-700 ring-slate-200",
-  IN_REVIEW: "bg-info/15 text-info ring-info/20",
-  ACCEPTED: "bg-success/15 text-success ring-success/20",
-  REFUSED: "bg-danger/15 text-danger ring-danger/20"
-};
-
-const priorityStatusLabels: Record<DashboardApplicationStatus, string> = {
-  RECEIVED: "Reçue",
-  IN_REVIEW: "En revue",
-  ACCEPTED: "Acceptée",
-  REFUSED: "Refusée"
-};
 
 const createdAtFormatter = new Intl.DateTimeFormat("fr-FR", {
   dateStyle: "medium",
@@ -315,20 +303,14 @@ const DashboardPage = () => {
                           <h3 className="text-lg font-semibold text-slate-900">
                             Famille {getFamilyDisplayName(application)}
                           </h3>
-                          <span className="rounded-full bg-secondary/20 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-secondaryDark">
-                            Prioritaire
-                          </span>
+                          <PriorityBadge isPriority={application.isPriority} />
                         </div>
                         <p className="mt-2 text-sm text-slate-500">
                           {application.schoolYear.label}
                           {application.schoolYear.isActive ? " · année active" : ""}
                         </p>
                       </div>
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ring-1 ${priorityStatusStyles[application.status]}`}
-                      >
-                        {priorityStatusLabels[application.status]}
-                      </span>
+                      <StatusBadge status={application.status} />
                     </div>
 
                     <p className="mt-4 text-sm leading-6 text-slate-600">

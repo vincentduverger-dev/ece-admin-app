@@ -3,6 +3,8 @@ import { useDeferredValue, useEffect, useState } from "react";
 import EmptyState from "../components/ui/EmptyState";
 import ErrorState from "../components/ui/ErrorState";
 import LoadingState from "../components/ui/LoadingState";
+import PriorityBadge from "../components/ui/PriorityBadge";
+import StatusBadge from "../components/ui/StatusBadge";
 import { getApplications, getSchoolYears } from "../lib/api";
 import type {
   ApplicationFilterParams,
@@ -43,20 +45,6 @@ const sortOptions: ApplicationsSortOption[] = [
   { value: "createdAtAsc", label: "Plus anciennes d'abord" },
   { value: "priorityDesc", label: "Prioritaires d'abord" }
 ];
-
-const statusLabels: Record<ApplicationStatus, string> = {
-  RECEIVED: "Reçue",
-  IN_REVIEW: "En revue",
-  ACCEPTED: "Acceptée",
-  REFUSED: "Refusée"
-};
-
-const statusStyles: Record<ApplicationStatus, string> = {
-  RECEIVED: "bg-slate-100 text-slate-700 ring-slate-200",
-  IN_REVIEW: "bg-info/15 text-info ring-info/20",
-  ACCEPTED: "bg-success/15 text-success ring-success/20",
-  REFUSED: "bg-danger/15 text-danger ring-danger/20"
-};
 
 const createdAtFormatter = new Intl.DateTimeFormat("fr-FR", {
   dateStyle: "medium",
@@ -459,16 +447,8 @@ const ApplicationsPage = () => {
                     <h2 className="text-2xl font-semibold text-slate-900">
                       Famille {getFamilyDisplayName(application)}
                     </h2>
-                    {application.isPriority ? (
-                      <span className="rounded-full bg-secondary/20 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-secondaryDark">
-                        Prioritaire
-                      </span>
-                    ) : null}
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ring-1 ${statusStyles[application.status]}`}
-                    >
-                      {statusLabels[application.status]}
-                    </span>
+                    <PriorityBadge isPriority={application.isPriority} />
+                    <StatusBadge status={application.status} />
                   </div>
 
                   <p className="mt-2 text-sm text-slate-500">
