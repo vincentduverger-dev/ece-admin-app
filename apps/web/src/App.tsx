@@ -1,3 +1,5 @@
+import ToastViewport from "./components/ui/ToastViewport";
+import { ToastProvider } from "./context/ToastContext";
 import ApplicationDetailPage from "./pages/ApplicationDetailPage";
 import ApplicationsPage from "./pages/ApplicationsPage";
 import DashboardPage from "./pages/DashboardPage";
@@ -59,7 +61,7 @@ const NotFoundPage = () => {
   );
 };
 
-function App() {
+const AppContent = () => {
   const pathname = normalizePathname(window.location.pathname);
   const applicationId = getApplicationDetailId(pathname);
 
@@ -76,6 +78,15 @@ function App() {
   }
 
   return <NotFoundPage />;
+};
+
+function App() {
+  return (
+    <ToastProvider>
+      <AppContent />
+      <ToastViewport />
+    </ToastProvider>
+  );
 }
 
 export default App;
