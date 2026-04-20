@@ -82,6 +82,12 @@ export type ApplicationEmailLog = {
   createdAt: string;
 };
 
+export type ApplicationEmailSendPayload = {
+  emailType: ApplicationEmailType;
+  subject: string;
+  body: string;
+};
+
 export type ApplicationStatusUpdateResult = {
   id: string;
   status: ApplicationStatus;
