@@ -73,6 +73,7 @@ export const getApplications = async (
   const queryString = buildQueryString({
     status: params.status,
     schoolYearId: params.schoolYearId,
+    isPriority: params.isPriority,
     search: params.search
   });
 
