@@ -4,6 +4,8 @@ export type ApplicationStatus =
   | "ACCEPTED"
   | "REFUSED";
 
+export type ApplicationDecisionStatus = "ACCEPTED" | "REFUSED";
+
 export type ApplicationLevel = {
   code: string;
   label: string;
@@ -88,6 +90,18 @@ export type ApplicationStatusUpdateResult = {
 export type ApplicationPriorityUpdateResult = {
   id: string;
   isPriority: boolean;
+};
+
+export type ApplicationDecisionUpdatePayload = {
+  status: ApplicationDecisionStatus;
+  decisionNote?: string | null;
+};
+
+export type ApplicationDecisionUpdateResult = {
+  id: string;
+  status: ApplicationDecisionStatus;
+  decisionAt: string | null;
+  decisionNote: string | null;
 };
 
 export type ApplicationFilterParams = {

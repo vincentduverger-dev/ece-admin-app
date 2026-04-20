@@ -1,4 +1,6 @@
 import type {
+  ApplicationDecisionUpdatePayload,
+  ApplicationDecisionUpdateResult,
   ApplicationDetail,
   ApplicationFilterParams,
   ApplicationEmailLog,
@@ -139,6 +141,25 @@ export const updateApplicationPriority = async (
         ...init?.headers
       },
       body: JSON.stringify({ isPriority })
+    }
+  );
+};
+
+export const updateApplicationDecision = async (
+  applicationId: string,
+  payload: ApplicationDecisionUpdatePayload,
+  init?: RequestInit
+): Promise<ApplicationDecisionUpdateResult> => {
+  return fetchJson<ApplicationDecisionUpdateResult>(
+    `/api/applications/${encodeURIComponent(applicationId)}/decision`,
+    {
+      ...init,
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...init?.headers
+      },
+      body: JSON.stringify(payload)
     }
   );
 };

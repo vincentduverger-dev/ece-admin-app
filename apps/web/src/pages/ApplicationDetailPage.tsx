@@ -3,10 +3,12 @@ import { useEffect, useState } from "react";
 import {
   getApplicationById,
   getApplicationEmailLogs,
+  updateApplicationDecision,
   updateApplicationPriority,
   updateApplicationStatus
 } from "../lib/api";
 import type {
+  ApplicationDecisionStatus,
   ApplicationDetail,
   ApplicationEmailLog,
   ApplicationEmailSendStatus,
@@ -78,8 +80,28 @@ const statusOptions: Array<{
   { value: "REFUSED", label: "Refusée" }
 ];
 
+const decisionOptions: Array<{
+  value: ApplicationDecisionStatus;
+  label: string;
+}> = [
+  { value: "ACCEPTED", label: "Acceptée" },
+  { value: "REFUSED", label: "Refusée" }
+];
+
 const isAbortError = (error: unknown): boolean => {
   return error instanceof DOMException && error.name === "AbortError";
+};
+
+const isDecisionStatus = (
+  status: ApplicationStatus
+): status is ApplicationDecisionStatus => {
+  return status === "ACCEPTED" || status === "REFUSED";
+};
+
+const getDecisionSelection = (
+  status: ApplicationStatus
+): ApplicationDecisionStatus => {
+  return isDecisionStatus(status) ? status : "ACCEPTED";
 };
 
 const formatOptionalText = (value: string | null | undefined): string => {
@@ -268,6 +290,12 @@ const ApplicationDetailPage = ({
   const [priorityActionError, setPriorityActionError] = useState<string | null>(null);
   const [priorityActionSuccess, setPriorityActionSuccess] = useState<string | null>(null);
   const [isPrioritySubmitting, setIsPrioritySubmitting] = useState(false);
+  const [selectedDecisionStatus, setSelectedDecisionStatus] =
+    useState<ApplicationDecisionStatus>("ACCEPTED");
+  const [decisionNote, setDecisionNote] = useState("");
+  const [decisionActionError, setDecisionActionError] = useState<string | null>(null);
+  const [decisionActionSuccess, setDecisionActionSuccess] = useState<string | null>(null);
+  const [isDecisionSubmitting, setIsDecisionSubmitting] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -288,6 +316,10 @@ const ApplicationDetailPage = ({
 
         setApplication(applicationData);
         setEmailLogs(emailLogsData);
+        setSelectedDecisionStatus(getDecisionSelection(applicationData.status));
+        setDecisionNote(applicationData.decisionNote ?? "");
+        setDecisionActionError(null);
+        setDecisionActionSuccess(null);
       } catch (loadError) {
         if (isAbortError(loadError) || controller.signal.aborted) {
           return;
@@ -349,6 +381,9 @@ const ApplicationDetailPage = ({
           status: updatedApplication.status
         };
       });
+      if (isDecisionStatus(updatedApplication.status)) {
+        setSelectedDecisionStatus(updatedApplication.status);
+      }
       setStatusActionSuccess("Le statut a bien été mis à jour.");
     } catch (updateError) {
       setStatusActionError(
@@ -401,6 +436,53 @@ const ApplicationDetailPage = ({
       );
     } finally {
       setIsPrioritySubmitting(false);
+    }
+  };
+
+  const handleDecisionSubmit = async (
+    event: React.FormEvent<HTMLFormElement>
+  ): Promise<void> => {
+    event.preventDefault();
+
+    if (!application) {
+      return;
+    }
+
+    setIsDecisionSubmitting(true);
+    setDecisionActionError(null);
+    setDecisionActionSuccess(null);
+
+    const normalizedDecisionNote = decisionNote.trim();
+
+    try {
+      const updatedApplication = await updateApplicationDecision(application.id, {
+        status: selectedDecisionStatus,
+        decisionNote: normalizedDecisionNote.length > 0 ? normalizedDecisionNote : null
+      });
+
+      setApplication((currentApplication) => {
+        if (!currentApplication || currentApplication.id !== updatedApplication.id) {
+          return currentApplication;
+        }
+
+        return {
+          ...currentApplication,
+          status: updatedApplication.status,
+          decisionAt: updatedApplication.decisionAt,
+          decisionNote: updatedApplication.decisionNote
+        };
+      });
+      setSelectedDecisionStatus(updatedApplication.status);
+      setDecisionNote(updatedApplication.decisionNote ?? "");
+      setDecisionActionSuccess("La décision finale a bien été enregistrée.");
+    } catch (updateError) {
+      setDecisionActionError(
+        updateError instanceof Error
+          ? updateError.message
+          : "Impossible d'enregistrer la décision finale."
+      );
+    } finally {
+      setIsDecisionSubmitting(false);
     }
   };
 
@@ -464,7 +546,7 @@ const ApplicationDetailPage = ({
           <div className="space-y-6">
             <SectionCard
               title="Actions"
-              subtitle="Mettre à jour le statut administratif sans recharger toute l'application."
+              subtitle="Mettre à jour le statut administratif, la priorité et la décision finale sans recharger toute l'application."
             >
               <form className="space-y-4" onSubmit={(event) => void handleStatusSubmit(event)}>
                 <div className="space-y-2">
@@ -569,6 +651,111 @@ const ApplicationDetailPage = ({
                     ) : null}
                   </div>
                 </div>
+              </div>
+
+              <div className="mt-6 border-t border-slate-200 pt-6">
+                <form
+                  className="space-y-4"
+                  onSubmit={(event) => void handleDecisionSubmit(event)}
+                >
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">
+                      Décision finale
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Enregistrer une acceptation ou un refus définitif avec une note
+                      optionnelle.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="application-decision-status"
+                      className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
+                    >
+                      Décision
+                    </label>
+                    <select
+                      id="application-decision-status"
+                      value={selectedDecisionStatus}
+                      onChange={(event) => {
+                        setSelectedDecisionStatus(
+                          event.target.value as ApplicationDecisionStatus
+                        );
+                        setDecisionActionError(null);
+                        setDecisionActionSuccess(null);
+                      }}
+                      disabled={isDecisionSubmitting}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
+                    >
+                      {decisionOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="application-decision-note"
+                      className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
+                    >
+                      Note de décision
+                    </label>
+                    <textarea
+                      id="application-decision-note"
+                      value={decisionNote}
+                      onChange={(event) => {
+                        setDecisionNote(event.target.value);
+                        setDecisionActionError(null);
+                        setDecisionActionSuccess(null);
+                      }}
+                      disabled={isDecisionSubmitting}
+                      rows={4}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
+                      placeholder="Ajouter une note visible dans le détail de la demande."
+                    />
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Décision actuellement visible
+                    </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-3">
+                      <StatusBadge status={application.status} />
+                      <span className="text-sm text-slate-600">
+                        {formatOptionalDateTime(application.decisionAt)}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-sm text-slate-600">
+                      {formatOptionalText(application.decisionNote)}
+                    </p>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isDecisionSubmitting}
+                    className="inline-flex items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-not-allowed disabled:bg-slate-300"
+                  >
+                    {isDecisionSubmitting
+                      ? "Enregistrement..."
+                      : "Enregistrer la décision finale"}
+                  </button>
+
+                  <div className="space-y-2" aria-live="polite">
+                    {decisionActionSuccess ? (
+                      <p className="rounded-2xl border border-success/20 bg-success/10 px-4 py-3 text-sm text-success">
+                        {decisionActionSuccess}
+                      </p>
+                    ) : null}
+                    {decisionActionError ? (
+                      <p className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger">
+                        {decisionActionError}
+                      </p>
+                    ) : null}
+                  </div>
+                </form>
               </div>
             </SectionCard>
 
