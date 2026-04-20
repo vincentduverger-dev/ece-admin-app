@@ -99,8 +99,38 @@ const emailTypeOptions: Array<{
   { value: "CUSTOM", label: "Personnalisé" }
 ];
 
+const emailTemplates: Record<
+  Exclude<ApplicationEmailType, "CUSTOM">,
+  {
+    subject: string;
+    body: string;
+  }
+> = {
+  ACCEPTANCE: {
+    subject: "ECE - décision d'admission",
+    body: "Votre demande d'inscription a été acceptée."
+  },
+  REFUSAL: {
+    subject: "ECE - décision d'inscription",
+    body: "Nous regrettons de vous informer que votre demande n'a pas été retenue."
+  }
+};
+
 const isAbortError = (error: unknown): boolean => {
   return error instanceof DOMException && error.name === "AbortError";
+};
+
+const getEmailTemplate = (
+  emailType: ApplicationEmailType
+): {
+  subject: string;
+  body: string;
+} | null => {
+  if (emailType === "CUSTOM") {
+    return null;
+  }
+
+  return emailTemplates[emailType];
 };
 
 const isDecisionStatus = (
@@ -148,6 +178,27 @@ const formatParentName = (
   );
 
   return parts.length > 0 ? parts.join(" ") : "Non renseigné";
+};
+
+const getEmailActionErrorMessage = (error: unknown): string => {
+  if (!(error instanceof Error)) {
+    return "Impossible d'envoyer l'email.";
+  }
+
+  switch (error.message) {
+    case "Invalid email type":
+      return "Le type d'email sélectionné est invalide.";
+    case "Invalid email payload":
+      return "Le sujet et le message sont obligatoires.";
+    case "Missing recipient email":
+      return "Aucune adresse email de contact n'est renseignée pour cette demande.";
+    case "Application not found":
+      return "Cette demande n'existe pas ou n'est plus accessible.";
+    case "Internal server error":
+      return "Une erreur serveur est survenue pendant l'envoi de l'email.";
+    default:
+      return error.message;
+  }
 };
 
 const getApplicationFamilyTitle = (
@@ -308,12 +359,35 @@ const ApplicationDetailPage = ({
   const [decisionActionSuccess, setDecisionActionSuccess] = useState<string | null>(null);
   const [isDecisionSubmitting, setIsDecisionSubmitting] = useState(false);
   const [selectedEmailType, setSelectedEmailType] =
-    useState<ApplicationEmailType>("CUSTOM");
-  const [emailSubject, setEmailSubject] = useState("");
-  const [emailBody, setEmailBody] = useState("");
+    useState<ApplicationEmailType>("ACCEPTANCE");
+  const [emailSubject, setEmailSubject] = useState(emailTemplates.ACCEPTANCE.subject);
+  const [emailBody, setEmailBody] = useState(emailTemplates.ACCEPTANCE.body);
+  const [isEmailSubjectDirty, setIsEmailSubjectDirty] = useState(false);
+  const [isEmailBodyDirty, setIsEmailBodyDirty] = useState(false);
   const [emailActionError, setEmailActionError] = useState<string | null>(null);
   const [emailActionSuccess, setEmailActionSuccess] = useState<string | null>(null);
   const [isEmailSubmitting, setIsEmailSubmitting] = useState(false);
+
+  const resetEmailForm = (): void => {
+    setSelectedEmailType("ACCEPTANCE");
+    setEmailSubject(emailTemplates.ACCEPTANCE.subject);
+    setEmailBody(emailTemplates.ACCEPTANCE.body);
+    setIsEmailSubjectDirty(false);
+    setIsEmailBodyDirty(false);
+  };
+
+  const handleEmailTypeChange = (emailType: ApplicationEmailType): void => {
+    setSelectedEmailType(emailType);
+    setEmailActionError(null);
+    setEmailActionSuccess(null);
+
+    if (emailType === "CUSTOM") {
+      setEmailSubject("");
+      setEmailBody("");
+      setIsEmailSubjectDirty(false);
+      setIsEmailBodyDirty(false);
+    }
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -338,9 +412,7 @@ const ApplicationDetailPage = ({
         setDecisionNote(applicationData.decisionNote ?? "");
         setDecisionActionError(null);
         setDecisionActionSuccess(null);
-        setSelectedEmailType("CUSTOM");
-        setEmailSubject("");
-        setEmailBody("");
+        resetEmailForm();
         setEmailActionError(null);
         setEmailActionSuccess(null);
       } catch (loadError) {
@@ -374,6 +446,37 @@ const ApplicationDetailPage = ({
       setSelectedStatus(application.status);
     }
   }, [application]);
+
+  useEffect(() => {
+    const template = getEmailTemplate(selectedEmailType);
+
+    if (!template) {
+      return;
+    }
+
+    if (!isEmailSubjectDirty) {
+      setEmailSubject(template.subject);
+    }
+
+    if (!isEmailBodyDirty) {
+      setEmailBody(template.body);
+    }
+  }, [selectedEmailType, isEmailSubjectDirty, isEmailBodyDirty]);
+
+  useEffect(() => {
+    if (!emailActionSuccess && !emailActionError) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setEmailActionSuccess(null);
+      setEmailActionError(null);
+    }, 3000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [emailActionSuccess, emailActionError]);
 
   const handleStatusSubmit = async (
     event: React.FormEvent<HTMLFormElement>
@@ -547,15 +650,10 @@ const ApplicationDetailPage = ({
       const createdEmailLog = await sendApplicationEmail(application.id, payload);
 
       setEmailLogs((currentEmailLogs) => [createdEmailLog, ...currentEmailLogs]);
-      setEmailSubject("");
-      setEmailBody("");
-      setEmailActionSuccess("L'email a bien été enregistré dans l'historique.");
+      resetEmailForm();
+      setEmailActionSuccess("L'email a été envoyé et enregistré dans l'historique.");
     } catch (sendError) {
-      setEmailActionError(
-        sendError instanceof Error
-          ? sendError.message
-          : "Impossible d'envoyer l'email."
-      );
+      setEmailActionError(getEmailActionErrorMessage(sendError));
     } finally {
       setIsEmailSubmitting(false);
     }
@@ -856,9 +954,9 @@ const ApplicationDetailPage = ({
                       id="application-email-type"
                       value={selectedEmailType}
                       onChange={(event) => {
-                        setSelectedEmailType(event.target.value as ApplicationEmailType);
-                        setEmailActionError(null);
-                        setEmailActionSuccess(null);
+                        handleEmailTypeChange(
+                          event.target.value as ApplicationEmailType
+                        );
                       }}
                       disabled={isEmailSubmitting}
                       className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
@@ -884,12 +982,17 @@ const ApplicationDetailPage = ({
                       value={emailSubject}
                       onChange={(event) => {
                         setEmailSubject(event.target.value);
+                        setIsEmailSubjectDirty(true);
                         setEmailActionError(null);
                         setEmailActionSuccess(null);
                       }}
                       disabled={isEmailSubmitting}
                       className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
-                      placeholder="ECE - décision d'admission"
+                      placeholder={
+                        selectedEmailType === "CUSTOM"
+                          ? "Saisir un sujet personnalisé"
+                          : "ECE - décision d'admission"
+                      }
                     />
                   </div>
 
@@ -905,13 +1008,18 @@ const ApplicationDetailPage = ({
                       value={emailBody}
                       onChange={(event) => {
                         setEmailBody(event.target.value);
+                        setIsEmailBodyDirty(true);
                         setEmailActionError(null);
                         setEmailActionSuccess(null);
                       }}
                       disabled={isEmailSubmitting}
                       rows={5}
                       className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
-                      placeholder="Votre demande a été acceptée."
+                      placeholder={
+                        selectedEmailType === "CUSTOM"
+                          ? "Saisir votre message personnalisé."
+                          : "Votre demande a été acceptée."
+                      }
                     />
                   </div>
 
