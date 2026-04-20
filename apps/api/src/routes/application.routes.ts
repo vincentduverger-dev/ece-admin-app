@@ -1,6 +1,7 @@
 import { Router } from "express";
 
 import {
+  getApplicationEmailLogs,
   updateApplicationDecision,
   getApplicationById,
   getApplications,
@@ -13,6 +14,7 @@ const router = Router();
 
 router.get("/applications", getApplications);
 router.get("/applications/:id", getApplicationById);
+router.get("/applications/:id/email-logs", getApplicationEmailLogs);
 router.patch("/applications/:id/status", updateApplicationStatus);
 router.patch("/applications/:id/priority", updateApplicationPriority);
 router.patch("/applications/:id/decision", updateApplicationDecision);

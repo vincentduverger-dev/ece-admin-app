@@ -179,6 +179,35 @@ export const getApplicationById = async (req: Request, res: Response): Promise<v
   }
 };
 
+export const getApplicationEmailLogs = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const applicationId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+    const existingApplication = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: { id: true }
+    });
+
+    if (!existingApplication) {
+      res.status(404).json({ message: "Application not found" });
+      return;
+    }
+
+    const emailLogs = await prisma.applicationEmailLog.findMany({
+      where: { applicationId },
+      orderBy: { createdAt: "desc" }
+    });
+
+    res.status(200).json(emailLogs);
+  } catch (error) {
+    console.error("Failed to fetch application email logs:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export const updateApplicationStatus = async (req: Request, res: Response): Promise<void> => {
   try {
     const applicationId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
