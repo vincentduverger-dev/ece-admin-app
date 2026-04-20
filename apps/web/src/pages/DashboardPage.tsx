@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import Breadcrumb from "../components/ui/Breadcrumb";
 import EmptyState from "../components/ui/EmptyState";
 import ErrorState from "../components/ui/ErrorState";
 import LoadingState from "../components/ui/LoadingState";
@@ -350,21 +351,16 @@ const DashboardShell = ({ children }: { children: React.ReactNode }) => {
     <div className="relative mx-auto max-w-7xl">
       <div className="absolute inset-x-0 top-0 -z-10 h-56 rounded-[2rem] bg-gradient-to-r from-secondary/15 via-white/30 to-primary/10 blur-3xl" />
       <header className="mb-8 rounded-[2rem] border border-white/80 bg-white/85 p-6 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.35)] backdrop-blur sm:p-8">
-        <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primaryLight">
+        <Breadcrumb
+          items={[
+            { label: "Accueil", href: "/" },
+            { label: "Dashboard" }
+          ]}
+        />
+        <p className="mt-4 text-sm font-semibold uppercase tracking-[0.24em] text-primaryLight">
           Dashboard Admin
         </p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <span className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white">
-            Dashboard
-          </span>
-          <a
-            href="/applications"
-            className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-primary/25 hover:text-primaryDark"
-          >
-            Demandes
-          </a>
-        </div>
-        <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
               Vue d&apos;ensemble des demandes d&apos;inscription
@@ -375,8 +371,18 @@ const DashboardShell = ({ children }: { children: React.ReactNode }) => {
               prioritaires.
             </p>
           </div>
-          <div className="rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3 text-sm text-primaryDark">
-            Source : <span className="font-semibold">GET /api/dashboard/stats</span>
+
+          <div className="flex flex-col items-start gap-3 lg:items-end">
+            <a
+              href="/applications"
+              className="inline-flex items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primaryDark"
+            >
+              Ouvrir les demandes
+            </a>
+
+            <div className="rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3 text-sm text-primaryDark">
+              Source : <span className="font-semibold">GET /api/dashboard/stats</span>
+            </div>
           </div>
         </div>
       </header>
