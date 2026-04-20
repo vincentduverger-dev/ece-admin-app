@@ -41,6 +41,7 @@ export type ApplicationListItem = {
 export type ApplicationFilterParams = {
   status?: ApplicationStatus;
   schoolYearId?: string;
+  isPriority?: "true" | "false";
   search?: string;
 };
 

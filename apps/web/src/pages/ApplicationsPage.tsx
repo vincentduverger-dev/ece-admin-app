@@ -11,6 +11,7 @@ import type {
 type FilterState = {
   status: "" | ApplicationStatus;
   schoolYearId: string;
+  isPriority: "" | "true";
   search: string;
 };
 
@@ -139,6 +140,7 @@ const ApplicationsPage = () => {
   const [filters, setFilters] = useState<FilterState>({
     status: "",
     schoolYearId: "",
+    isPriority: "",
     search: ""
   });
   const [applications, setApplications] = useState<ApplicationListItem[]>([]);
@@ -153,6 +155,7 @@ const ApplicationsPage = () => {
   const hasActiveFilters =
     filters.status !== "" ||
     filters.schoolYearId !== "" ||
+    filters.isPriority !== "" ||
     filters.search.trim().length > 0;
 
   const loadApplications = async (signal?: AbortSignal): Promise<void> => {
@@ -169,6 +172,10 @@ const ApplicationsPage = () => {
 
       if (filters.schoolYearId) {
         params.schoolYearId = filters.schoolYearId;
+      }
+
+      if (filters.isPriority) {
+        params.isPriority = filters.isPriority;
       }
 
       if (normalizedSearch) {
@@ -208,7 +215,7 @@ const ApplicationsPage = () => {
     return () => {
       controller.abort();
     };
-  }, [filters.status, filters.schoolYearId, deferredSearch]);
+  }, [filters.status, filters.schoolYearId, filters.isPriority, deferredSearch]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -295,6 +302,7 @@ const ApplicationsPage = () => {
                   setFilters({
                     status: "",
                     schoolYearId: "",
+                    isPriority: "",
                     search: ""
                   })
                 }
@@ -306,7 +314,7 @@ const ApplicationsPage = () => {
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-[220px_260px_minmax(0,1fr)]">
+          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-[220px_260px_220px_minmax(0,1fr)]">
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Statut</span>
               <select
@@ -351,6 +359,23 @@ const ApplicationsPage = () => {
                     {schoolYear.isActive ? " · active" : ""}
                   </option>
                 ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700">Priorité</span>
+              <select
+                value={filters.isPriority}
+                onChange={(event) =>
+                  setFilters((currentFilters) => ({
+                    ...currentFilters,
+                    isPriority: event.target.value as FilterState["isPriority"]
+                  }))
+                }
+                className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+              >
+                <option value="">Toutes les demandes</option>
+                <option value="true">Prioritaires uniquement</option>
               </select>
             </label>
 
