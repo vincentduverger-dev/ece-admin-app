@@ -3,13 +3,33 @@
 @tailwind utilities;
 
 :root {
-  font-family: Inter, system-ui, sans-serif;
+  font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+  color: #172033;
+  background:
+    radial-gradient(circle at top left, rgba(212, 162, 76, 0.12), transparent 28%),
+    radial-gradient(circle at top right, rgba(31, 77, 58, 0.12), transparent 32%),
+    #f8f6f2;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+#root {
+  min-height: 100vh;
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: #F8F6F2;
-  color: #1F2937;
+  background: inherit;
+  color: inherit;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
 }
