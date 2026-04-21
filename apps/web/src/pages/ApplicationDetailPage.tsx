@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
 
+import PageSectionHeader from "../components/layout/PageSectionHeader";
 import Breadcrumb from "../components/ui/Breadcrumb";
 import ErrorState from "../components/ui/ErrorState";
 import LoadingState from "../components/ui/LoadingState";
@@ -273,11 +275,8 @@ const SectionCard = ({
   );
 };
 
-const ApplicationDetailPage = ({
-  applicationId
-}: {
-  applicationId: string;
-}) => {
+const ApplicationDetailPage = () => {
+  const { id: applicationId } = useParams<{ id: string }>();
   const { showError, showSuccess } = useToast();
   const [application, setApplication] = useState<ApplicationDetail | null>(null);
   const [emailLogs, setEmailLogs] = useState<ApplicationEmailLog[]>([]);
@@ -321,6 +320,14 @@ const ApplicationDetailPage = ({
     const controller = new AbortController();
 
     const loadApplicationDetail = async (): Promise<void> => {
+      if (!applicationId) {
+        setApplication(null);
+        setEmailLogs([]);
+        setError("Application not found");
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       setError(null);
 
@@ -566,13 +573,47 @@ const ApplicationDetailPage = ({
     showSuccess
   ]);
 
+  const pageTopBar = (
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <Breadcrumb
+        items={[
+          { label: "Accueil", href: "/" },
+          { label: "Demandes", href: "/applications" },
+          { label: "Détail" }
+        ]}
+      />
+      <Link
+        to="/applications"
+        className="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+      >
+        Retour aux demandes
+      </Link>
+    </div>
+  );
+
+  const pageHeaderAside = application ? (
+    <div className="flex flex-wrap items-center gap-2">
+      <PriorityBadge isPriority={application.isPriority} />
+      <StatusBadge status={application.status} />
+    </div>
+  ) : isLoading ? (
+    <span className="rounded-full border border-primary/10 bg-primary/5 px-4 py-2 text-sm text-primaryDark">
+      Chargement...
+    </span>
+  ) : null;
+
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-background px-4 py-10 text-slate-900 sm:px-6 lg:px-8">
-        <ApplicationDetailShell application={null}>
-          <LoadingState />
-        </ApplicationDetailShell>
-      </main>
+      <>
+        <PageSectionHeader
+          topBar={pageTopBar}
+          eyebrow="Demande d'inscription"
+          title={getApplicationFamilyTitle(null)}
+          description="Consultation détaillée d'une demande, de sa composition familiale, des élèves rattachés et de l'historique email."
+          aside={pageHeaderAside}
+        />
+        <LoadingState />
+      </>
     );
   }
 
@@ -581,86 +622,182 @@ const ApplicationDetailPage = ({
     const isApplicationNotFound = errorMessage === "Application not found";
 
     return (
-      <main className="min-h-screen bg-background px-4 py-10 text-slate-900 sm:px-6 lg:px-8">
-        <ApplicationDetailShell application={null}>
-          <ErrorState
-            title={isApplicationNotFound ? "Demande introuvable" : undefined}
-            message={
-              isApplicationNotFound
-                ? "Revenez à la liste des demandes et vérifiez l'identifiant ciblé."
-                : errorMessage
-            }
-            actionLabel={isApplicationNotFound ? undefined : "Actualiser"}
-            onAction={
-              isApplicationNotFound ? undefined : () => window.location.reload()
-            }
-            backLink="/applications"
-          />
-        </ApplicationDetailShell>
-      </main>
+      <>
+        <PageSectionHeader
+          topBar={pageTopBar}
+          eyebrow="Demande d'inscription"
+          title={getApplicationFamilyTitle(null)}
+          description="Consultation détaillée d'une demande, de sa composition familiale, des élèves rattachés et de l'historique email."
+          aside={pageHeaderAside}
+        />
+        <ErrorState
+          title={isApplicationNotFound ? "Demande introuvable" : undefined}
+          message={
+            isApplicationNotFound
+              ? "Revenez à la liste des demandes et vérifiez l'identifiant ciblé."
+              : errorMessage
+          }
+          actionLabel={isApplicationNotFound ? undefined : "Actualiser"}
+          onAction={
+            isApplicationNotFound ? undefined : () => window.location.reload()
+          }
+          backLink="/applications"
+        />
+      </>
     );
   }
 
   return (
-    <main className="min-h-screen bg-background px-4 py-10 text-slate-900 sm:px-6 lg:px-8">
-      <ApplicationDetailShell application={application}>
-        <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+    <>
+      <PageSectionHeader
+        topBar={pageTopBar}
+        eyebrow="Demande d'inscription"
+        title={getApplicationFamilyTitle(application)}
+        description="Consultation détaillée d'une demande, de sa composition familiale, des élèves rattachés et de l'historique email."
+        aside={pageHeaderAside}
+      />
+      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <SectionCard
+          title="Demande"
+          subtitle="Informations générales du dossier et état actuel de la décision."
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            <DetailField label="Identifiant" value={application.id} />
+            <DetailField
+              label="Créée le"
+              value={formatOptionalDateTime(application.createdAt)}
+            />
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Statut
+              </p>
+              <div className="mt-2">
+                <StatusBadge status={application.status} />
+              </div>
+            </div>
+            <DetailField
+              label="Priorité"
+              value={application.isPriority ? "Oui" : "Non"}
+            />
+            <DetailField
+              label="Décision prise le"
+              value={formatOptionalDateTime(application.decisionAt)}
+            />
+            <DetailField
+              label="Note de décision"
+              value={formatOptionalText(application.decisionNote)}
+            />
+          </div>
+        </SectionCard>
+
+        <div className="space-y-6">
           <SectionCard
-            title="Demande"
-            subtitle="Informations générales du dossier et état actuel de la décision."
+            title="Actions"
+            subtitle="Mettre à jour le statut administratif, la priorité, la décision finale et les emails sans recharger toute l'application."
           >
-            <div className="grid gap-4 md:grid-cols-2">
-              <DetailField label="Identifiant" value={application.id} />
-              <DetailField
-                label="Créée le"
-                value={formatOptionalDateTime(application.createdAt)}
-              />
+            <form className="space-y-4" onSubmit={handleStatusSubmit}>
+              <div className="space-y-2">
+                <label
+                  htmlFor="application-status"
+                  className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
+                >
+                  Nouveau statut
+                </label>
+                <select
+                  id="application-status"
+                  value={selectedStatus}
+                  onChange={(event) =>
+                    setSelectedStatus(event.target.value as ApplicationStatus)
+                  }
+                  disabled={isStatusSubmitting}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
+                >
+                  {statusOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Statut
+                  Statut actuel
                 </p>
                 <div className="mt-2">
                   <StatusBadge status={application.status} />
                 </div>
               </div>
-              <DetailField
-                label="Priorité"
-                value={application.isPriority ? "Oui" : "Non"}
-              />
-              <DetailField
-                label="Décision prise le"
-                value={formatOptionalDateTime(application.decisionAt)}
-              />
-              <DetailField
-                label="Note de décision"
-                value={formatOptionalText(application.decisionNote)}
-              />
-            </div>
-          </SectionCard>
 
-          <div className="space-y-6">
-            <SectionCard
-              title="Actions"
-              subtitle="Mettre à jour le statut administratif, la priorité, la décision finale et les emails sans recharger toute l'application."
-            >
-              <form className="space-y-4" onSubmit={handleStatusSubmit}>
+              <button
+                type="submit"
+                disabled={isStatusSubmitting || selectedStatus === application.status}
+                className="inline-flex items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                {isStatusSubmitting ? "Mise à jour..." : "Mettre à jour le statut"}
+              </button>
+            </form>
+
+            <div className="mt-6 border-t border-slate-200 pt-6">
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Priorité actuelle
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <PriorityBadge isPriority={application.isPriority} />
+                    {!application.isPriority ? (
+                      <span className="text-sm text-slate-600">Aucune priorité</span>
+                    ) : null}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handlePriorityToggle}
+                  disabled={isPrioritySubmitting}
+                  className="inline-flex items-center rounded-full border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                >
+                  {isPrioritySubmitting
+                    ? "Mise à jour..."
+                    : application.isPriority
+                      ? "Désactiver la priorité"
+                      : "Activer la priorité"}
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-6 border-t border-slate-200 pt-6">
+              <form className="space-y-4" onSubmit={handleDecisionSubmit}>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    Décision finale
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Enregistrer une acceptation ou un refus définitif avec une note
+                    optionnelle.
+                  </p>
+                </div>
+
                 <div className="space-y-2">
                   <label
-                    htmlFor="application-status"
+                    htmlFor="application-decision-status"
                     className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
                   >
-                    Nouveau statut
+                    Décision
                   </label>
                   <select
-                    id="application-status"
-                    value={selectedStatus}
+                    id="application-decision-status"
+                    value={selectedDecisionStatus}
                     onChange={(event) =>
-                      setSelectedStatus(event.target.value as ApplicationStatus)
+                      setSelectedDecisionStatus(
+                        event.target.value as ApplicationDecisionStatus
+                      )
                     }
-                    disabled={isStatusSubmitting}
+                    disabled={isDecisionSubmitting}
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
                   >
-                    {statusOptions.map((option) => (
+                    {decisionOptions.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
@@ -668,196 +805,108 @@ const ApplicationDetailPage = ({
                   </select>
                 </div>
 
+                <div className="space-y-2">
+                  <label
+                    htmlFor="application-decision-note"
+                    className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
+                  >
+                    Note de décision
+                  </label>
+                  <textarea
+                    id="application-decision-note"
+                    value={decisionNote}
+                    onChange={(event) => setDecisionNote(event.target.value)}
+                    disabled={isDecisionSubmitting}
+                    rows={4}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
+                    placeholder="Ajouter une note visible dans le détail de la demande."
+                  />
+                </div>
+
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Statut actuel
+                    Décision actuellement visible
                   </p>
-                  <div className="mt-2">
+                  <div className="mt-2 flex flex-wrap items-center gap-3">
                     <StatusBadge status={application.status} />
+                    <span className="text-sm text-slate-600">
+                      {formatOptionalDateTime(application.decisionAt)}
+                    </span>
                   </div>
+                  <p className="mt-3 text-sm text-slate-600">
+                    {formatOptionalText(application.decisionNote)}
+                  </p>
                 </div>
 
                 <button
                   type="submit"
-                  disabled={isStatusSubmitting || selectedStatus === application.status}
+                  disabled={isDecisionSubmitting}
                   className="inline-flex items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
-                  {isStatusSubmitting ? "Mise à jour..." : "Mettre à jour le statut"}
+                  {isDecisionSubmitting
+                    ? "Enregistrement..."
+                    : "Enregistrer la décision finale"}
                 </button>
               </form>
+            </div>
 
-              <div className="mt-6 border-t border-slate-200 pt-6">
-                <div className="space-y-4">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Priorité actuelle
-                    </p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <PriorityBadge isPriority={application.isPriority} />
-                      {!application.isPriority ? (
-                        <span className="text-sm text-slate-600">Aucune priorité</span>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handlePriorityToggle}
-                    disabled={isPrioritySubmitting}
-                    className="inline-flex items-center rounded-full border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                  >
-                    {isPrioritySubmitting
-                      ? "Mise à jour..."
-                      : application.isPriority
-                        ? "Désactiver la priorité"
-                        : "Activer la priorité"}
-                  </button>
+            <div className="mt-6 border-t border-slate-200 pt-6">
+              <form className="space-y-4" onSubmit={handleEmailSubmit}>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    Envoyer un email
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Enregistrer un email envoyé et rafraîchir immédiatement
+                    l'historique visible.
+                  </p>
                 </div>
-              </div>
 
-              <div className="mt-6 border-t border-slate-200 pt-6">
-                <form
-                  className="space-y-4"
-                  onSubmit={handleDecisionSubmit}
-                >
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-900">
-                      Décision finale
-                    </h3>
-                    <p className="mt-1 text-sm text-slate-600">
-                      Enregistrer une acceptation ou un refus définitif avec une note
-                      optionnelle.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="application-decision-status"
-                      className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
-                    >
-                      Décision
-                    </label>
-                    <select
-                      id="application-decision-status"
-                      value={selectedDecisionStatus}
-                      onChange={(event) =>
-                        setSelectedDecisionStatus(
-                          event.target.value as ApplicationDecisionStatus
-                        )
-                      }
-                      disabled={isDecisionSubmitting}
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
-                    >
-                      {decisionOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="application-decision-note"
-                      className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
-                    >
-                      Note de décision
-                    </label>
-                    <textarea
-                      id="application-decision-note"
-                      value={decisionNote}
-                      onChange={(event) => setDecisionNote(event.target.value)}
-                      disabled={isDecisionSubmitting}
-                      rows={4}
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
-                      placeholder="Ajouter une note visible dans le détail de la demande."
-                    />
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Décision actuellement visible
-                    </p>
-                    <div className="mt-2 flex flex-wrap items-center gap-3">
-                      <StatusBadge status={application.status} />
-                      <span className="text-sm text-slate-600">
-                        {formatOptionalDateTime(application.decisionAt)}
-                      </span>
-                    </div>
-                    <p className="mt-3 text-sm text-slate-600">
-                      {formatOptionalText(application.decisionNote)}
-                    </p>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isDecisionSubmitting}
-                    className="inline-flex items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-not-allowed disabled:bg-slate-300"
+                <div className="space-y-2">
+                  <label
+                    htmlFor="application-email-type"
+                    className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
                   >
-                    {isDecisionSubmitting
-                      ? "Enregistrement..."
-                      : "Enregistrer la décision finale"}
-                  </button>
-                </form>
-              </div>
+                    Type d'email
+                  </label>
+                  <select
+                    id="application-email-type"
+                    value={selectedEmailType}
+                    onChange={(event) => {
+                      handleEmailTypeChange(
+                        event.target.value as ApplicationEmailType
+                      );
+                    }}
+                    disabled={isEmailSubmitting}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
+                  >
+                    {emailTypeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              <div className="mt-6 border-t border-slate-200 pt-6">
-                <form className="space-y-4" onSubmit={handleEmailSubmit}>
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-900">
-                      Envoyer un email
-                    </h3>
-                    <p className="mt-1 text-sm text-slate-600">
-                      Enregistrer un email envoyé et rafraîchir immédiatement
-                      l'historique visible.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="application-email-type"
-                      className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
-                    >
-                      Type d'email
-                    </label>
-                    <select
-                      id="application-email-type"
-                      value={selectedEmailType}
-                      onChange={(event) => {
-                        handleEmailTypeChange(
-                          event.target.value as ApplicationEmailType
-                        );
-                      }}
-                      disabled={isEmailSubmitting}
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
-                    >
-                      {emailTypeOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="application-email-subject"
-                      className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
-                    >
-                      Sujet
-                    </label>
-                    <input
-                      id="application-email-subject"
-                      type="text"
-                      value={emailSubject}
-                      onChange={(event) => {
-                        setEmailSubject(event.target.value);
-                        setIsEmailSubjectDirty(true);
-                      }}
-                      disabled={isEmailSubmitting}
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
-                      placeholder={
-                        selectedEmailType === "CUSTOM"
+                <div className="space-y-2">
+                  <label
+                    htmlFor="application-email-subject"
+                    className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
+                  >
+                    Sujet
+                  </label>
+                  <input
+                    id="application-email-subject"
+                    type="text"
+                    value={emailSubject}
+                    onChange={(event) => {
+                      setEmailSubject(event.target.value);
+                      setIsEmailSubjectDirty(true);
+                    }}
+                    disabled={isEmailSubmitting}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
+                    placeholder={
+                      selectedEmailType === "CUSTOM"
                           ? "Saisir un sujet personnalisé"
                           : "ECE - décision d'admission"
                       }
@@ -1062,68 +1111,7 @@ const ApplicationDetailPage = ({
             )}
           </SectionCard>
         </div>
-      </ApplicationDetailShell>
-    </main>
-  );
-};
-
-const ApplicationDetailShell = ({
-  application,
-  children
-}: {
-  application: ApplicationDetail | null;
-  children: React.ReactNode;
-}) => {
-  return (
-    <div className="relative mx-auto max-w-7xl">
-      <div className="absolute inset-x-0 top-0 -z-10 h-56 rounded-[2rem] bg-gradient-to-r from-secondary/15 via-white/30 to-primary/10 blur-3xl" />
-      <header className="mb-8 rounded-[2rem] border border-white/80 bg-white/85 p-6 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.35)] backdrop-blur sm:p-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <Breadcrumb
-            items={[
-              { label: "Accueil", href: "/" },
-              { label: "Demandes", href: "/applications" },
-              { label: "Détail" }
-            ]}
-          />
-          <a
-            href="/applications"
-            className="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-          >
-            Retour aux demandes
-          </a>
-        </div>
-
-        <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primaryLight">
-              Demande d'inscription
-            </p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-              {getApplicationFamilyTitle(application)}
-            </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
-              Consultation détaillée d'une demande, de sa composition familiale, des
-              élèves rattachés et de l'historique email.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {application ? (
-              <>
-                <PriorityBadge isPriority={application.isPriority} />
-                <StatusBadge status={application.status} />
-              </>
-            ) : (
-              <span className="rounded-full border border-primary/10 bg-primary/5 px-4 py-2 text-sm text-primaryDark">
-                Chargement...
-              </span>
-            )}
-          </div>
-        </div>
-      </header>
-      {children}
-    </div>
+    </>
   );
 };
 

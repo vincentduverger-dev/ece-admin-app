@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../hooks/useAuth";
@@ -308,6 +309,7 @@ const LoginCardState = ({ title, description }: LoginCardStateProps) => {
 const LoginPage = () => {
   const { isAuthenticated, isLoadingAuth, login } = useAuth();
   const { showError } = useToast();
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -316,9 +318,9 @@ const LoginPage = () => {
 
   useEffect(() => {
     if (!isLoadingAuth && isAuthenticated) {
-      window.location.replace("/");
+      navigate("/", { replace: true });
     }
-  }, [isAuthenticated, isLoadingAuth]);
+  }, [isAuthenticated, isLoadingAuth, navigate]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
@@ -332,7 +334,7 @@ const LoginPage = () => {
 
     try {
       await login(email.trim(), password);
-      window.location.replace("/");
+      navigate("/", { replace: true });
     } catch (loginError) {
       const nextErrorMessage =
         loginError instanceof Error

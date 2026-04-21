@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import type { ChangeEvent, CSSProperties, DragEvent, KeyboardEvent } from "react";
+import type { ChangeEvent, DragEvent, KeyboardEvent } from "react";
+import { Link } from "react-router-dom";
 
+import PageSectionHeader from "../components/layout/PageSectionHeader";
 import { useToast } from "../context/ToastContext";
-import { useAuth } from "../hooks/useAuth";
 import { getActiveSchoolYear, uploadCsvImport } from "../lib/api";
 import type { SchoolYearSummary } from "../types/application";
 import type { CsvImportSummary } from "../types/import";
@@ -18,33 +19,6 @@ type ImportHistoryItem = CsvImportSummary & {
 
 type IconProps = {
   className?: string;
-};
-
-type NavigationItem = {
-  label: string;
-  href?: string;
-  icon: (props: IconProps) => React.JSX.Element;
-  isActive?: boolean;
-};
-
-const brandTextureStyle: CSSProperties = {
-  backgroundColor: "#1F4D3A",
-  backgroundImage: [
-    "linear-gradient(180deg, rgba(22,56,42,0.96), rgba(31,77,58,0.98))",
-    "radial-gradient(circle at 18% 18%, rgba(255,255,255,0.08), transparent 24%)",
-    "radial-gradient(circle at 82% 4%, rgba(255,255,255,0.06), transparent 28%)",
-    "repeating-linear-gradient(135deg, rgba(255,255,255,0.025) 0, rgba(255,255,255,0.025) 2px, transparent 2px, transparent 8px)"
-  ].join(", ")
-};
-
-const paperTextureStyle: CSSProperties = {
-  backgroundColor: "#F8F6F2",
-  backgroundImage: [
-    "linear-gradient(180deg, rgba(255,255,255,0.97), rgba(248,243,236,0.96))",
-    "radial-gradient(circle at top right, rgba(212,162,76,0.10), transparent 28%)",
-    "radial-gradient(circle at bottom left, rgba(31,77,58,0.05), transparent 24%)",
-    "repeating-linear-gradient(0deg, rgba(31,77,58,0.018) 0, rgba(31,77,58,0.018) 1px, transparent 1px, transparent 14px)"
-  ].join(", ")
 };
 
 const contentCardClassName =
@@ -188,55 +162,6 @@ const persistImportHistory = (items: ImportHistoryItem[]): void => {
   }
 };
 
-const DashboardIcon = ({ className = "h-5 w-5" }: IconProps) => {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
-      <rect x="3.5" y="4.5" width="17" height="15" rx="3" />
-      <path d="M8 12h8M12 8v8" strokeLinecap="round" />
-    </svg>
-  );
-};
-
-const FolderIcon = ({ className = "h-5 w-5" }: IconProps) => {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
-      <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h3l1.6 1.8h6.4A2.5 2.5 0 0 1 20 9.3v7.2A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-9Z" />
-      <path d="M7.5 12h9" strokeLinecap="round" />
-    </svg>
-  );
-};
-
-const ShieldIcon = ({ className = "h-5 w-5" }: IconProps) => {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
-      <path d="M12 3.5 5.5 6v5.5c0 4.2 2.5 7.9 6.5 9 4-1.1 6.5-4.8 6.5-9V6L12 3.5Z" />
-      <path d="m8.5 12 2.1 2.1L15.5 9" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-};
-
-const CogIcon = ({ className = "h-5 w-5" }: IconProps) => {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
-      <path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z" />
-      <path
-        d="M19.4 13.1a7.9 7.9 0 0 0 0-2.2l1.6-1.2-1.7-3-1.9.6a7.5 7.5 0 0 0-1.9-1.1l-.3-2.1h-3.4l-.3 2.1a7.5 7.5 0 0 0-1.9 1.1l-1.9-.6-1.7 3 1.6 1.2a7.9 7.9 0 0 0 0 2.2l-1.6 1.2 1.7 3 1.9-.6c.6.5 1.2.9 1.9 1.1l.3 2.1h3.4l.3-2.1c.7-.2 1.3-.6 1.9-1.1l1.9.6 1.7-3-1.6-1.2Z"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-};
-
-const LogoutIcon = ({ className = "h-5 w-5" }: IconProps) => {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
-      <path d="M10 6V4.8A1.8 1.8 0 0 1 11.8 3h5.4A1.8 1.8 0 0 1 19 4.8v14.4a1.8 1.8 0 0 1-1.8 1.8h-5.4A1.8 1.8 0 0 1 10 19.2V18" />
-      <path d="M14.5 12H5.5m0 0 2.7-2.8M5.5 12l2.7 2.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-};
-
 const ChevronDownIcon = ({ className = "h-4 w-4" }: IconProps) => {
   return (
     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
@@ -312,61 +237,6 @@ const UploadIllustration = () => {
   );
 };
 
-const navigationItems: NavigationItem[] = [
-  {
-    label: "Tableau de bord",
-    href: "/",
-    icon: DashboardIcon
-  },
-  {
-    label: "Demandes",
-    href: "/imports/new",
-    icon: FolderIcon,
-    isActive: true
-  },
-  {
-    label: "Validation",
-    icon: ShieldIcon
-  },
-  {
-    label: "Administration",
-    icon: CogIcon
-  }
-];
-
-const SidebarLink = ({ item }: { item: NavigationItem }) => {
-  const content = (
-    <>
-      <item.icon className="h-5 w-5 shrink-0" />
-      <span>{item.label}</span>
-    </>
-  );
-
-  if (!item.href) {
-    return (
-      <span
-        aria-disabled="true"
-        className="flex items-center gap-3 rounded-2xl border border-white/10 px-4 py-3 text-base font-medium text-white/75"
-      >
-        {content}
-      </span>
-    );
-  }
-
-  return (
-    <a
-      href={item.href}
-      className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-base font-medium transition ${
-        item.isActive
-          ? "bg-secondary text-white shadow-[0_14px_28px_-18px_rgba(212,162,76,0.95)]"
-          : "border border-white/10 bg-white/5 text-white/90 hover:bg-white/10"
-      }`}
-    >
-      {content}
-    </a>
-  );
-};
-
 const SummaryMetric = ({
   label,
   value
@@ -387,7 +257,6 @@ const SummaryMetric = ({
 };
 
 const ImportCsvPage = () => {
-  const { logout, user } = useAuth();
   const { showError, showSuccess } = useToast();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [activeSchoolYear, setActiveSchoolYear] = useState<SchoolYearSummary | null>(null);
@@ -522,11 +391,6 @@ const ImportCsvPage = () => {
     handleSelectedFile(droppedFile);
   };
 
-  const handleLogout = (): void => {
-    logout();
-    window.location.replace("/login");
-  };
-
   const handleImportSubmit = async (
     event: React.FormEvent<HTMLFormElement>
   ): Promise<void> => {
@@ -577,321 +441,245 @@ const ImportCsvPage = () => {
     }
   };
 
-  return (
-    <main className="min-h-screen bg-background text-slate-900">
-      <header
-        className="border-b-4 border-secondary shadow-[0_20px_55px_-35px_rgba(15,23,42,0.65)]"
-        style={brandTextureStyle}
+  const pageTopBar = (
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <Link
+        to="/applications"
+        className="inline-flex items-center gap-2 text-base font-medium text-slate-700 transition hover:text-primaryDark"
       >
-        <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
-          <div className="flex min-w-0 items-center gap-4">
-            <img
-              src="/logo_ece.png"
-              alt="Logo ECE"
-              className="h-16 w-16 rounded-full border border-white/80 bg-white/95 p-1 shadow-[0_10px_30px_-18px_rgba(15,23,42,0.75)] sm:h-20 sm:w-20"
-            />
-            <div className="min-w-0 text-white">
-              <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
-                <p className="text-3xl font-semibold tracking-tight sm:text-[2.8rem]">
-                  ECE
-                </p>
-                <p className="text-xl font-medium text-white/90 sm:text-2xl">
-                  École de la Culture et de l&apos;Éducation
-                </p>
-              </div>
-              <p className="mt-1 text-sm text-white/75">
-                Interface d&apos;administration des demandes d&apos;inscription
-              </p>
-            </div>
-          </div>
+        <ArrowLeftIcon className="h-5 w-5" />
+        Retour à l&apos;administration
+      </Link>
 
-          <div className="hidden items-center gap-3 rounded-full border border-white/15 bg-white/8 px-4 py-2 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] sm:flex">
-            <span className="flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-white/15 text-lg font-semibold">
-              {user?.role === "admin" ? "A" : "?"}
-            </span>
-            <span className="text-lg font-medium">Admin</span>
-            <ChevronDownIcon className="h-4 w-4 text-white/80" />
-          </div>
-        </div>
-      </header>
-
-      <div className="mx-auto max-w-[1600px] px-4 py-4 sm:px-6 lg:px-8">
-        <div className="grid gap-4 lg:grid-cols-[248px_minmax(0,1fr)] lg:items-start">
-          <aside
-            className="overflow-hidden rounded-[30px] border border-primaryDark/10 text-white shadow-[0_24px_58px_-38px_rgba(15,23,42,0.78)]"
-            style={brandTextureStyle}
-          >
-            <div className="p-4">
-              <nav className="space-y-3" aria-label="Navigation principale">
-                {navigationItems.map((item) => (
-                  <SidebarLink key={item.label} item={item} />
-                ))}
-              </nav>
-
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="mt-8 flex w-full items-center justify-center gap-3 rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-base font-medium text-white/95 transition hover:bg-white/10"
-              >
-                <LogoutIcon className="h-5 w-5" />
-                Déconnexion
-              </button>
-            </div>
-          </aside>
-
-          <div>
-            <section
-              className="overflow-hidden rounded-[34px] border border-[#e8ddd1] px-5 py-5 shadow-[0_26px_58px_-42px_rgba(15,23,42,0.28)] sm:px-6 lg:px-10 lg:py-8"
-              style={paperTextureStyle}
-            >
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <a
-                  href="/applications"
-                  className="inline-flex items-center gap-2 text-base font-medium text-slate-700 transition hover:text-primaryDark"
-                >
-                  <ArrowLeftIcon className="h-5 w-5" />
-                  Retour à l&apos;administration
-                </a>
-
-                <div className="inline-flex max-w-full items-center gap-3 rounded-2xl border border-[#e4d7c8] bg-white/80 px-4 py-3 text-sm text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
-                  <span className="truncate font-medium">{activeSchoolYearLabel}</span>
-                  <ChevronDownIcon className="h-4 w-4 shrink-0 text-slate-500" />
-                </div>
-              </div>
-
-              <h1 className="mt-6 font-serif text-4xl text-slate-900 sm:text-[3rem]">
-                Import CSV
-              </h1>
-
-              <section className={`${contentCardClassName} mt-6 p-5 sm:p-6`}>
-                <p className="max-w-5xl text-[1.05rem] leading-8 text-slate-700">
-                  Téléversez un fichier CSV pour importer des demandes d&apos;inscription
-                  collectées via un formulaire Google et les centraliser pour
-                  l&apos;année scolaire active.
-                </p>
-
-                <ul className="mt-5 space-y-3 pl-5 text-[1.02rem] leading-7 text-slate-700 marker:text-primary">
-                  <li>Les doublons sont détectés automatiquement.</li>
-                  <li>
-                    Le fichier importé sera rattaché à l&apos;année scolaire{" "}
-                    {activeSchoolYear ? activeSchoolYearLabel : "active configurée"}.
-                  </li>
-                  <li>Seuls les fichiers au format CSV (.csv) sont acceptés.</li>
-                  <li>Chaque import génère un résumé des demandes importées.</li>
-                </ul>
-
-                {activeSchoolYearError ? (
-                  <p className="mt-5 rounded-[22px] border border-danger/15 bg-danger/5 px-4 py-3 text-sm text-danger">
-                    {activeSchoolYearError}
-                  </p>
-                ) : null}
-
-                <form className="mt-6" onSubmit={(event) => void handleImportSubmit(event)}>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".csv,text/csv"
-                    className="hidden"
-                    onChange={handleFileInputChange}
-                  />
-
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={openFilePicker}
-                    onKeyDown={handleUploadZoneKeyDown}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                    className={`rounded-[28px] border border-dashed px-5 py-8 transition sm:px-8 ${
-                      isDragging
-                        ? "border-secondary bg-secondary/8 shadow-[inset_0_0_0_1px_rgba(212,162,76,0.18)]"
-                        : "border-[#eadfcf] bg-white/45"
-                    }`}
-                  >
-                    <div className="flex flex-col items-center justify-center gap-6 lg:flex-row lg:gap-10">
-                      <UploadIllustration />
-
-                      <div className="text-center lg:text-left">
-                        <p className="text-[1.9rem] leading-tight text-slate-800 sm:text-[2.1rem]">
-                          Glissez-déposez votre fichier CSV ici ou
-                        </p>
-
-                        <div className="mt-5 flex flex-col items-center gap-3 lg:items-start">
-                          <button
-                            type="button"
-                            onClick={openFilePicker}
-                            disabled={isSubmitting}
-                            className="inline-flex items-center gap-3 rounded-2xl bg-secondary px-6 py-3 text-lg font-semibold text-white shadow-[0_18px_28px_-18px_rgba(212,162,76,0.98)] transition hover:bg-secondaryDark disabled:cursor-not-allowed disabled:bg-slate-300"
-                          >
-                            <UploadIcon className="h-5 w-5" />
-                            Choisir un fichier
-                          </button>
-                          <p className="text-base text-slate-500">Format accepté : .csv</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 rounded-[24px] border border-[#ebdfd2] bg-white/82 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.92)] sm:px-5">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                          Fichier sélectionné
-                        </p>
-                        <p className="mt-2 truncate text-base font-medium text-slate-800">
-                          {selectedFile ? selectedFile.name : "Aucun fichier sélectionné."}
-                        </p>
-                        <p className="mt-1 text-sm text-slate-500">
-                          {selectedFile
-                            ? `${formatFileSize(selectedFile.size)} · prêt pour l'import`
-                            : "Ajoutez un CSV exporté depuis le formulaire pour démarrer."}
-                        </p>
-                      </div>
-
-                      <div className="flex flex-col gap-3 sm:flex-row">
-                        <button
-                          type="button"
-                          onClick={selectedFile ? clearSelectedFile : openFilePicker}
-                          disabled={isSubmitting}
-                          className="inline-flex items-center justify-center rounded-2xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {selectedFile ? "Retirer le fichier" : "Choisir un fichier"}
-                        </button>
-                        <button
-                          type="submit"
-                          disabled={isSubmitting || isLoadingActiveSchoolYear}
-                          className="inline-flex items-center justify-center rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-wait disabled:bg-slate-300"
-                        >
-                          {isSubmitting
-                            ? "Import en cours..."
-                            : "Lancer l'import"}
-                        </button>
-                      </div>
-                    </div>
-
-                    {inlineMessage ? (
-                      <p className="mt-4 rounded-2xl border border-danger/15 bg-danger/5 px-4 py-3 text-sm text-danger">
-                        {inlineMessage}
-                      </p>
-                    ) : null}
-                  </div>
-                </form>
-
-                {latestImport ? (
-                  <section className="mt-6 rounded-[26px] border border-[#ebdfd3] bg-white/78 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] sm:p-5">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primaryLight">
-                          Dernier résultat
-                        </p>
-                        <h2 className="mt-2 font-serif text-[2rem] text-slate-900">
-                          Résumé du dernier import
-                        </h2>
-                        <p className="mt-2 text-sm leading-6 text-slate-600">
-                          {latestImport.fileName} ·{" "}
-                          {dateTimeFormatter.format(new Date(latestImport.importedAt))}
-                        </p>
-                      </div>
-                      <div className="rounded-full border border-secondary/20 bg-secondary/10 px-4 py-2 text-sm font-medium text-secondaryDark">
-                        {latestImport.activeSchoolYear
-                          ? formatSchoolYearLabel(latestImport.activeSchoolYear)
-                          : activeSchoolYearLabel}
-                      </div>
-                    </div>
-
-                    <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                      <SummaryMetric label="Familles" value={latestImport.importedFamilies} />
-                      <SummaryMetric
-                        label="Demandes"
-                        value={latestImport.importedApplications}
-                      />
-                      <SummaryMetric label="Élèves" value={latestImport.importedStudents} />
-                      <SummaryMetric label="Ignorées" value={latestImport.skippedRows} />
-                      <SummaryMetric
-                        label="Doublons"
-                        value={latestImport.duplicateRows ?? 0}
-                      />
-                    </div>
-
-                    {typeof latestImport.invalidRows === "number" ? (
-                      <p className="mt-4 text-sm text-slate-600">
-                        L&apos;import comporte{" "}
-                        {pluralize(latestImport.invalidRows, "ligne invalide", "lignes invalides")}
-                        .
-                      </p>
-                    ) : null}
-                  </section>
-                ) : null}
-              </section>
-
-              <section className={`${contentCardClassName} mt-6 overflow-hidden`}>
-                <div className="border-b border-[#eadfd2] px-5 py-4 sm:px-6">
-                  <h2 className="font-serif text-[2rem] text-slate-900">
-                    Historique des imports
-                  </h2>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="min-w-full border-collapse text-left">
-                    <thead className="bg-white/45">
-                      <tr className="text-base text-slate-700">
-                        <th className="border-b border-[#efe4d8] px-5 py-4 font-medium sm:px-6">
-                          Date
-                        </th>
-                        <th className="border-b border-[#efe4d8] px-5 py-4 font-medium sm:px-6">
-                          Résultat
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {history.length === 0 ? (
-                        <tr>
-                          <td
-                            colSpan={2}
-                            className="px-5 py-6 text-center text-base text-slate-500 sm:px-6"
-                          >
-                            Aucun import enregistré pour le moment.
-                          </td>
-                        </tr>
-                      ) : (
-                        history.map((item) => (
-                          <tr key={item.id} className="align-top">
-                            <td className="border-b border-[#f2e9de] px-5 py-4 text-sm text-slate-700 sm:px-6">
-                              <div className="font-medium text-slate-900">
-                                {dateTimeFormatter.format(new Date(item.importedAt))}
-                              </div>
-                              <div className="mt-1 text-slate-500">{item.fileName}</div>
-                            </td>
-                            <td className="border-b border-[#f2e9de] px-5 py-4 text-sm text-slate-700 sm:px-6">
-                              <div className="font-medium text-slate-900">
-                                {getImportHistoryResult(item)}
-                              </div>
-                              <div className="mt-1 text-slate-500">
-                                {typeof item.duplicateRows === "number"
-                                  ? `${pluralize(item.duplicateRows, "doublon", "doublons")} détecté${item.duplicateRows > 1 ? "s" : ""}`
-                                  : "Aucun doublon signalé"}
-                                {typeof item.invalidRows === "number"
-                                  ? ` · ${pluralize(item.invalidRows, "ligne invalide", "lignes invalides")}`
-                                  : ""}
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            </section>
-
-            <footer className="py-8 text-center text-sm text-slate-500">
-              © ECE – École de la Culture et de l&apos;Éducation
-            </footer>
-          </div>
-        </div>
+      <div className="inline-flex max-w-full items-center gap-3 rounded-2xl border border-[#e4d7c8] bg-white/80 px-4 py-3 text-sm text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+        <span className="truncate font-medium">{activeSchoolYearLabel}</span>
+        <ChevronDownIcon className="h-4 w-4 shrink-0 text-slate-500" />
       </div>
-    </main>
+    </div>
+  );
+
+  return (
+    <>
+      <PageSectionHeader topBar={pageTopBar} title="Import CSV" />
+      <section className={`${contentCardClassName} p-5 sm:p-6`}>
+        <p className="max-w-5xl text-[1.05rem] leading-8 text-slate-700">
+          Téléversez un fichier CSV pour importer des demandes d&apos;inscription
+          collectées via un formulaire Google et les centraliser pour
+          l&apos;année scolaire active.
+        </p>
+
+        <ul className="mt-5 space-y-3 pl-5 text-[1.02rem] leading-7 text-slate-700 marker:text-primary">
+          <li>Les doublons sont détectés automatiquement.</li>
+          <li>
+            Le fichier importé sera rattaché à l&apos;année scolaire{" "}
+            {activeSchoolYear ? activeSchoolYearLabel : "active configurée"}.
+          </li>
+          <li>Seuls les fichiers au format CSV (.csv) sont acceptés.</li>
+          <li>Chaque import génère un résumé des demandes importées.</li>
+        </ul>
+
+        {activeSchoolYearError ? (
+          <p className="mt-5 rounded-[22px] border border-danger/15 bg-danger/5 px-4 py-3 text-sm text-danger">
+            {activeSchoolYearError}
+          </p>
+        ) : null}
+
+        <form className="mt-6" onSubmit={(event) => void handleImportSubmit(event)}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={handleFileInputChange}
+          />
+
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={openFilePicker}
+            onKeyDown={handleUploadZoneKeyDown}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`rounded-[28px] border border-dashed px-5 py-8 transition sm:px-8 ${
+              isDragging
+                ? "border-secondary bg-secondary/8 shadow-[inset_0_0_0_1px_rgba(212,162,76,0.18)]"
+                : "border-[#eadfcf] bg-white/45"
+            }`}
+          >
+            <div className="flex flex-col items-center justify-center gap-6 lg:flex-row lg:gap-10">
+              <UploadIllustration />
+
+              <div className="text-center lg:text-left">
+                <p className="text-[1.9rem] leading-tight text-slate-800 sm:text-[2.1rem]">
+                  Glissez-déposez votre fichier CSV ici ou
+                </p>
+
+                <div className="mt-5 flex flex-col items-center gap-3 lg:items-start">
+                  <button
+                    type="button"
+                    onClick={openFilePicker}
+                    disabled={isSubmitting}
+                    className="inline-flex items-center gap-3 rounded-2xl bg-secondary px-6 py-3 text-lg font-semibold text-white shadow-[0_18px_28px_-18px_rgba(212,162,76,0.98)] transition hover:bg-secondaryDark disabled:cursor-not-allowed disabled:bg-slate-300"
+                  >
+                    <UploadIcon className="h-5 w-5" />
+                    Choisir un fichier
+                  </button>
+                  <p className="text-base text-slate-500">Format accepté : .csv</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-[24px] border border-[#ebdfd2] bg-white/82 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.92)] sm:px-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                  Fichier sélectionné
+                </p>
+                <p className="mt-2 truncate text-base font-medium text-slate-800">
+                  {selectedFile ? selectedFile.name : "Aucun fichier sélectionné."}
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  {selectedFile
+                    ? `${formatFileSize(selectedFile.size)} · prêt pour l'import`
+                    : "Ajoutez un CSV exporté depuis le formulaire pour démarrer."}
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={selectedFile ? clearSelectedFile : openFilePicker}
+                  disabled={isSubmitting}
+                  className="inline-flex items-center justify-center rounded-2xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {selectedFile ? "Retirer le fichier" : "Choisir un fichier"}
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting || isLoadingActiveSchoolYear}
+                  className="inline-flex items-center justify-center rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-wait disabled:bg-slate-300"
+                >
+                  {isSubmitting ? "Import en cours..." : "Lancer l'import"}
+                </button>
+              </div>
+            </div>
+
+            {inlineMessage ? (
+              <p className="mt-4 rounded-2xl border border-danger/15 bg-danger/5 px-4 py-3 text-sm text-danger">
+                {inlineMessage}
+              </p>
+            ) : null}
+          </div>
+        </form>
+
+        {latestImport ? (
+          <section className="mt-6 rounded-[26px] border border-[#ebdfd3] bg-white/78 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] sm:p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primaryLight">
+                  Dernier résultat
+                </p>
+                <h2 className="mt-2 font-serif text-[2rem] text-slate-900">
+                  Résumé du dernier import
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  {latestImport.fileName} ·{" "}
+                  {dateTimeFormatter.format(new Date(latestImport.importedAt))}
+                </p>
+              </div>
+              <div className="rounded-full border border-secondary/20 bg-secondary/10 px-4 py-2 text-sm font-medium text-secondaryDark">
+                {latestImport.activeSchoolYear
+                  ? formatSchoolYearLabel(latestImport.activeSchoolYear)
+                  : activeSchoolYearLabel}
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <SummaryMetric label="Familles" value={latestImport.importedFamilies} />
+              <SummaryMetric
+                label="Demandes"
+                value={latestImport.importedApplications}
+              />
+              <SummaryMetric label="Élèves" value={latestImport.importedStudents} />
+              <SummaryMetric label="Ignorées" value={latestImport.skippedRows} />
+              <SummaryMetric
+                label="Doublons"
+                value={latestImport.duplicateRows ?? 0}
+              />
+            </div>
+
+            {typeof latestImport.invalidRows === "number" ? (
+              <p className="mt-4 text-sm text-slate-600">
+                L&apos;import comporte{" "}
+                {pluralize(latestImport.invalidRows, "ligne invalide", "lignes invalides")}
+                .
+              </p>
+            ) : null}
+          </section>
+        ) : null}
+      </section>
+
+      <section className={`${contentCardClassName} mt-6 overflow-hidden`}>
+        <div className="border-b border-[#eadfd2] px-5 py-4 sm:px-6">
+          <h2 className="font-serif text-[2rem] text-slate-900">
+            Historique des imports
+          </h2>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse text-left">
+            <thead className="bg-white/45">
+              <tr className="text-base text-slate-700">
+                <th className="border-b border-[#efe4d8] px-5 py-4 font-medium sm:px-6">
+                  Date
+                </th>
+                <th className="border-b border-[#efe4d8] px-5 py-4 font-medium sm:px-6">
+                  Résultat
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {history.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={2}
+                    className="px-5 py-6 text-center text-base text-slate-500 sm:px-6"
+                  >
+                    Aucun import enregistré pour le moment.
+                  </td>
+                </tr>
+              ) : (
+                history.map((item) => (
+                  <tr key={item.id} className="align-top">
+                    <td className="border-b border-[#f2e9de] px-5 py-4 text-sm text-slate-700 sm:px-6">
+                      <div className="font-medium text-slate-900">
+                        {dateTimeFormatter.format(new Date(item.importedAt))}
+                      </div>
+                      <div className="mt-1 text-slate-500">{item.fileName}</div>
+                    </td>
+                    <td className="border-b border-[#f2e9de] px-5 py-4 text-sm text-slate-700 sm:px-6">
+                      <div className="font-medium text-slate-900">
+                        {getImportHistoryResult(item)}
+                      </div>
+                      <div className="mt-1 text-slate-500">
+                        {typeof item.duplicateRows === "number"
+                          ? `${pluralize(item.duplicateRows, "doublon", "doublons")} détecté${item.duplicateRows > 1 ? "s" : ""}`
+                          : "Aucun doublon signalé"}
+                        {typeof item.invalidRows === "number"
+                          ? ` · ${pluralize(item.invalidRows, "ligne invalide", "lignes invalides")}`
+                          : ""}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </>
   );
 };
 

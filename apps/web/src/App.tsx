@@ -1,4 +1,7 @@
+import { Link, Navigate, Route, Routes } from "react-router-dom";
+
 import PrivateRoute from "./components/auth/PrivateRoute";
+import AppLayout from "./components/layout/AppLayout";
 import ToastViewport from "./components/ui/ToastViewport";
 import { ToastProvider } from "./context/ToastContext";
 import ApplicationDetailPage from "./pages/ApplicationDetailPage";
@@ -6,30 +9,6 @@ import ApplicationsPage from "./pages/ApplicationsPage";
 import DashboardPage from "./pages/DashboardPage";
 import ImportCsvPage from "./pages/ImportCsvPage";
 import LoginPage from "./pages/LoginPage";
-
-const normalizePathname = (pathname: string): string => {
-  const normalizedPathname = pathname.replace(/\/+$/, "");
-
-  return normalizedPathname.length > 0 ? normalizedPathname : "/";
-};
-
-const decodePathSegment = (value: string): string => {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
-};
-
-const getApplicationDetailId = (pathname: string): string | null => {
-  const match = pathname.match(/^\/applications\/([^/]+)$/);
-
-  if (!match) {
-    return null;
-  }
-
-  return decodePathSegment(match[1]);
-};
 
 const NotFoundPage = () => {
   return (
@@ -46,71 +25,44 @@ const NotFoundPage = () => {
           version.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
-          <a
-            href="/"
+          <Link
+            to="/"
             className="inline-flex items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primaryDark"
           >
             Aller au dashboard
-          </a>
-          <a
-            href="/applications"
+          </Link>
+          <Link
+            to="/applications"
             className="inline-flex items-center rounded-full border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
           >
             Ouvrir les demandes
-          </a>
+          </Link>
         </div>
       </div>
     </main>
   );
 };
 
-const AppContent = () => {
-  const pathname = normalizePathname(window.location.pathname);
-  const applicationId = getApplicationDetailId(pathname);
-
-  if (pathname === "/login") {
-    return <LoginPage />;
-  }
-
-  if (pathname === "/") {
-    return (
-      <PrivateRoute>
-        <DashboardPage />
-      </PrivateRoute>
-    );
-  }
-
-  if (pathname === "/applications") {
-    return (
-      <PrivateRoute>
-        <ApplicationsPage />
-      </PrivateRoute>
-    );
-  }
-
-  if (pathname === "/imports" || pathname === "/imports/new") {
-    return (
-      <PrivateRoute>
-        <ImportCsvPage />
-      </PrivateRoute>
-    );
-  }
-
-  if (applicationId) {
-    return (
-      <PrivateRoute>
-        <ApplicationDetailPage applicationId={applicationId} />
-      </PrivateRoute>
-    );
-  }
-
-  return <NotFoundPage />;
-};
-
 function App() {
   return (
     <ToastProvider>
-      <AppContent />
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+
+        <Route element={<PrivateRoute />}>
+          <Route element={<AppLayout />}>
+            <Route index element={<DashboardPage />} />
+            <Route path="applications" element={<ApplicationsPage />} />
+            <Route path="applications/:id" element={<ApplicationDetailPage />} />
+            <Route path="imports">
+              <Route index element={<Navigate to="new" replace />} />
+              <Route path="new" element={<ImportCsvPage />} />
+            </Route>
+          </Route>
+        </Route>
+
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
       <ToastViewport />
     </ToastProvider>
   );
