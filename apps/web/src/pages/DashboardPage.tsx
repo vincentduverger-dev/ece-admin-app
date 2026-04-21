@@ -6,6 +6,7 @@ import ErrorState from "../components/ui/ErrorState";
 import LoadingState from "../components/ui/LoadingState";
 import PriorityBadge from "../components/ui/PriorityBadge";
 import StatusBadge from "../components/ui/StatusBadge";
+import { useAuth } from "../hooks/useAuth";
 import { fetchDashboardStats } from "../lib/api";
 import type {
   DashboardApplicationStatus,
@@ -347,6 +348,13 @@ const DashboardPage = () => {
 };
 
 const DashboardShell = ({ children }: { children: React.ReactNode }) => {
+  const { logout } = useAuth();
+
+  const handleLogout = (): void => {
+    logout();
+    window.location.replace("/login");
+  };
+
   return (
     <div className="relative mx-auto max-w-7xl">
       <div className="absolute inset-x-0 top-0 -z-10 h-56 rounded-[2rem] bg-gradient-to-r from-secondary/15 via-white/30 to-primary/10 blur-3xl" />
@@ -373,12 +381,21 @@ const DashboardShell = ({ children }: { children: React.ReactNode }) => {
           </div>
 
           <div className="flex flex-col items-start gap-3 lg:items-end">
-            <a
-              href="/applications"
-              className="inline-flex items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primaryDark"
-            >
-              Ouvrir les demandes
-            </a>
+            <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+              <a
+                href="/applications"
+                className="inline-flex items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primaryDark"
+              >
+                Ouvrir les demandes
+              </a>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="inline-flex items-center rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              >
+                Déconnexion provisoire
+              </button>
+            </div>
 
             <div className="rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3 text-sm text-primaryDark">
               Source : <span className="font-semibold">GET /api/dashboard/stats</span>
