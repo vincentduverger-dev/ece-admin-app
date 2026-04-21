@@ -4,6 +4,7 @@ import { ToastProvider } from "./context/ToastContext";
 import ApplicationDetailPage from "./pages/ApplicationDetailPage";
 import ApplicationsPage from "./pages/ApplicationsPage";
 import DashboardPage from "./pages/DashboardPage";
+import ImportCsvPage from "./pages/ImportCsvPage";
 import LoginPage from "./pages/LoginPage";
 
 const normalizePathname = (pathname: string): string => {
@@ -83,6 +84,14 @@ const AppContent = () => {
     return (
       <PrivateRoute>
         <ApplicationsPage />
+      </PrivateRoute>
+    );
+  }
+
+  if (pathname === "/imports" || pathname === "/imports/new") {
+    return (
+      <PrivateRoute>
+        <ImportCsvPage />
       </PrivateRoute>
     );
   }

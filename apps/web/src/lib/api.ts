@@ -12,6 +12,7 @@ import type {
   SchoolYearSummary
 } from "../types/application";
 import type { DashboardStats } from "../types/dashboard";
+import type { CsvImportSummary } from "../types/import";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
@@ -216,4 +217,35 @@ export const getSchoolYears = async (
   init?: RequestInit
 ): Promise<SchoolYearSummary[]> => {
   return fetchJson<SchoolYearSummary[]>("/api/school-years", init);
+};
+
+export const getActiveSchoolYear = async (
+  init?: RequestInit
+): Promise<SchoolYearSummary> => {
+  return fetchJson<SchoolYearSummary>("/api/school-years/active", init);
+};
+
+export const uploadCsvImport = async (
+  file: File,
+  init?: RequestInit
+): Promise<CsvImportSummary> => {
+  const formData = new FormData();
+
+  formData.set("file", file);
+
+  const response = await fetch(buildApiUrl("/api/import/csv"), {
+    ...init,
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      ...init?.headers
+    },
+    body: formData
+  });
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response));
+  }
+
+  return (await response.json()) as CsvImportSummary;
 };

@@ -566,8 +566,16 @@ const ApplicationsShell = ({ children }: { children: React.ReactNode }) => {
             </p>
           </div>
 
-          <div className="rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3 text-sm text-primaryDark">
-            Source : <span className="font-semibold">GET /api/applications</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <a
+              href="/imports/new"
+              className="inline-flex items-center rounded-full bg-secondary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-secondaryDark"
+            >
+              Importer un CSV
+            </a>
+            <div className="rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3 text-sm text-primaryDark">
+              Source : <span className="font-semibold">GET /api/applications</span>
+            </div>
           </div>
         </div>
       </header>
