@@ -1,8 +1,10 @@
+import PrivateRoute from "./components/auth/PrivateRoute";
 import ToastViewport from "./components/ui/ToastViewport";
 import { ToastProvider } from "./context/ToastContext";
 import ApplicationDetailPage from "./pages/ApplicationDetailPage";
 import ApplicationsPage from "./pages/ApplicationsPage";
 import DashboardPage from "./pages/DashboardPage";
+import LoginPage from "./pages/LoginPage";
 
 const normalizePathname = (pathname: string): string => {
   const normalizedPathname = pathname.replace(/\/+$/, "");
@@ -65,16 +67,32 @@ const AppContent = () => {
   const pathname = normalizePathname(window.location.pathname);
   const applicationId = getApplicationDetailId(pathname);
 
+  if (pathname === "/login") {
+    return <LoginPage />;
+  }
+
   if (pathname === "/") {
-    return <DashboardPage />;
+    return (
+      <PrivateRoute>
+        <DashboardPage />
+      </PrivateRoute>
+    );
   }
 
   if (pathname === "/applications") {
-    return <ApplicationsPage />;
+    return (
+      <PrivateRoute>
+        <ApplicationsPage />
+      </PrivateRoute>
+    );
   }
 
   if (applicationId) {
-    return <ApplicationDetailPage applicationId={applicationId} />;
+    return (
+      <PrivateRoute>
+        <ApplicationDetailPage applicationId={applicationId} />
+      </PrivateRoute>
+    );
   }
 
   return <NotFoundPage />;
