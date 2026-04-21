@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import Breadcrumb from "../components/ui/Breadcrumb";
 import EmptyState from "../components/ui/EmptyState";
@@ -134,7 +134,31 @@ const ApplicationsPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSchoolYearsLoading, setIsSchoolYearsLoading] = useState(true);
   const deferredSearch = useDeferredValue(filters.search);
-  const displayedApplications = sortApplications(applications, sort);
+  const applicationQueryParams = useMemo<ApplicationFilterParams>(() => {
+    const params: ApplicationFilterParams = {};
+    const normalizedSearch = deferredSearch.trim();
+
+    if (filters.status) {
+      params.status = filters.status;
+    }
+
+    if (filters.schoolYearId) {
+      params.schoolYearId = filters.schoolYearId;
+    }
+
+    if (filters.isPriority) {
+      params.isPriority = filters.isPriority;
+    }
+
+    if (normalizedSearch) {
+      params.search = normalizedSearch;
+    }
+
+    return params;
+  }, [filters.status, filters.schoolYearId, filters.isPriority, deferredSearch]);
+  const displayedApplications = useMemo(() => {
+    return sortApplications(applications, sort);
+  }, [applications, sort]);
 
   const hasActiveFilters =
     filters.status !== "" ||
@@ -152,31 +176,12 @@ const ApplicationsPage = () => {
     setSort("createdAtDesc");
   };
 
-  const loadApplications = async (signal?: AbortSignal): Promise<void> => {
+  const loadApplications = useCallback(async (signal?: AbortSignal): Promise<void> => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const params: ApplicationFilterParams = {};
-      const normalizedSearch = deferredSearch.trim();
-
-      if (filters.status) {
-        params.status = filters.status;
-      }
-
-      if (filters.schoolYearId) {
-        params.schoolYearId = filters.schoolYearId;
-      }
-
-      if (filters.isPriority) {
-        params.isPriority = filters.isPriority;
-      }
-
-      if (normalizedSearch) {
-        params.search = normalizedSearch;
-      }
-
-      const data = await getApplications(params, { signal });
+      const data = await getApplications(applicationQueryParams, { signal });
 
       if (signal?.aborted) {
         return;
@@ -199,7 +204,7 @@ const ApplicationsPage = () => {
         setHasLoadedOnce(true);
       }
     }
-  };
+  }, [applicationQueryParams]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -209,7 +214,7 @@ const ApplicationsPage = () => {
     return () => {
       controller.abort();
     };
-  }, [filters.status, filters.schoolYearId, filters.isPriority, deferredSearch]);
+  }, [loadApplications]);
 
   useEffect(() => {
     const controller = new AbortController();

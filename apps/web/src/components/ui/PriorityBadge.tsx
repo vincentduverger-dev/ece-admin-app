@@ -1,8 +1,10 @@
+import { memo } from "react";
+
 type PriorityBadgeProps = {
   isPriority: boolean;
 };
 
-const PriorityBadge = ({ isPriority }: PriorityBadgeProps) => {
+const PriorityBadge = memo(({ isPriority }: PriorityBadgeProps) => {
   if (!isPriority) {
     return null;
   }
@@ -20,6 +22,8 @@ const PriorityBadge = ({ isPriority }: PriorityBadgeProps) => {
       <span>Prioritaire</span>
     </span>
   );
-};
+});
+
+PriorityBadge.displayName = "PriorityBadge";
 
 export default PriorityBadge;

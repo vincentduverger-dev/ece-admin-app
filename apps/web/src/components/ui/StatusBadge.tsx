@@ -1,4 +1,4 @@
-import type { JSX } from "react";
+import { memo, type JSX } from "react";
 import type { ApplicationStatus } from "../../types/application";
 
 type StatusBadgeProps = {
@@ -105,7 +105,7 @@ const statusBadgeConfig: Record<ApplicationStatus, StatusBadgeConfig> = {
   }
 };
 
-const StatusBadge = ({ status }: StatusBadgeProps) => {
+const StatusBadge = memo(({ status }: StatusBadgeProps) => {
   const { badgeClassName, label, Icon } = statusBadgeConfig[status];
 
   return (
@@ -116,6 +116,8 @@ const StatusBadge = ({ status }: StatusBadgeProps) => {
       <span>{label}</span>
     </span>
   );
-};
+});
+
+StatusBadge.displayName = "StatusBadge";
 
 export default StatusBadge;
