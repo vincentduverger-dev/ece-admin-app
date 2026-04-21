@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 type BreadcrumbItem = {
   label: string;
   href?: string;
@@ -23,12 +25,12 @@ const Breadcrumb = ({ items }: BreadcrumbProps) => {
               ) : null}
 
               {item.href && !isCurrentPage ? (
-                <a
-                  href={item.href}
+                <Link
+                  to={item.href}
                   className="font-medium text-slate-500 transition hover:text-primaryDark"
                 >
                   {item.label}
-                </a>
+                </Link>
               ) : (
                 <span
                   aria-current={isCurrentPage ? "page" : undefined}

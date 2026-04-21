@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 type ErrorStateProps = {
   title?: string;
   message: string;
@@ -49,8 +51,8 @@ const ErrorState = ({
           ) : null}
 
           {hasBackLink ? (
-            <a
-              href={backLink}
+            <Link
+              to={backLink}
               className={`inline-flex items-center rounded-full px-5 py-2.5 text-sm font-semibold transition ${
                 hasAction
                   ? "border border-slate-300 text-slate-700 hover:border-slate-400 hover:bg-slate-50"
@@ -58,7 +60,7 @@ const ErrorState = ({
               }`}
             >
               {getBackLinkLabel(backLink)}
-            </a>
+            </Link>
           ) : null}
         </div>
       ) : null}
