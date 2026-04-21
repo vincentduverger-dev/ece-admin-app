@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import Breadcrumb from "../components/ui/Breadcrumb";
 import ErrorState from "../components/ui/ErrorState";
@@ -298,15 +298,15 @@ const ApplicationDetailPage = ({
   const [isEmailBodyDirty, setIsEmailBodyDirty] = useState(false);
   const [isEmailSubmitting, setIsEmailSubmitting] = useState(false);
 
-  const resetEmailForm = (): void => {
+  const resetEmailForm = useCallback((): void => {
     setSelectedEmailType("ACCEPTANCE");
     setEmailSubject(emailTemplates.ACCEPTANCE.subject);
     setEmailBody(emailTemplates.ACCEPTANCE.body);
     setIsEmailSubjectDirty(false);
     setIsEmailBodyDirty(false);
-  };
+  }, []);
 
-  const handleEmailTypeChange = (emailType: ApplicationEmailType): void => {
+  const handleEmailTypeChange = useCallback((emailType: ApplicationEmailType): void => {
     setSelectedEmailType(emailType);
 
     if (emailType === "CUSTOM") {
@@ -315,7 +315,7 @@ const ApplicationDetailPage = ({
       setIsEmailSubjectDirty(false);
       setIsEmailBodyDirty(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -363,7 +363,7 @@ const ApplicationDetailPage = ({
     return () => {
       controller.abort();
     };
-  }, [applicationId]);
+  }, [applicationId, resetEmailForm]);
 
   useEffect(() => {
     if (application) {
@@ -387,7 +387,7 @@ const ApplicationDetailPage = ({
     }
   }, [selectedEmailType, isEmailSubjectDirty, isEmailBodyDirty]);
 
-  const handleStatusSubmit = async (
+  const handleStatusSubmit = useCallback(async (
     event: React.FormEvent<HTMLFormElement>
   ): Promise<void> => {
     event.preventDefault();
@@ -425,9 +425,9 @@ const ApplicationDetailPage = ({
     } finally {
       setIsStatusSubmitting(false);
     }
-  };
+  }, [application, selectedStatus, showError, showSuccess]);
 
-  const handlePriorityToggle = async (): Promise<void> => {
+  const handlePriorityToggle = useCallback(async (): Promise<void> => {
     if (!application) {
       return;
     }
@@ -467,9 +467,9 @@ const ApplicationDetailPage = ({
     } finally {
       setIsPrioritySubmitting(false);
     }
-  };
+  }, [application, showError, showSuccess]);
 
-  const handleDecisionSubmit = async (
+  const handleDecisionSubmit = useCallback(async (
     event: React.FormEvent<HTMLFormElement>
   ): Promise<void> => {
     event.preventDefault();
@@ -513,9 +513,9 @@ const ApplicationDetailPage = ({
     } finally {
       setIsDecisionSubmitting(false);
     }
-  };
+  }, [application, decisionNote, selectedDecisionStatus, showError, showSuccess]);
 
-  const handleEmailSubmit = async (
+  const handleEmailSubmit = useCallback(async (
     event: React.FormEvent<HTMLFormElement>
   ): Promise<void> => {
     event.preventDefault();
@@ -556,7 +556,15 @@ const ApplicationDetailPage = ({
     } finally {
       setIsEmailSubmitting(false);
     }
-  };
+  }, [
+    application,
+    emailBody,
+    emailSubject,
+    resetEmailForm,
+    selectedEmailType,
+    showError,
+    showSuccess
+  ]);
 
   if (isLoading) {
     return (
@@ -635,7 +643,7 @@ const ApplicationDetailPage = ({
               title="Actions"
               subtitle="Mettre à jour le statut administratif, la priorité, la décision finale et les emails sans recharger toute l'application."
             >
-              <form className="space-y-4" onSubmit={(event) => void handleStatusSubmit(event)}>
+              <form className="space-y-4" onSubmit={handleStatusSubmit}>
                 <div className="space-y-2">
                   <label
                     htmlFor="application-status"
@@ -694,7 +702,7 @@ const ApplicationDetailPage = ({
 
                   <button
                     type="button"
-                    onClick={() => void handlePriorityToggle()}
+                    onClick={handlePriorityToggle}
                     disabled={isPrioritySubmitting}
                     className="inline-flex items-center rounded-full border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
                   >
@@ -710,7 +718,7 @@ const ApplicationDetailPage = ({
               <div className="mt-6 border-t border-slate-200 pt-6">
                 <form
                   className="space-y-4"
-                  onSubmit={(event) => void handleDecisionSubmit(event)}
+                  onSubmit={handleDecisionSubmit}
                 >
                   <div>
                     <h3 className="text-sm font-semibold text-slate-900">
@@ -794,7 +802,7 @@ const ApplicationDetailPage = ({
               </div>
 
               <div className="mt-6 border-t border-slate-200 pt-6">
-                <form className="space-y-4" onSubmit={(event) => void handleEmailSubmit(event)}>
+                <form className="space-y-4" onSubmit={handleEmailSubmit}>
                   <div>
                     <h3 className="text-sm font-semibold text-slate-900">
                       Envoyer un email
