@@ -15,6 +15,15 @@ import type { DashboardStats } from "../types/dashboard";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
+export type AuthUser = {
+  role: "admin";
+};
+
+export type LoginAdminResponse = {
+  token: string;
+  user: AuthUser;
+};
+
 const buildApiUrl = (path: string): string => {
   return `${API_BASE_URL}${path}`;
 };
@@ -72,6 +81,25 @@ export const fetchDashboardStats = async (
   init?: RequestInit
 ): Promise<DashboardStats> => {
   return fetchJson<DashboardStats>("/api/dashboard/stats", init);
+};
+
+export const loginAdmin = async (
+  email: string,
+  password: string,
+  init?: RequestInit
+): Promise<LoginAdminResponse> => {
+  return fetchJson<LoginAdminResponse>("/api/auth/login", {
+    ...init,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...init?.headers
+    },
+    body: JSON.stringify({
+      email,
+      password
+    })
+  });
 };
 
 export const getApplications = async (
