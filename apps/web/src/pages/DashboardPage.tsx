@@ -388,6 +388,12 @@ const DashboardShell = ({ children }: { children: React.ReactNode }) => {
               >
                 Ouvrir les demandes
               </a>
+              <a
+                href="/imports/new"
+                className="inline-flex items-center rounded-full bg-secondary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-secondaryDark"
+              >
+                Importer un CSV
+              </a>
               <button
                 type="button"
                 onClick={handleLogout}
