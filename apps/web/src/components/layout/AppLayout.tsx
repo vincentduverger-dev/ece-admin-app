@@ -9,7 +9,7 @@ type IconProps = {
 };
 
 type NavigationItem = {
-  key: "dashboard" | "applications" | "imports" | "validation" | "administration";
+  key: "dashboard" | "applications" | "imports";
   label: string;
   to?: string;
   end?: boolean;
@@ -67,28 +67,6 @@ const UploadIcon = ({ className = "h-5 w-5" }: IconProps) => {
   );
 };
 
-const ShieldIcon = ({ className = "h-5 w-5" }: IconProps) => {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
-      <path d="M12 3.5 5.5 6v5.5c0 4.2 2.5 7.9 6.5 9 4-1.1 6.5-4.8 6.5-9V6L12 3.5Z" />
-      <path d="m8.5 12 2.1 2.1L15.5 9" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-};
-
-const CogIcon = ({ className = "h-5 w-5" }: IconProps) => {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
-      <path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z" />
-      <path
-        d="M19.4 13.1a7.9 7.9 0 0 0 0-2.2l1.6-1.2-1.7-3-1.9.6a7.5 7.5 0 0 0-1.9-1.1l-.3-2.1h-3.4l-.3 2.1a7.5 7.5 0 0 0-1.9 1.1l-1.9-.6-1.7 3 1.6 1.2a7.9 7.9 0 0 0 0 2.2l-1.6 1.2 1.7 3 1.9-.6c.6.5 1.2.9 1.9 1.1l.3 2.1h3.4l.3-2.1c.7-.2 1.3-.6 1.9-1.1l1.9.6 1.7-3-1.6-1.2Z"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-};
-
 const LogoutIcon = ({ className = "h-5 w-5" }: IconProps) => {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
@@ -125,16 +103,6 @@ const navigationItems: NavigationItem[] = [
     label: "Import CSV",
     to: "/imports/new",
     icon: UploadIcon
-  },
-  {
-    key: "validation",
-    label: "Validation",
-    icon: ShieldIcon
-  },
-  {
-    key: "administration",
-    label: "Administration",
-    icon: CogIcon
   }
 ];
 
@@ -231,7 +199,7 @@ const AppLayout = () => {
             }}
           >
             <div className="p-4">
-              <nav className="space-y-3" aria-label="Navigation principale">
+              <nav className="mb-[100px] space-y-3" aria-label="Navigation principale">
                 {navigationItems.map((item) => (
                   <SidebarLink key={item.key} item={item} />
                 ))}
