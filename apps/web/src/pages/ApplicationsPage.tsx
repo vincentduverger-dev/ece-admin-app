@@ -5,6 +5,7 @@ import PageSectionHeader from "../components/layout/PageSectionHeader";
 import Breadcrumb from "../components/ui/Breadcrumb";
 import EmptyState from "../components/ui/EmptyState";
 import ErrorState from "../components/ui/ErrorState";
+import LevelBadge from "../components/ui/LevelBadge";
 import LoadingState from "../components/ui/LoadingState";
 import PriorityBadge from "../components/ui/PriorityBadge";
 import StatusBadge from "../components/ui/StatusBadge";
@@ -562,9 +563,16 @@ const ApplicationsPage = () => {
                   application.students.map((student) => (
                     <span
                       key={student.id}
-                      className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-slate-700 ring-1 ring-slate-200"
+                      className="inline-flex items-center gap-2 rounded-full bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 ring-1 ring-slate-200"
                     >
-                      {student.firstName} {student.lastName} · {student.level.code}
+                      <span>
+                        {student.firstName} {student.lastName}
+                      </span>
+                      <LevelBadge
+                        code={student.level.code}
+                        label={student.level.label}
+                        size="xs"
+                      />
                     </span>
                   ))
                 )}
