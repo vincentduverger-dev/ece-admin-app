@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type CSSProperties,
+  type ReactNode
+} from "react";
 import { Link, useParams } from "react-router-dom";
 
 import PageSectionHeader from "../components/layout/PageSectionHeader";
@@ -6,50 +12,63 @@ import Breadcrumb from "../components/ui/Breadcrumb";
 import ErrorState from "../components/ui/ErrorState";
 import LevelBadge from "../components/ui/LevelBadge";
 import LoadingState from "../components/ui/LoadingState";
+import PersonAvatar, {
+  FamilyAvatar,
+  type PersonAvatarVariant
+} from "../components/ui/PersonAvatar";
 import PriorityBadge from "../components/ui/PriorityBadge";
 import StatusBadge from "../components/ui/StatusBadge";
 import { useToast } from "../context/ToastContext";
 import {
   getApplicationById,
   getApplicationEmailLogs,
-  sendApplicationEmail,
   updateApplicationDecision,
   updateApplicationPriority,
   updateApplicationStatus
 } from "../lib/api";
+import {
+  applicationEmailSendStatusLabels,
+  applicationEmailSendStatusStyles,
+  applicationEmailTypeLabels,
+  applicationEmailTypeStyles
+} from "../lib/applicationEmail";
 import type {
   ApplicationDecisionStatus,
   ApplicationDetail,
+  ApplicationDetailStudent,
   ApplicationEmailLog,
-  ApplicationEmailSendStatus,
-  ApplicationEmailSendPayload,
-  ApplicationEmailType,
   ApplicationGender,
   ApplicationStatus
 } from "../types/application";
 
-const emailTypeLabels: Record<ApplicationEmailType, string> = {
-  ACCEPTANCE: "Acceptation",
-  REFUSAL: "Refus",
-  CUSTOM: "Personnalisé"
+type IconProps = {
+  className?: string;
 };
 
-const emailTypeStyles: Record<ApplicationEmailType, string> = {
-  ACCEPTANCE: "bg-success/10 text-success ring-success/20",
-  REFUSAL: "bg-danger/10 text-danger ring-danger/20",
-  CUSTOM: "bg-slate-100 text-slate-700 ring-slate-200"
+type DetailFieldProps = {
+  children: ReactNode;
+  className?: string;
+  label: string;
 };
 
-const emailSendStatusLabels: Record<ApplicationEmailSendStatus, string> = {
-  PENDING: "En attente",
-  SENT: "Envoyé",
-  FAILED: "Échec"
+type SectionCardProps = {
+  action?: ReactNode;
+  bodyClassName?: string;
+  children: ReactNode;
+  className?: string;
+  motionDelay?: number;
+  subtitle?: string;
+  title: string;
 };
 
-const emailSendStatusStyles: Record<ApplicationEmailSendStatus, string> = {
-  PENDING: "bg-warning/10 text-warning ring-warning/20",
-  SENT: "bg-success/10 text-success ring-success/20",
-  FAILED: "bg-danger/10 text-danger ring-danger/20"
+type TimelineEntry = {
+  badges?: ReactNode;
+  content?: string;
+  date: string;
+  id: string;
+  sortDate: number;
+  summary: string;
+  type: string;
 };
 
 const genderLabels: Record<ApplicationGender, string> = {
@@ -57,15 +76,6 @@ const genderLabels: Record<ApplicationGender, string> = {
   GIRL: "Fille",
   UNKNOWN: "Non renseigné"
 };
-
-const dateTimeFormatter = new Intl.DateTimeFormat("fr-FR", {
-  dateStyle: "medium",
-  timeStyle: "short"
-});
-
-const dateFormatter = new Intl.DateTimeFormat("fr-FR", {
-  dateStyle: "medium"
-});
 
 const statusOptions: Array<{
   value: ApplicationStatus;
@@ -85,47 +95,23 @@ const decisionOptions: Array<{
   { value: "REFUSED", label: "Refusée" }
 ];
 
-const emailTypeOptions: Array<{
-  value: ApplicationEmailType;
-  label: string;
-}> = [
-  { value: "ACCEPTANCE", label: "Acceptation" },
-  { value: "REFUSAL", label: "Refus" },
-  { value: "CUSTOM", label: "Personnalisé" }
-];
+const dateTimeFormatter = new Intl.DateTimeFormat("fr-FR", {
+  dateStyle: "medium",
+  timeStyle: "short"
+});
 
-const emailTemplates: Record<
-  Exclude<ApplicationEmailType, "CUSTOM">,
-  {
-    subject: string;
-    body: string;
-  }
-> = {
-  ACCEPTANCE: {
-    subject: "ECE - décision d'admission",
-    body: "Votre demande d'inscription a été acceptée."
-  },
-  REFUSAL: {
-    subject: "ECE - décision d'inscription",
-    body: "Nous regrettons de vous informer que votre demande n'a pas été retenue."
-  }
+const dateFormatter = new Intl.DateTimeFormat("fr-FR", {
+  dateStyle: "medium"
+});
+
+const getEnterStyle = (delay: number): CSSProperties => {
+  return {
+    "--ui-enter-delay": `${delay}ms`
+  } as CSSProperties;
 };
 
 const isAbortError = (error: unknown): boolean => {
   return error instanceof DOMException && error.name === "AbortError";
-};
-
-const getEmailTemplate = (
-  emailType: ApplicationEmailType
-): {
-  subject: string;
-  body: string;
-} | null => {
-  if (emailType === "CUSTOM") {
-    return null;
-  }
-
-  return emailTemplates[emailType];
 };
 
 const isDecisionStatus = (
@@ -138,6 +124,10 @@ const getDecisionSelection = (
   status: ApplicationStatus
 ): ApplicationDecisionStatus => {
   return isDecisionStatus(status) ? status : "ACCEPTED";
+};
+
+const formatSchoolYearLabel = (label: string): string => {
+  return label.replace(/^(\d{4})-(\d{4})$/u, "$1 - $2");
 };
 
 const formatOptionalText = (value: string | null | undefined): string => {
@@ -169,31 +159,11 @@ const formatParentName = (
   lastName: string | null | undefined
 ): string => {
   const parts = [firstName, lastName].filter(
-    (value): value is string => typeof value === "string" && value.trim().length > 0
+    (value): value is string =>
+      typeof value === "string" && value.trim().length > 0
   );
 
   return parts.length > 0 ? parts.join(" ") : "Non renseigné";
-};
-
-const getEmailActionErrorMessage = (error: unknown): string => {
-  if (!(error instanceof Error)) {
-    return "Impossible d'envoyer l'email.";
-  }
-
-  switch (error.message) {
-    case "Invalid email type":
-      return "Le type d'email sélectionné est invalide.";
-    case "Invalid email payload":
-      return "Le sujet et le message sont obligatoires.";
-    case "Missing recipient email":
-      return "Aucune adresse email de contact n'est renseignée pour cette demande.";
-    case "Application not found":
-      return "Cette demande n'existe pas ou n'est plus accessible.";
-    case "Internal server error":
-      return "Une erreur serveur est survenue pendant l'envoi de l'email.";
-    default:
-      return error.message;
-  }
 };
 
 const getActionErrorMessage = (fallbackMessage: string, error: unknown): string => {
@@ -232,22 +202,168 @@ const getApplicationFamilyTitle = (
     return `Famille ${familyNames.join(" / ")}`;
   }
 
+  const studentLastNames = application.students
+    .map((student) => student.lastName.trim())
+    .filter((value) => value.length > 0);
+
+  if (studentLastNames.length > 0) {
+    return `Famille ${Array.from(new Set(studentLastNames)).join(" / ")}`;
+  }
+
   return "Famille non renseignée";
 };
 
-const DetailField = ({
-  label,
-  value
-}: {
-  label: string;
-  value: string;
-}) => {
+const getFamilyLastNameTitle = (application: ApplicationDetail): string => {
+  const parentLastNames = [
+    application.family.fatherLastName,
+    application.family.motherLastName
+  ].filter(
+    (value): value is string =>
+      typeof value === "string" && value.trim().length > 0
+  );
+  const studentLastNames = application.students
+    .map((student) => student.lastName.trim())
+    .filter((value) => value.length > 0);
+  const lastNames =
+    parentLastNames.length > 0 ? parentLastNames : studentLastNames;
+  const uniqueLastNames = Array.from(new Set(lastNames.map((value) => value.trim())));
+
+  return uniqueLastNames.length > 0
+    ? uniqueLastNames.join(" / ")
+    : "Famille non renseignée";
+};
+
+const getApplicationLevels = (
+  application: ApplicationDetail
+): Array<{ code: string; label: string }> => {
+  const uniqueLevels = new Map<string, { code: string; label: string }>();
+
+  application.students.forEach((student) => {
+    const code = student.level.code.trim();
+    const label = student.level.label.trim();
+    const key = `${code}::${label}`;
+
+    if ((code.length > 0 || label.length > 0) && !uniqueLevels.has(key)) {
+      uniqueLevels.set(key, { code, label });
+    }
+  });
+
+  return Array.from(uniqueLevels.values());
+};
+
+const getStudentAvatarVariant = (
+  gender: ApplicationGender
+): PersonAvatarVariant => {
+  if (gender === "BOY") {
+    return "boy";
+  }
+
+  if (gender === "GIRL") {
+    return "girl";
+  }
+
+  return "neutral";
+};
+
+const getStudentsSummary = (students: ApplicationDetailStudent[]): string => {
+  if (students.length === 0) {
+    return "Aucun élève rattaché";
+  }
+
+  return students
+    .map((student) => `${student.firstName} ${student.lastName}`)
+    .join(" · ");
+};
+
+const getHeaderDescription = (application: ApplicationDetail | null): string => {
+  if (!application) {
+    return "Consultation et traitement administratif d'une demande d'inscription.";
+  }
+
+  const studentsSummary = getStudentsSummary(application.students);
+
+  return `${studentsSummary} · ${formatSchoolYearLabel(
+    application.schoolYear.label
+  )} · consultation et traitement du dossier.`;
+};
+
+const getDecisionSummary = (status: ApplicationDecisionStatus): string => {
+  return status === "ACCEPTED" ? "Acceptation enregistrée" : "Refus enregistré";
+};
+
+const BackIcon = ({ className = "h-4 w-4" }: IconProps) => {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.8"
+      className={className}
+    >
+      <path d="m9.75 3.25-4.5 4.75 4.5 4.75" />
+    </svg>
+  );
+};
+
+const MailIcon = ({ className = "h-4 w-4" }: IconProps) => {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.5"
+      className={className}
+    >
+      <rect x="2" y="3.25" width="12" height="9.5" rx="2" />
+      <path d="M3.25 5 8 8.5 12.75 5" />
+    </svg>
+  );
+};
+
+const SaveIcon = ({ className = "h-4 w-4" }: IconProps) => {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.6"
+      className={className}
+    >
+      <path d="M3.25 2.75h7.6l1.9 1.9v8.6h-9.5V2.75Z" />
+      <path d="M5.25 2.75v3h5.5" />
+      <path d="M5.5 11.25h5" />
+    </svg>
+  );
+};
+
+const StarIcon = ({ className = "h-4 w-4" }: IconProps) => {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 16 16" fill="currentColor" className={className}>
+      <path d="m8 2.15 1.62 3.28 3.62.52-2.62 2.55.62 3.6L8 10.4l-3.24 1.7.62-3.6L2.76 5.95l3.62-.52L8 2.15Z" />
+    </svg>
+  );
+};
+
+const DetailField = ({ label, children, className }: DetailFieldProps) => {
+  return (
+    <div
+      className={`rounded-2xl border border-slate-200/90 bg-white/80 p-4 shadow-[0_10px_24px_-24px_rgba(15,23,42,0.18)] ${className ?? ""}`}
+    >
+      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
         {label}
       </p>
-      <p className="mt-2 text-sm font-semibold text-slate-900">{value}</p>
+      <div className="mt-2 break-words text-sm font-semibold leading-6 text-slate-900">
+        {children}
+      </div>
     </div>
   );
 };
@@ -255,25 +371,117 @@ const DetailField = ({
 const SectionCard = ({
   title,
   subtitle,
-  children
-}: {
-  title: string;
-  subtitle?: string;
-  children: React.ReactNode;
-}) => {
+  action,
+  children,
+  bodyClassName,
+  className,
+  motionDelay = 0
+}: SectionCardProps) => {
   return (
-    <section className="rounded-3xl border border-white/80 bg-white/90 p-6 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.35)] backdrop-blur">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-semibold text-slate-900">{title}</h2>
+    <section
+      className={`ui-animate-in ui-surface-hover ui-surface-hover--soft ui-surface-hover--no-accent rounded-[32px] border border-white/80 bg-white/90 p-6 shadow-[0_24px_50px_-34px_rgba(15,23,42,0.3)] backdrop-blur sm:p-7 ${className ?? ""}`}
+      style={getEnterStyle(motionDelay)}
+    >
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primaryLight">
+            {title}
+          </p>
           {subtitle ? (
-            <p className="mt-2 text-sm leading-6 text-slate-600">{subtitle}</p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+              {subtitle}
+            </p>
           ) : null}
         </div>
+        {action ? <div className="shrink-0">{action}</div> : null}
       </div>
-      <div className="mt-6">{children}</div>
+      <div className={`mt-6 ${bodyClassName ?? ""}`}>{children}</div>
     </section>
   );
+};
+
+const ParentCard = ({
+  name,
+  role,
+  variant
+}: {
+  name: string;
+  role: string;
+  variant: PersonAvatarVariant;
+}) => {
+  return (
+    <article className="rounded-[26px] border border-slate-200/90 bg-slate-50/80 p-4">
+      <div className="flex items-center gap-4">
+        <PersonAvatar label={`${role} - ${name}`} size="md" variant={variant} />
+        <div className="min-w-0">
+          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            {role}
+          </p>
+          <h3 className="mt-1 break-words text-base font-semibold text-slate-900">
+            {name}
+          </h3>
+        </div>
+      </div>
+    </article>
+  );
+};
+
+const buildTimelineEntries = (
+  application: ApplicationDetail,
+  emailLogs: ApplicationEmailLog[]
+): TimelineEntry[] => {
+  const createdAt = new Date(application.createdAt);
+  const entries: TimelineEntry[] = [
+    {
+      id: `${application.id}-created`,
+      type: "Demande reçue",
+      date: formatOptionalDateTime(application.createdAt),
+      sortDate: createdAt.getTime(),
+      summary: `Dossier créé pour ${getStudentsSummary(application.students)}.`,
+      content: `Année scolaire ${formatSchoolYearLabel(application.schoolYear.label)}.`
+    }
+  ];
+
+  if (application.decisionAt && isDecisionStatus(application.status)) {
+    entries.push({
+      id: `${application.id}-decision`,
+      type: "Décision finale",
+      date: formatOptionalDateTime(application.decisionAt),
+      sortDate: new Date(application.decisionAt).getTime(),
+      summary: getDecisionSummary(application.status),
+      content: application.decisionNote ?? undefined,
+      badges: <StatusBadge status={application.status} />
+    });
+  }
+
+  emailLogs.forEach((emailLog) => {
+    const timelineDate = emailLog.sentAt ?? emailLog.createdAt;
+
+    entries.push({
+      id: emailLog.id,
+      type: `Email ${applicationEmailTypeLabels[emailLog.emailType].toLowerCase()}`,
+      date: formatOptionalDateTime(timelineDate),
+      sortDate: new Date(timelineDate).getTime(),
+      summary: emailLog.subject,
+      content: emailLog.bodySnapshot,
+      badges: (
+        <div className="flex flex-wrap gap-2">
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ring-1 ${applicationEmailTypeStyles[emailLog.emailType]}`}
+          >
+            {applicationEmailTypeLabels[emailLog.emailType]}
+          </span>
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ring-1 ${applicationEmailSendStatusStyles[emailLog.sendStatus]}`}
+          >
+            {applicationEmailSendStatusLabels[emailLog.sendStatus]}
+          </span>
+        </div>
+      )
+    });
+  });
+
+  return entries.sort((leftEntry, rightEntry) => rightEntry.sortDate - leftEntry.sortDate);
 };
 
 const ApplicationDetailPage = () => {
@@ -290,32 +498,6 @@ const ApplicationDetailPage = () => {
     useState<ApplicationDecisionStatus>("ACCEPTED");
   const [decisionNote, setDecisionNote] = useState("");
   const [isDecisionSubmitting, setIsDecisionSubmitting] = useState(false);
-  const [selectedEmailType, setSelectedEmailType] =
-    useState<ApplicationEmailType>("ACCEPTANCE");
-  const [emailSubject, setEmailSubject] = useState(emailTemplates.ACCEPTANCE.subject);
-  const [emailBody, setEmailBody] = useState(emailTemplates.ACCEPTANCE.body);
-  const [isEmailSubjectDirty, setIsEmailSubjectDirty] = useState(false);
-  const [isEmailBodyDirty, setIsEmailBodyDirty] = useState(false);
-  const [isEmailSubmitting, setIsEmailSubmitting] = useState(false);
-
-  const resetEmailForm = useCallback((): void => {
-    setSelectedEmailType("ACCEPTANCE");
-    setEmailSubject(emailTemplates.ACCEPTANCE.subject);
-    setEmailBody(emailTemplates.ACCEPTANCE.body);
-    setIsEmailSubjectDirty(false);
-    setIsEmailBodyDirty(false);
-  }, []);
-
-  const handleEmailTypeChange = useCallback((emailType: ApplicationEmailType): void => {
-    setSelectedEmailType(emailType);
-
-    if (emailType === "CUSTOM") {
-      setEmailSubject("");
-      setEmailBody("");
-      setIsEmailSubjectDirty(false);
-      setIsEmailBodyDirty(false);
-    }
-  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -346,7 +528,6 @@ const ApplicationDetailPage = () => {
         setEmailLogs(emailLogsData);
         setSelectedDecisionStatus(getDecisionSelection(applicationData.status));
         setDecisionNote(applicationData.decisionNote ?? "");
-        resetEmailForm();
       } catch (loadError) {
         if (isAbortError(loadError) || controller.signal.aborted) {
           return;
@@ -371,7 +552,7 @@ const ApplicationDetailPage = () => {
     return () => {
       controller.abort();
     };
-  }, [applicationId, resetEmailForm]);
+  }, [applicationId]);
 
   useEffect(() => {
     if (application) {
@@ -379,61 +560,46 @@ const ApplicationDetailPage = () => {
     }
   }, [application]);
 
-  useEffect(() => {
-    const template = getEmailTemplate(selectedEmailType);
+  const handleStatusSubmit = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
+      event.preventDefault();
 
-    if (!template) {
-      return;
-    }
-
-    if (!isEmailSubjectDirty) {
-      setEmailSubject(template.subject);
-    }
-
-    if (!isEmailBodyDirty) {
-      setEmailBody(template.body);
-    }
-  }, [selectedEmailType, isEmailSubjectDirty, isEmailBodyDirty]);
-
-  const handleStatusSubmit = useCallback(async (
-    event: React.FormEvent<HTMLFormElement>
-  ): Promise<void> => {
-    event.preventDefault();
-
-    if (!application || selectedStatus === application.status) {
-      return;
-    }
-
-    setIsStatusSubmitting(true);
-
-    try {
-      const updatedApplication = await updateApplicationStatus(
-        application.id,
-        selectedStatus
-      );
-
-      setApplication((currentApplication) => {
-        if (!currentApplication || currentApplication.id !== updatedApplication.id) {
-          return currentApplication;
-        }
-
-        return {
-          ...currentApplication,
-          status: updatedApplication.status
-        };
-      });
-      if (isDecisionStatus(updatedApplication.status)) {
-        setSelectedDecisionStatus(updatedApplication.status);
+      if (!application || selectedStatus === application.status) {
+        return;
       }
-      showSuccess("Le statut a bien été mis à jour.");
-    } catch (updateError) {
-      showError(
-        getActionErrorMessage("Impossible de mettre à jour le statut.", updateError)
-      );
-    } finally {
-      setIsStatusSubmitting(false);
-    }
-  }, [application, selectedStatus, showError, showSuccess]);
+
+      setIsStatusSubmitting(true);
+
+      try {
+        const updatedApplication = await updateApplicationStatus(
+          application.id,
+          selectedStatus
+        );
+
+        setApplication((currentApplication) => {
+          if (!currentApplication || currentApplication.id !== updatedApplication.id) {
+            return currentApplication;
+          }
+
+          return {
+            ...currentApplication,
+            status: updatedApplication.status
+          };
+        });
+        if (isDecisionStatus(updatedApplication.status)) {
+          setSelectedDecisionStatus(updatedApplication.status);
+        }
+        showSuccess("Le statut a bien été mis à jour.");
+      } catch (updateError) {
+        showError(
+          getActionErrorMessage("Impossible de mettre à jour le statut.", updateError)
+        );
+      } finally {
+        setIsStatusSubmitting(false);
+      }
+    },
+    [application, selectedStatus, showError, showSuccess]
+  );
 
   const handlePriorityToggle = useCallback(async (): Promise<void> => {
     if (!application) {
@@ -477,118 +643,78 @@ const ApplicationDetailPage = () => {
     }
   }, [application, showError, showSuccess]);
 
-  const handleDecisionSubmit = useCallback(async (
-    event: React.FormEvent<HTMLFormElement>
-  ): Promise<void> => {
-    event.preventDefault();
+  const handleDecisionSubmit = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
+      event.preventDefault();
 
-    if (!application) {
-      return;
-    }
+      if (!application) {
+        return;
+      }
 
-    setIsDecisionSubmitting(true);
+      setIsDecisionSubmitting(true);
 
-    const normalizedDecisionNote = decisionNote.trim();
+      const normalizedDecisionNote = decisionNote.trim();
 
-    try {
-      const updatedApplication = await updateApplicationDecision(application.id, {
-        status: selectedDecisionStatus,
-        decisionNote: normalizedDecisionNote.length > 0 ? normalizedDecisionNote : null
-      });
+      try {
+        const updatedApplication = await updateApplicationDecision(application.id, {
+          status: selectedDecisionStatus,
+          decisionNote:
+            normalizedDecisionNote.length > 0 ? normalizedDecisionNote : null
+        });
 
-      setApplication((currentApplication) => {
-        if (!currentApplication || currentApplication.id !== updatedApplication.id) {
-          return currentApplication;
-        }
+        setApplication((currentApplication) => {
+          if (!currentApplication || currentApplication.id !== updatedApplication.id) {
+            return currentApplication;
+          }
 
-        return {
-          ...currentApplication,
-          status: updatedApplication.status,
-          decisionAt: updatedApplication.decisionAt,
-          decisionNote: updatedApplication.decisionNote
-        };
-      });
-      setSelectedDecisionStatus(updatedApplication.status);
-      setDecisionNote(updatedApplication.decisionNote ?? "");
-      showSuccess("La décision finale a bien été enregistrée.");
-    } catch (updateError) {
-      showError(
-        getActionErrorMessage(
-          "Impossible d'enregistrer la décision finale.",
-          updateError
-        )
-      );
-    } finally {
-      setIsDecisionSubmitting(false);
-    }
-  }, [application, decisionNote, selectedDecisionStatus, showError, showSuccess]);
-
-  const handleEmailSubmit = useCallback(async (
-    event: React.FormEvent<HTMLFormElement>
-  ): Promise<void> => {
-    event.preventDefault();
-
-    if (!application) {
-      return;
-    }
-
-    const normalizedSubject = emailSubject.trim();
-    const normalizedBody = emailBody.trim();
-
-    if (normalizedSubject.length === 0) {
-      showError("Le sujet est obligatoire.");
-      return;
-    }
-
-    if (normalizedBody.length === 0) {
-      showError("Le message est obligatoire.");
-      return;
-    }
-
-    setIsEmailSubmitting(true);
-
-    const payload: ApplicationEmailSendPayload = {
-      emailType: selectedEmailType,
-      subject: normalizedSubject,
-      body: normalizedBody
-    };
-
-    try {
-      const createdEmailLog = await sendApplicationEmail(application.id, payload);
-
-      setEmailLogs((currentEmailLogs) => [createdEmailLog, ...currentEmailLogs]);
-      resetEmailForm();
-      showSuccess("L'email a été envoyé et enregistré dans l'historique.");
-    } catch (sendError) {
-      showError(getEmailActionErrorMessage(sendError));
-    } finally {
-      setIsEmailSubmitting(false);
-    }
-  }, [
-    application,
-    emailBody,
-    emailSubject,
-    resetEmailForm,
-    selectedEmailType,
-    showError,
-    showSuccess
-  ]);
+          return {
+            ...currentApplication,
+            status: updatedApplication.status,
+            decisionAt: updatedApplication.decisionAt,
+            decisionNote: updatedApplication.decisionNote
+          };
+        });
+        setSelectedDecisionStatus(updatedApplication.status);
+        setDecisionNote(updatedApplication.decisionNote ?? "");
+        showSuccess("La décision finale a bien été enregistrée.");
+      } catch (updateError) {
+        showError(
+          getActionErrorMessage(
+            "Impossible d'enregistrer la décision finale.",
+            updateError
+          )
+        );
+      } finally {
+        setIsDecisionSubmitting(false);
+      }
+    },
+    [application, decisionNote, selectedDecisionStatus, showError, showSuccess]
+  );
 
   const pageTopBar = (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-      <Breadcrumb
-        items={[
-          { label: "Accueil", href: "/" },
-          { label: "Demandes", href: "/applications" },
-          { label: "Détail" }
-        ]}
-      />
-      <Link
-        to="/applications"
-        className="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div
+        className="ui-animate-in ui-animate-in--subtle w-fit rounded-2xl border border-primary/10 bg-white/80 px-4 py-3 text-sm text-primaryDark shadow-[0_10px_22px_-22px_rgba(15,23,42,0.18)]"
+        style={getEnterStyle(20)}
       >
-        Retour aux demandes
-      </Link>
+        <Breadcrumb
+          items={[
+            { label: "Tableau de bord", href: "/" },
+            { label: "Liste des demandes", href: "/applications" },
+            { label: "Détail" }
+          ]}
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+        <Link
+          to="/applications"
+          className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-primary/25 hover:text-primary"
+        >
+          <BackIcon />
+          <span>Retour aux demandes</span>
+        </Link>
+      </div>
     </div>
   );
 
@@ -610,7 +736,7 @@ const ApplicationDetailPage = () => {
           topBar={pageTopBar}
           eyebrow="Demande d'inscription"
           title={getApplicationFamilyTitle(null)}
-          description="Consultation détaillée d'une demande, de sa composition familiale, des élèves rattachés et de l'historique email."
+          description={getHeaderDescription(null)}
           aside={pageHeaderAside}
         />
         <LoadingState />
@@ -628,7 +754,7 @@ const ApplicationDetailPage = () => {
           topBar={pageTopBar}
           eyebrow="Demande d'inscription"
           title={getApplicationFamilyTitle(null)}
-          description="Consultation détaillée d'une demande, de sa composition familiale, des élèves rattachés et de l'historique email."
+          description={getHeaderDescription(null)}
           aside={pageHeaderAside}
         />
         <ErrorState
@@ -648,72 +774,229 @@ const ApplicationDetailPage = () => {
     );
   }
 
+  const timelineEntries = buildTimelineEntries(application, emailLogs);
+  const familyLastNameTitle = getFamilyLastNameTitle(application);
+  const familyAvatarLabel =
+    familyLastNameTitle === "Famille non renseignée"
+      ? familyLastNameTitle
+      : `Famille ${familyLastNameTitle}`;
+  const applicationLevels = getApplicationLevels(application);
+  const fatherName = formatParentName(
+    application.family.fatherFirstName,
+    application.family.fatherLastName
+  );
+  const motherName = formatParentName(
+    application.family.motherFirstName,
+    application.family.motherLastName
+  );
+
   return (
     <>
-      <PageSectionHeader
-        topBar={pageTopBar}
-        eyebrow="Demande d'inscription"
-        title={getApplicationFamilyTitle(application)}
-        description="Consultation détaillée d'une demande, de sa composition familiale, des élèves rattachés et de l'historique email."
-        aside={pageHeaderAside}
-      />
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+      <div className="ui-animate-in ui-animate-in--subtle" style={getEnterStyle(120)}>
+        <PageSectionHeader
+          topBar={pageTopBar}
+          eyebrow="Demande d'inscription"
+          title={getApplicationFamilyTitle(application)}
+          description={getHeaderDescription(application)}
+          aside={pageHeaderAside}
+        />
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.72fr)] xl:items-start">
         <SectionCard
-          title="Demande"
-          subtitle="Informations générales du dossier et état actuel de la décision."
+          title="Informations principales"
+          subtitle="Repères essentiels du dossier avant traitement administratif."
+          className="xl:col-start-1 xl:row-start-1"
+          motionDelay={180}
         >
-          <div className="grid gap-4 md:grid-cols-2">
-            <DetailField label="Identifiant" value={application.id} />
-            <DetailField
-              label="Créée le"
-              value={formatOptionalDateTime(application.createdAt)}
-            />
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Statut
-              </p>
-              <div className="mt-2">
-                <StatusBadge status={application.status} />
+            <div className="rounded-[28px] border border-primary/10 bg-primary/5 p-5">
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+                <FamilyAvatar label={familyAvatarLabel} size="lg" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-primaryLight">
+                    Famille
+                  </p>
+                  <h2 className="mt-1 text-2xl font-semibold text-slate-900">
+                    {familyLastNameTitle}
+                  </h2>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <StatusBadge status={application.status} />
+                    <PriorityBadge isPriority={application.isPriority} />
+                    {applicationLevels.length > 0 ? (
+                      applicationLevels.map((level) => (
+                        <LevelBadge
+                          key={`${level.code}-${level.label}`}
+                          code={level.code}
+                          label={level.label}
+                          size="sm"
+                        />
+                      ))
+                    ) : null}
+                  </div>
+                </div>
               </div>
             </div>
-            <DetailField
-              label="Priorité"
-              value={application.isPriority ? "Oui" : "Non"}
-            />
-            <DetailField
-              label="Décision prise le"
-              value={formatOptionalDateTime(application.decisionAt)}
-            />
-            <DetailField
-              label="Note de décision"
-              value={formatOptionalText(application.decisionNote)}
-            />
-          </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <DetailField label="Identifiant">{application.id}</DetailField>
+              <DetailField label="Réception">
+                {formatOptionalDateTime(application.createdAt)}
+              </DetailField>
+              <DetailField label="Année scolaire">
+                {formatSchoolYearLabel(application.schoolYear.label)}
+              </DetailField>
+              <DetailField label="Élèves rattachés">
+                {application.students.length}
+              </DetailField>
+              <DetailField label="Décision prise le">
+                {formatOptionalDateTime(application.decisionAt)}
+              </DetailField>
+              <DetailField label="Note de décision">
+                {formatOptionalText(application.decisionNote)}
+              </DetailField>
+            </div>
         </SectionCard>
 
-        <div className="space-y-6">
+        <SectionCard
+          title="Famille"
+          subtitle="Parents et coordonnées à utiliser pour le suivi administratif."
+          className="xl:col-start-1 xl:row-start-2"
+          motionDelay={240}
+        >
+            <div className="grid gap-4 md:grid-cols-2">
+              <ParentCard name={fatherName} role="Père" variant="man" />
+              <ParentCard name={motherName} role="Mère" variant="woman" />
+            </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <DetailField label="Email de contact">
+                {formatOptionalText(application.family.contactEmail)}
+              </DetailField>
+              <DetailField label="Téléphone">
+                {formatOptionalText(application.family.contactPhone)}
+              </DetailField>
+              <DetailField label="Situation familiale">
+                {formatOptionalText(application.family.familyStatus)}
+              </DetailField>
+              <DetailField label="Adresse postale">
+                {formatOptionalText(application.family.postalAddress)}
+              </DetailField>
+            </div>
+        </SectionCard>
+
+        <div className="space-y-6 xl:col-start-2 xl:row-start-1 xl:row-span-2 xl:min-h-0 xl:self-stretch xl:[contain:size]">
           <SectionCard
-            title="Actions"
-            subtitle="Mettre à jour le statut administratif, la priorité, la décision finale et les emails sans recharger toute l'application."
+            title="Traitement"
+            subtitle="Statut, priorité, décision finale et email."
+            bodyClassName="!mt-4 flex flex-1 flex-col gap-3 xl:min-h-0"
+            className="!p-5 sm:!p-6 xl:flex xl:h-full xl:min-h-0 xl:flex-col"
+            motionDelay={220}
           >
-            <form className="space-y-4" onSubmit={handleStatusSubmit}>
-              <div className="space-y-2">
+            <form className="shrink-0" onSubmit={handleStatusSubmit}>
+              <div className="rounded-[22px] border border-slate-200/90 bg-slate-50/80 p-3.5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Statut actuel
+                    </p>
+                    <div className="mt-1.5">
+                      <StatusBadge status={application.status} />
+                    </div>
+                  </div>
+                  <select
+                    id="application-status"
+                    aria-label="Nouveau statut"
+                    value={selectedStatus}
+                    onChange={(event) =>
+                      setSelectedStatus(event.target.value as ApplicationStatus)
+                    }
+                    disabled={isStatusSubmitting}
+                    className="min-w-[170px] rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+                  >
+                    {statusOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isStatusSubmitting || selectedStatus === application.status}
+                  className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  <SaveIcon />
+                  <span>
+                    {isStatusSubmitting ? "Mise à jour..." : "Mettre à jour"}
+                  </span>
+                </button>
+              </div>
+            </form>
+
+            <div className="shrink-0 rounded-[22px] border border-slate-200/90 bg-slate-50/80 p-3.5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Priorité
+                  </p>
+                  <div className="mt-1.5">
+                    {application.isPriority ? (
+                      <PriorityBadge isPriority={application.isPriority} />
+                    ) : (
+                      <span className="text-sm font-medium text-slate-600">
+                        Non prioritaire
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handlePriorityToggle}
+                  disabled={isPrioritySubmitting}
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:border-primary/25 hover:text-primary disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                >
+                  <StarIcon />
+                  <span>
+                    {isPrioritySubmitting
+                      ? "Mise à jour..."
+                      : application.isPriority
+                        ? "Retirer"
+                        : "Activer"}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <form
+              className="shrink-0 rounded-[22px] border border-slate-200/90 bg-slate-50/80 p-3.5"
+              onSubmit={handleDecisionSubmit}
+            >
+              <div>
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Décision finale
+                </p>
+              </div>
+
+              <div className="mt-3 space-y-1.5">
                 <label
-                  htmlFor="application-status"
+                  htmlFor="application-decision-status"
                   className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
                 >
-                  Nouveau statut
+                  Décision
                 </label>
                 <select
-                  id="application-status"
-                  value={selectedStatus}
+                  id="application-decision-status"
+                  value={selectedDecisionStatus}
                   onChange={(event) =>
-                    setSelectedStatus(event.target.value as ApplicationStatus)
+                    setSelectedDecisionStatus(
+                      event.target.value as ApplicationDecisionStatus
+                    )
                   }
-                  disabled={isStatusSubmitting}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
+                  disabled={isDecisionSubmitting}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
                 >
-                  {statusOptions.map((option) => (
+                  {decisionOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
@@ -721,402 +1004,158 @@ const ApplicationDetailPage = () => {
                 </select>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Statut actuel
-                </p>
-                <div className="mt-2">
-                  <StatusBadge status={application.status} />
-                </div>
+              <div className="mt-3 space-y-1.5">
+                <label
+                  htmlFor="application-decision-note"
+                  className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
+                >
+                  Note
+                </label>
+                <textarea
+                  id="application-decision-note"
+                  value={decisionNote}
+                  onChange={(event) => setDecisionNote(event.target.value)}
+                  disabled={isDecisionSubmitting}
+                  rows={2}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+                  placeholder="Note interne de décision."
+                />
               </div>
 
               <button
                 type="submit"
-                disabled={isStatusSubmitting || selectedStatus === application.status}
-                className="inline-flex items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-not-allowed disabled:bg-slate-300"
+                disabled={isDecisionSubmitting}
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-not-allowed disabled:bg-slate-300"
               >
-                {isStatusSubmitting ? "Mise à jour..." : "Mettre à jour le statut"}
+                <SaveIcon />
+                <span>
+                  {isDecisionSubmitting
+                    ? "Enregistrement..."
+                    : "Enregistrer la décision"}
+                </span>
               </button>
             </form>
 
-            <div className="mt-6 border-t border-slate-200 pt-6">
-              <div className="space-y-4">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Priorité actuelle
-                  </p>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <PriorityBadge isPriority={application.isPriority} />
-                    {!application.isPriority ? (
-                      <span className="text-sm text-slate-600">Aucune priorité</span>
-                    ) : null}
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handlePriorityToggle}
-                  disabled={isPrioritySubmitting}
-                  className="inline-flex items-center rounded-full border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                >
-                  {isPrioritySubmitting
-                    ? "Mise à jour..."
-                    : application.isPriority
-                      ? "Désactiver la priorité"
-                      : "Activer la priorité"}
-                </button>
+            <div className="flex min-h-[150px] flex-1 flex-col justify-between rounded-[22px] border border-secondary/20 bg-secondary/10 p-4">
+              <div>
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-secondaryDark">
+                  Email
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-700">
+                  Ouvrez la page dédiée pour rédiger le message de décision, choisir
+                  le type d'email et enregistrer l'envoi dans l'historique du dossier.
+                </p>
               </div>
-            </div>
-
-            <div className="mt-6 border-t border-slate-200 pt-6">
-              <form className="space-y-4" onSubmit={handleDecisionSubmit}>
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    Décision finale
-                  </h3>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Enregistrer une acceptation ou un refus définitif avec une note
-                    optionnelle.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <label
-                    htmlFor="application-decision-status"
-                    className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
-                  >
-                    Décision
-                  </label>
-                  <select
-                    id="application-decision-status"
-                    value={selectedDecisionStatus}
-                    onChange={(event) =>
-                      setSelectedDecisionStatus(
-                        event.target.value as ApplicationDecisionStatus
-                      )
-                    }
-                    disabled={isDecisionSubmitting}
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
-                  >
-                    {decisionOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label
-                    htmlFor="application-decision-note"
-                    className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
-                  >
-                    Note de décision
-                  </label>
-                  <textarea
-                    id="application-decision-note"
-                    value={decisionNote}
-                    onChange={(event) => setDecisionNote(event.target.value)}
-                    disabled={isDecisionSubmitting}
-                    rows={4}
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
-                    placeholder="Ajouter une note visible dans le détail de la demande."
-                  />
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Décision actuellement visible
-                  </p>
-                  <div className="mt-2 flex flex-wrap items-center gap-3">
-                    <StatusBadge status={application.status} />
-                    <span className="text-sm text-slate-600">
-                      {formatOptionalDateTime(application.decisionAt)}
-                    </span>
-                  </div>
-                  <p className="mt-3 text-sm text-slate-600">
-                    {formatOptionalText(application.decisionNote)}
-                  </p>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isDecisionSubmitting}
-                  className="inline-flex items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-not-allowed disabled:bg-slate-300"
-                >
-                  {isDecisionSubmitting
-                    ? "Enregistrement..."
-                    : "Enregistrer la décision finale"}
-                </button>
-              </form>
-            </div>
-
-            <div className="mt-6 border-t border-slate-200 pt-6">
-              <form className="space-y-4" onSubmit={handleEmailSubmit}>
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    Envoyer un email
-                  </h3>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Enregistrer un email envoyé et rafraîchir immédiatement
-                    l'historique visible.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <label
-                    htmlFor="application-email-type"
-                    className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
-                  >
-                    Type d'email
-                  </label>
-                  <select
-                    id="application-email-type"
-                    value={selectedEmailType}
-                    onChange={(event) => {
-                      handleEmailTypeChange(
-                        event.target.value as ApplicationEmailType
-                      );
-                    }}
-                    disabled={isEmailSubmitting}
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
-                  >
-                    {emailTypeOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label
-                    htmlFor="application-email-subject"
-                    className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
-                  >
-                    Sujet
-                  </label>
-                  <input
-                    id="application-email-subject"
-                    type="text"
-                    value={emailSubject}
-                    onChange={(event) => {
-                      setEmailSubject(event.target.value);
-                      setIsEmailSubjectDirty(true);
-                    }}
-                    disabled={isEmailSubmitting}
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
-                    placeholder={
-                      selectedEmailType === "CUSTOM"
-                          ? "Saisir un sujet personnalisé"
-                          : "ECE - décision d'admission"
-                      }
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="application-email-body"
-                      className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
-                    >
-                      Message
-                    </label>
-                    <textarea
-                      id="application-email-body"
-                      value={emailBody}
-                      onChange={(event) => {
-                        setEmailBody(event.target.value);
-                        setIsEmailBodyDirty(true);
-                      }}
-                      disabled={isEmailSubmitting}
-                      rows={5}
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-primary/40 focus:bg-white"
-                      placeholder={
-                        selectedEmailType === "CUSTOM"
-                          ? "Saisir votre message personnalisé."
-                          : "Votre demande a été acceptée."
-                      }
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isEmailSubmitting}
-                    className="inline-flex items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-not-allowed disabled:bg-slate-300"
-                  >
-                    {isEmailSubmitting ? "Envoi en cours..." : "Envoyer l'email"}
-                  </button>
-                </form>
-              </div>
-            </SectionCard>
-
-            <SectionCard
-              title="Année scolaire"
-              subtitle="Campagne d'inscription associée à cette demande."
-            >
-              <div className="grid gap-4">
-                <DetailField label="Libellé" value={application.schoolYear.label} />
-                <DetailField
-                  label="Statut"
-                  value={application.schoolYear.isActive ? "Année active" : "Historique"}
-                />
-              </div>
-            </SectionCard>
-          </div>
-        </div>
-
-        <div className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-          <SectionCard
-            title="Famille"
-            subtitle="Coordonnées et informations de contact utilisées par l'administration."
-          >
-            <div className="grid gap-4 md:grid-cols-2">
-              <DetailField
-                label="Email de contact"
-                value={formatOptionalText(application.family.contactEmail)}
-              />
-              <DetailField
-                label="Téléphone"
-                value={formatOptionalText(application.family.contactPhone)}
-              />
-              <DetailField
-                label="Père"
-                value={formatParentName(
-                  application.family.fatherFirstName,
-                  application.family.fatherLastName
-                )}
-              />
-              <DetailField
-                label="Mère"
-                value={formatParentName(
-                  application.family.motherFirstName,
-                  application.family.motherLastName
-                )}
-              />
-              <DetailField
-                label="Situation familiale"
-                value={formatOptionalText(application.family.familyStatus)}
-              />
-              <DetailField
-                label="Adresse postale"
-                value={formatOptionalText(application.family.postalAddress)}
-              />
+              <Link
+                to={`/applications/${application.id}/email`}
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-secondary px-5 py-2 text-sm font-semibold text-white transition hover:bg-secondaryDark"
+              >
+                <MailIcon />
+                <span>Accéder à l'envoi d'email</span>
+              </Link>
             </div>
           </SectionCard>
+        </div>
+      </div>
 
-          <SectionCard
-            title="Élèves"
-            subtitle="Enfants rattachés à la demande et niveaux demandés."
-          >
-            {application.students.length === 0 ? (
-              <p className="rounded-2xl border border-dashed border-border bg-background/70 px-4 py-6 text-sm text-slate-500">
-                Aucun élève n'est rattaché à cette demande.
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {application.students.map((student) => (
-                  <article
-                    key={student.id}
-                    className="rounded-3xl border border-slate-200 bg-slate-50/80 p-5"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <h3 className="text-lg font-semibold text-slate-900">
+      <div className="mt-6">
+        <SectionCard
+          title="Élèves"
+          subtitle="Enfants rattachés à la demande et niveaux demandés."
+          motionDelay={300}
+        >
+          {application.students.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-border bg-background/70 px-4 py-6 text-sm text-slate-500">
+              Aucun élève n'est rattaché à cette demande.
+            </p>
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+              {application.students.map((student) => (
+                <article
+                  key={student.id}
+                  className="rounded-[28px] border border-slate-200/90 bg-slate-50/80 p-5 shadow-[0_14px_30px_-26px_rgba(15,23,42,0.2)]"
+                >
+                  <div className="flex items-start gap-4">
+                    <PersonAvatar
+                      label={`${student.firstName} ${student.lastName}`}
+                      size="md"
+                      variant={getStudentAvatarVariant(student.gender)}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="break-words text-lg font-semibold text-slate-900">
                           {student.firstName} {student.lastName}
                         </h3>
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <p className="text-sm text-slate-500">{student.level.label}</p>
-                          <LevelBadge
-                            code={student.level.code}
-                            label={student.level.label}
-                            size="sm"
-                          />
-                        </div>
+                        {student.rankInForm ? (
+                          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-700 ring-1 ring-slate-200">
+                            Rang {student.rankInForm}
+                          </span>
+                        ) : null}
                       </div>
-                      {student.rankInForm ? (
-                        <span className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-700 ring-1 ring-slate-200">
-                          Rang {student.rankInForm}
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <LevelBadge
+                          code={student.level.code}
+                          label={student.level.label}
+                          size="sm"
+                        />
+                        <span className="text-sm font-medium text-slate-600">
+                          {student.level.label}
                         </span>
-                      ) : null}
-                    </div>
-
-                    <div className="mt-4 grid gap-3 md:grid-cols-2">
-                      <DetailField label="Genre" value={genderLabels[student.gender]} />
-                      <DetailField
-                        label="Date de naissance"
-                        value={formatOptionalDate(student.birthDate)}
-                      />
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </SectionCard>
-        </div>
-
-        <div className="mt-6">
-          <SectionCard
-            title="Historique email"
-            subtitle="Logs métiers des emails envoyés ou simulés pour cette demande."
-          >
-            {emailLogs.length === 0 ? (
-              <p className="rounded-2xl border border-dashed border-border bg-background/70 px-4 py-6 text-sm text-slate-500">
-                Aucun email n'a encore été enregistré pour cette demande.
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {emailLogs.map((emailLog) => (
-                  <article
-                    key={emailLog.id}
-                    className="rounded-3xl border border-slate-200 bg-slate-50/80 p-5"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-lg font-semibold text-slate-900">
-                            {emailLog.subject}
-                          </h3>
-                          <span
-                            className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ring-1 ${emailTypeStyles[emailLog.emailType]}`}
-                          >
-                            {emailTypeLabels[emailLog.emailType]}
-                          </span>
-                          <span
-                            className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ring-1 ${emailSendStatusStyles[emailLog.sendStatus]}`}
-                          >
-                            {emailSendStatusLabels[emailLog.sendStatus]}
-                          </span>
-                        </div>
-                        <p className="mt-2 text-sm text-slate-500">
-                          Destinataire : {emailLog.recipientEmail}
-                        </p>
                       </div>
                     </div>
+                  </div>
 
-                    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                      <DetailField
-                        label="Type d'email"
-                        value={emailTypeLabels[emailLog.emailType]}
-                      />
-                      <DetailField
-                        label="Statut d'envoi"
-                        value={emailSendStatusLabels[emailLog.sendStatus]}
-                      />
-                      <DetailField
-                        label="Envoyé le"
-                        value={formatOptionalDateTime(emailLog.sentAt)}
-                      />
-                      <DetailField
-                        label="Log créé le"
-                        value={formatOptionalDateTime(emailLog.createdAt)}
-                      />
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                    <DetailField label="Genre">{genderLabels[student.gender]}</DetailField>
+                    <DetailField label="Naissance">
+                      {formatOptionalDate(student.birthDate)}
+                    </DetailField>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </SectionCard>
+      </div>
+
+      <div className="mt-6">
+        <SectionCard
+          title="Historique du dossier"
+          subtitle="Lecture chronologique des événements métier, décisions et emails."
+          motionDelay={360}
+        >
+          <ol className="relative space-y-4 before:absolute before:bottom-3 before:left-[0.95rem] before:top-3 before:w-px before:bg-slate-200">
+            {timelineEntries.map((entry) => (
+              <li key={entry.id} className="relative pl-10">
+                <span className="absolute left-0 top-1.5 flex h-8 w-8 items-center justify-center rounded-full border border-white bg-primary text-white shadow-[0_10px_20px_-14px_rgba(31,77,58,0.7)]">
+                  <span className="h-2.5 w-2.5 rounded-full bg-white" />
+                </span>
+                <article className="rounded-[26px] border border-slate-200/90 bg-slate-50/80 p-5">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        {entry.date}
+                      </p>
+                      <h3 className="mt-1 text-lg font-semibold text-slate-900">
+                        {entry.type}
+                      </h3>
                     </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </SectionCard>
-        </div>
+                    {entry.badges ? <div className="shrink-0">{entry.badges}</div> : null}
+                  </div>
+                  <p className="mt-4 text-sm font-semibold leading-6 text-slate-800">
+                    {entry.summary}
+                  </p>
+                  {entry.content ? (
+                    <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">
+                      {entry.content}
+                    </p>
+                  ) : null}
+                </article>
+              </li>
+            ))}
+          </ol>
+        </SectionCard>
+      </div>
     </>
   );
 };

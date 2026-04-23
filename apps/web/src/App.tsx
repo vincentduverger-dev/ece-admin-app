@@ -5,6 +5,7 @@ import AppLayout from "./components/layout/AppLayout";
 import ToastViewport from "./components/ui/ToastViewport";
 import { ToastProvider } from "./context/ToastContext";
 import ApplicationDetailPage from "./pages/ApplicationDetailPage";
+import ApplicationEmailPage from "./pages/ApplicationEmailPage";
 import ApplicationsPage from "./pages/ApplicationsPage";
 import DashboardPage from "./pages/DashboardPage";
 import ImportCsvPage from "./pages/ImportCsvPage";
@@ -53,6 +54,7 @@ function App() {
           <Route element={<AppLayout />}>
             <Route index element={<DashboardPage />} />
             <Route path="applications" element={<ApplicationsPage />} />
+            <Route path="applications/:id/email" element={<ApplicationEmailPage />} />
             <Route path="applications/:id" element={<ApplicationDetailPage />} />
             <Route path="imports">
               <Route index element={<Navigate to="new" replace />} />
