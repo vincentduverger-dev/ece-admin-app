@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import PageSectionHeader from "../components/layout/PageSectionHeader";
 import Breadcrumb from "../components/ui/Breadcrumb";
 import ErrorState from "../components/ui/ErrorState";
+import LevelBadge from "../components/ui/LevelBadge";
 import LoadingState from "../components/ui/LoadingState";
 import PriorityBadge from "../components/ui/PriorityBadge";
 import StatusBadge from "../components/ui/StatusBadge";
@@ -1023,9 +1024,14 @@ const ApplicationDetailPage = () => {
                         <h3 className="text-lg font-semibold text-slate-900">
                           {student.firstName} {student.lastName}
                         </h3>
-                        <p className="mt-1 text-sm text-slate-500">
-                          {student.level.label} · {student.level.code}
-                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <p className="text-sm text-slate-500">{student.level.label}</p>
+                          <LevelBadge
+                            code={student.level.code}
+                            label={student.level.label}
+                            size="sm"
+                          />
+                        </div>
                       </div>
                       {student.rankInForm ? (
                         <span className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-700 ring-1 ring-slate-200">

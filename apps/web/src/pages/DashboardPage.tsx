@@ -5,10 +5,12 @@ import PageSectionHeader from "../components/layout/PageSectionHeader";
 import Breadcrumb from "../components/ui/Breadcrumb";
 import EmptyState from "../components/ui/EmptyState";
 import ErrorState from "../components/ui/ErrorState";
+import LevelBadge from "../components/ui/LevelBadge";
 import LoadingState from "../components/ui/LoadingState";
 import PriorityBadge from "../components/ui/PriorityBadge";
 import StatusBadge from "../components/ui/StatusBadge";
 import { fetchDashboardStats, getActiveSchoolYear } from "../lib/api";
+import { getLevelVisualStyle } from "../lib/levelVisuals";
 import type { SchoolYearSummary } from "../types/application";
 import type {
   DashboardApplicationStatus,
@@ -41,15 +43,6 @@ type MetricCardProps = {
   surfaceClassName: string;
   value: number;
   valueClassName?: string;
-};
-
-type LevelVisualStyle = {
-  barColor: string;
-  cardBackground: string;
-  borderColor: string;
-  codeBackground: string;
-  codeTextColor: string;
-  trackColor: string;
 };
 
 const PRIORITY_DISPLAY_LIMIT = 3;
@@ -227,18 +220,22 @@ const getPriorityChildrenLabel = (
     .join(" · ");
 };
 
-const getPriorityLevelsLabel = (
+const getPriorityLevels = (
   application: DashboardPriorityApplication
-): string => {
-  const levelLabels = application.students
-    .map((student) => student.level.label.trim())
-    .filter((value) => value.length > 0);
+): Array<{ code: string; label: string }> => {
+  const uniqueLevels = new Map<string, { code: string; label: string }>();
 
-  if (levelLabels.length === 0) {
-    return "Niveau non renseigné";
-  }
+  application.students.forEach((student) => {
+    const code = student.level.code.trim();
+    const label = student.level.label.trim();
+    const key = `${code}::${label}`;
 
-  return Array.from(new Set(levelLabels)).join(" · ");
+    if ((code.length > 0 || label.length > 0) && !uniqueLevels.has(key)) {
+      uniqueLevels.set(key, { code, label });
+    }
+  });
+
+  return Array.from(uniqueLevels.values());
 };
 
 const MetricCard = ({
@@ -273,115 +270,6 @@ const MetricCard = ({
       <p className="mt-3 text-sm leading-6 text-slate-500">{description}</p>
     </article>
   );
-};
-
-const fallbackLevelVisualStyles: LevelVisualStyle[] = [
-  {
-    barColor: "#2F6B52",
-    cardBackground: "#F7FBF9",
-    borderColor: "rgba(47,107,82,0.10)",
-    codeBackground: "rgba(47,107,82,0.10)",
-    codeTextColor: "#2F6B52",
-    trackColor: "#E8EFF0"
-  },
-  {
-    barColor: "#4E8769",
-    cardBackground: "#F7FBF9",
-    borderColor: "rgba(78,135,105,0.10)",
-    codeBackground: "rgba(78,135,105,0.10)",
-    codeTextColor: "#4E8769",
-    trackColor: "#E8EFF0"
-  },
-  {
-    barColor: "#76AD7A",
-    cardBackground: "#F7FBF8",
-    borderColor: "rgba(118,173,122,0.12)",
-    codeBackground: "rgba(118,173,122,0.12)",
-    codeTextColor: "#4E8769",
-    trackColor: "#E8EFF0"
-  },
-  {
-    barColor: "#A8CF8C",
-    cardBackground: "#FAFCF8",
-    borderColor: "rgba(168,207,140,0.16)",
-    codeBackground: "rgba(168,207,140,0.18)",
-    codeTextColor: "#5D8E4F",
-    trackColor: "#EDF2EA"
-  },
-  {
-    barColor: "#D4A24C",
-    cardBackground: "#FCF8F0",
-    borderColor: "rgba(212,162,76,0.16)",
-    codeBackground: "rgba(212,162,76,0.16)",
-    codeTextColor: "#B8842F",
-    trackColor: "#F3E9D7"
-  },
-  {
-    barColor: "#E2C15A",
-    cardBackground: "#FDF9EF",
-    borderColor: "rgba(226,193,90,0.18)",
-    codeBackground: "rgba(226,193,90,0.18)",
-    codeTextColor: "#B8842F",
-    trackColor: "#F4EBD5"
-  },
-  {
-    barColor: "#CF7560",
-    cardBackground: "#FCF4F2",
-    borderColor: "rgba(207,117,96,0.16)",
-    codeBackground: "rgba(207,117,96,0.14)",
-    codeTextColor: "#B85B4B",
-    trackColor: "#F3E8E6"
-  },
-  {
-    barColor: "#C8574B",
-    cardBackground: "#FCF1EF",
-    borderColor: "rgba(200,87,75,0.16)",
-    codeBackground: "rgba(200,87,75,0.14)",
-    codeTextColor: "#B14B40",
-    trackColor: "#F4E5E1"
-  }
-];
-
-const getLevelVisualStyle = (
-  levelCode: string,
-  levelLabel: string,
-  index: number
-): LevelVisualStyle => {
-  const normalized = `${levelCode} ${levelLabel}`.trim().toUpperCase();
-
-  if (normalized.includes("PS") || normalized.includes("MAT")) {
-    return fallbackLevelVisualStyles[0];
-  }
-
-  if (normalized.includes("MS")) {
-    return fallbackLevelVisualStyles[1];
-  }
-
-  if (normalized.includes("GS")) {
-    return fallbackLevelVisualStyles[2];
-  }
-
-  if (normalized.includes("CP")) {
-    return fallbackLevelVisualStyles[3];
-  }
-
-  if (normalized.includes("CE1")) {
-    return fallbackLevelVisualStyles[4];
-  }
-
-  if (normalized.includes("CE2")) {
-    return fallbackLevelVisualStyles[5];
-  }
-
-  if (normalized.includes("CM1")) {
-    return fallbackLevelVisualStyles[6];
-  }
-
-  if (normalized.includes("CM2")) {
-    return fallbackLevelVisualStyles[7];
-  }
-
-  return fallbackLevelVisualStyles[index % fallbackLevelVisualStyles.length];
 };
 
 const isWideLevelCard = (levelCode: string): boolean => {
@@ -573,7 +461,7 @@ const DashboardPage = () => {
       {pageHeader}
 
       <section
-        className="ui-animate-in ui-surface-hover ui-surface-hover--soft overflow-hidden rounded-[32px] border border-white/80 bg-white/92 shadow-[0_24px_50px_-34px_rgba(15,23,42,0.3)]"
+        className="ui-animate-in ui-surface-hover ui-surface-hover--soft ui-surface-hover--no-accent overflow-hidden rounded-[32px] border border-white/80 bg-white/92 shadow-[0_24px_50px_-34px_rgba(15,23,42,0.3)]"
         style={getEnterStyle(190)}
       >
         <div className="p-6 sm:p-8">
@@ -627,7 +515,7 @@ const DashboardPage = () => {
 
       <section className="mt-6 space-y-6">
         <article
-          className="ui-animate-in ui-surface-hover ui-surface-hover--soft rounded-[30px] border border-white/80 bg-white/92 p-6 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.35)] sm:p-8"
+          className="ui-animate-in ui-surface-hover ui-surface-hover--soft ui-surface-hover--no-accent rounded-[30px] border border-white/80 bg-white/92 p-6 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.35)] sm:p-8"
           style={getEnterStyle(430)}
         >
           <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
@@ -694,15 +582,12 @@ const DashboardPage = () => {
                         <p className="text-2xl font-semibold tracking-tight text-slate-900">
                           {level.label}
                         </p>
-                        <span
-                          className="ui-surface-hover__chip mt-3 inline-flex w-fit items-center rounded-full px-3.5 py-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.22em]"
-                          style={{
-                            backgroundColor: visual.codeBackground,
-                            color: visual.codeTextColor
-                          }}
-                        >
-                          {level.code}
-                        </span>
+                        <LevelBadge
+                          code={level.code}
+                          label={level.label}
+                          size="md"
+                          className="ui-surface-hover__chip mt-3"
+                        />
                       </div>
 
                       <div className="shrink-0 text-right">
@@ -735,7 +620,7 @@ const DashboardPage = () => {
         </article>
 
         <article
-          className="ui-animate-in ui-surface-hover ui-surface-hover--soft rounded-[30px] border border-white/80 bg-white/90 p-6 shadow-[0_18px_38px_-30px_rgba(15,23,42,0.24)]"
+          className="ui-animate-in ui-surface-hover ui-surface-hover--soft ui-surface-hover--no-accent rounded-[30px] border border-white/80 bg-white/90 p-6 shadow-[0_18px_38px_-30px_rgba(15,23,42,0.24)]"
           style={getEnterStyle(690)}
         >
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -764,98 +649,122 @@ const DashboardPage = () => {
                 Aucune demande prioritaire pour le moment.
               </p>
             ) : (
-              visiblePriorityApplications.map((application, index) => (
-                <article
-                  key={application.id}
-                  className="ui-animate-in ui-surface-hover ui-surface-hover--soft rounded-[28px] border border-slate-200/90 bg-slate-50/80 p-5 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.18)]"
-                  style={getEnterStyle(760 + index * 80)}
-                >
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2.5">
-                        <h3 className="text-lg font-semibold text-slate-900">
-                          Famille {getFamilyDisplayName(application)}
-                        </h3>
-                        <PriorityBadge isPriority={application.isPriority} />
+              visiblePriorityApplications.map((application, index) => {
+                const priorityLevels = getPriorityLevels(application);
+
+                return (
+                  <article
+                    key={application.id}
+                    className="ui-animate-in ui-surface-hover ui-surface-hover--soft rounded-[28px] border border-slate-200/90 bg-slate-50/80 p-5 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.18)]"
+                    style={getEnterStyle(760 + index * 80)}
+                  >
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <h3 className="text-lg font-semibold text-slate-900">
+                            Famille {getFamilyDisplayName(application)}
+                          </h3>
+                          <PriorityBadge isPriority={application.isPriority} />
+                        </div>
+                        <p className="mt-2 text-sm text-slate-500">
+                          {application.schoolYear.label}
+                          {application.schoolYear.isActive ? " · année active" : ""}
+                        </p>
                       </div>
-                      <p className="mt-2 text-sm text-slate-500">
-                        {application.schoolYear.label}
-                        {application.schoolYear.isActive ? " · année active" : ""}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <StatusBadge status={application.status} />
-                      <Link
-                        to={`/applications/${application.id}`}
-                        className="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-primary/30 hover:text-primary"
-                      >
-                        Voir la demande
-                      </Link>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 grid gap-3 md:grid-cols-2">
-                    <div className="rounded-2xl border border-white bg-white/80 px-4 py-3">
-                      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Enfants
-                      </p>
-                      <p className="mt-2 text-sm leading-6 text-slate-700">
-                        {getPriorityChildrenLabel(application)}
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border border-white bg-white/80 px-4 py-3">
-                      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Niveau
-                      </p>
-                      <p className="mt-2 text-sm leading-6 text-slate-700">
-                        {getPriorityLevelsLabel(application)}
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border border-white bg-white/80 px-4 py-3">
-                      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Contact
-                      </p>
-                      <p className="mt-2 text-sm leading-6 text-slate-700">
-                        {application.family.contactEmail ? (
-                          <a
-                            href={`mailto:${application.family.contactEmail}`}
-                            className="break-all text-primary hover:text-primaryDark"
-                          >
-                            {application.family.contactEmail}
-                          </a>
-                        ) : (
-                          "Non renseigné"
-                        )}
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border border-white bg-white/80 px-4 py-3">
-                      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Date
-                      </p>
-                      <p className="mt-2 text-sm leading-6 text-slate-700">
-                        {priorityDateFormatter.format(new Date(application.createdAt))}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {application.students.length === 0 ? (
-                      <span className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
-                        Aucun élève rattaché
-                      </span>
-                    ) : (
-                      application.students.map((student) => (
-                        <span
-                          key={`${application.id}-${student.firstName}-${student.lastName}-${student.level.code}`}
-                          className="ui-surface-hover__chip rounded-full bg-white px-3 py-1.5 text-xs font-medium text-slate-700 ring-1 ring-slate-200"
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatusBadge status={application.status} />
+                        <Link
+                          to={`/applications/${application.id}`}
+                          className="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-primary/30 hover:text-primary"
                         >
-                          {student.firstName} {student.lastName} · {student.level.code}
+                          Voir la demande
+                        </Link>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 grid gap-3 md:grid-cols-2">
+                      <div className="rounded-2xl border border-white bg-white/80 px-4 py-3">
+                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Enfants
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-slate-700">
+                          {getPriorityChildrenLabel(application)}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-white bg-white/80 px-4 py-3">
+                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Niveau
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {priorityLevels.length === 0 ? (
+                            <span className="text-sm leading-6 text-slate-500">
+                              Niveau non renseigné
+                            </span>
+                          ) : (
+                            priorityLevels.map((level) => (
+                              <LevelBadge
+                                key={`${application.id}-${level.code}-${level.label}`}
+                                code={level.code}
+                                label={level.label}
+                                size="sm"
+                              />
+                            ))
+                          )}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-white bg-white/80 px-4 py-3">
+                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Contact
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-slate-700">
+                          {application.family.contactEmail ? (
+                            <a
+                              href={`mailto:${application.family.contactEmail}`}
+                              className="break-all text-primary hover:text-primaryDark"
+                            >
+                              {application.family.contactEmail}
+                            </a>
+                          ) : (
+                            "Non renseigné"
+                          )}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-white bg-white/80 px-4 py-3">
+                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Date
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-slate-700">
+                          {priorityDateFormatter.format(new Date(application.createdAt))}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {application.students.length === 0 ? (
+                        <span className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
+                          Aucun élève rattaché
                         </span>
-                      ))
-                    )}
-                  </div>
-                </article>
-              ))
+                      ) : (
+                        application.students.map((student) => (
+                          <span
+                            key={`${application.id}-${student.firstName}-${student.lastName}-${student.level.code}`}
+                            className="ui-surface-hover__chip inline-flex items-center gap-2 rounded-full bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 ring-1 ring-slate-200"
+                          >
+                            <span>
+                              {student.firstName} {student.lastName}
+                            </span>
+                            <LevelBadge
+                              code={student.level.code}
+                              label={student.level.label}
+                              size="xs"
+                            />
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </article>
+                );
+              })
             )}
           </div>
 
