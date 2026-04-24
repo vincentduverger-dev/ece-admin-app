@@ -12,7 +12,7 @@ import type {
   SchoolYearSummary
 } from "../types/application";
 import type { DashboardStats } from "../types/dashboard";
-import type { CsvImportSummary } from "../types/import";
+import type { CsvImportHistoryItem, CsvImportSummary } from "../types/import";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
@@ -248,4 +248,10 @@ export const uploadCsvImport = async (
   }
 
   return (await response.json()) as CsvImportSummary;
+};
+
+export const getCsvImportHistory = async (
+  init?: RequestInit
+): Promise<CsvImportHistoryItem[]> => {
+  return fetchJson<CsvImportHistoryItem[]>("/api/import/csv/history", init);
 };
