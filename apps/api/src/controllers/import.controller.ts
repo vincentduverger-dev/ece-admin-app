@@ -5,6 +5,30 @@ import { buildApplicationImportHash, normalizeLevelLookupKey, parseCsvImportFile
 import { badRequest, notFound } from "../lib/errors";
 import { prisma } from "../prisma/client";
 
+const csvImportLogSelect = {
+  id: true,
+  fileName: true,
+  importedFamilies: true,
+  importedApplications: true,
+  importedStudents: true,
+  skippedRows: true,
+  duplicateRows: true,
+  invalidRows: true,
+  totalRows: true,
+  status: true,
+  createdAt: true,
+  schoolYear: {
+    select: {
+      id: true,
+      label: true
+    }
+  }
+} satisfies Prisma.CsvImportLogSelect;
+
+type CsvImportLogResponse = Prisma.CsvImportLogGetPayload<{
+  select: typeof csvImportLogSelect;
+}>;
+
 const ACCEPTED_CSV_MIME_TYPES = new Set([
   "application/csv",
   "application/vnd.ms-excel",
@@ -126,6 +150,36 @@ const buildFamilyUpdateData = (
   }
 
   return updateData;
+};
+
+const mapCsvImportLog = (log: CsvImportLogResponse) => {
+  return {
+    id: log.id,
+    fileName: log.fileName,
+    importedFamilies: log.importedFamilies,
+    importedApplications: log.importedApplications,
+    importedStudents: log.importedStudents,
+    skippedRows: log.skippedRows,
+    duplicateRows: log.duplicateRows,
+    invalidRows: log.invalidRows,
+    totalRows: log.totalRows,
+    status: log.status,
+    createdAt: log.createdAt,
+    schoolYearId: log.schoolYear?.id ?? null,
+    schoolYearLabel: log.schoolYear?.label ?? null
+  };
+};
+
+export const getCsvImportHistory = async (_req: Request, res: Response): Promise<void> => {
+  const importLogs = await prisma.csvImportLog.findMany({
+    orderBy: {
+      createdAt: "desc"
+    },
+    take: 50,
+    select: csvImportLogSelect
+  });
+
+  res.status(200).json(importLogs.map(mapCsvImportLog));
 };
 
 export const importCsv = async (req: Request, res: Response): Promise<void> => {
@@ -300,6 +354,21 @@ export const importCsv = async (req: Request, res: Response): Promise<void> => {
     }
   }
 
+  const createdImportLog = await prisma.csvImportLog.create({
+    data: {
+      schoolYearId: activeSchoolYear.id,
+      fileName: file.originalname.trim().length > 0 ? file.originalname.trim() : null,
+      importedFamilies,
+      importedApplications,
+      importedStudents,
+      skippedRows: invalidRows + duplicateRows,
+      duplicateRows,
+      invalidRows,
+      totalRows: parsedImport.totalRows
+    },
+    select: csvImportLogSelect
+  });
+
   res.status(200).json({
     importedFamilies,
     importedApplications,
@@ -309,6 +378,7 @@ export const importCsv = async (req: Request, res: Response): Promise<void> => {
     invalidRows,
     totalRows: parsedImport.totalRows,
     activeSchoolYear: activeSchoolYear.label,
-    delimiter: parsedImport.detectedDelimiter
+    delimiter: parsedImport.detectedDelimiter,
+    historyEntry: mapCsvImportLog(createdImportLog)
   });
 };

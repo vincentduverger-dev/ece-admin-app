@@ -4,18 +4,9 @@ import { Link } from "react-router-dom";
 
 import PageSectionHeader from "../components/layout/PageSectionHeader";
 import { useToast } from "../context/ToastContext";
-import { getActiveSchoolYear, uploadCsvImport } from "../lib/api";
+import { getActiveSchoolYear, getCsvImportHistory, uploadCsvImport } from "../lib/api";
 import type { SchoolYearSummary } from "../types/application";
-import type { CsvImportSummary } from "../types/import";
-
-const IMPORT_HISTORY_STORAGE_KEY = "csv_import_history";
-const MAX_IMPORT_HISTORY_ITEMS = 6;
-
-type ImportHistoryItem = CsvImportSummary & {
-  id: string;
-  fileName: string;
-  importedAt: string;
-};
+import type { CsvImportHistoryItem, CsvImportSummary } from "../types/import";
 
 type IconProps = {
   className?: string;
@@ -55,7 +46,7 @@ const pluralize = (count: number, singular: string, plural: string): string => {
   return `${numberFormatter.format(count)} ${count > 1 ? plural : singular}`;
 };
 
-const getImportHistoryResult = (item: ImportHistoryItem): string => {
+const getImportHistoryResult = (item: CsvImportHistoryItem): string => {
   return [
     pluralize(item.importedFamilies, "famille", "familles"),
     pluralize(item.importedApplications, "demande", "demandes"),
@@ -78,6 +69,14 @@ const getActiveSchoolYearErrorMessage = (error: unknown): string => {
   }
 
   return `Impossible de charger l'année scolaire active. ${error.message}`;
+};
+
+const getImportHistoryErrorMessage = (error: unknown): string => {
+  if (!(error instanceof Error) || error.message.trim().length === 0) {
+    return "Impossible de charger l'historique des imports.";
+  }
+
+  return `Impossible de charger l'historique des imports. ${error.message}`;
 };
 
 const getImportErrorMessage = (error: unknown): string => {
@@ -111,55 +110,6 @@ const getImportErrorMessage = (error: unknown): string => {
 
 const isCsvFile = (file: File): boolean => {
   return file.name.trim().toLowerCase().endsWith(".csv");
-};
-
-const isImportHistoryItem = (value: unknown): value is ImportHistoryItem => {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-
-  const candidate = value as Record<string, unknown>;
-
-  return (
-    typeof candidate.id === "string" &&
-    typeof candidate.fileName === "string" &&
-    typeof candidate.importedAt === "string" &&
-    typeof candidate.importedFamilies === "number" &&
-    typeof candidate.importedApplications === "number" &&
-    typeof candidate.importedStudents === "number" &&
-    typeof candidate.skippedRows === "number"
-  );
-};
-
-const readStoredImportHistory = (): ImportHistoryItem[] => {
-  try {
-    const rawValue = window.localStorage.getItem(IMPORT_HISTORY_STORAGE_KEY);
-
-    if (!rawValue) {
-      return [];
-    }
-
-    const parsedValue = JSON.parse(rawValue) as unknown;
-
-    if (!Array.isArray(parsedValue)) {
-      return [];
-    }
-
-    return parsedValue.filter(isImportHistoryItem).slice(0, MAX_IMPORT_HISTORY_ITEMS);
-  } catch {
-    return [];
-  }
-};
-
-const persistImportHistory = (items: ImportHistoryItem[]): void => {
-  try {
-    window.localStorage.setItem(
-      IMPORT_HISTORY_STORAGE_KEY,
-      JSON.stringify(items.slice(0, MAX_IMPORT_HISTORY_ITEMS))
-    );
-  } catch {
-    // Ignore storage write failures and keep the in-memory history.
-  }
 };
 
 const ChevronDownIcon = ({ className = "h-4 w-4" }: IconProps) => {
@@ -263,14 +213,12 @@ const ImportCsvPage = () => {
   const [activeSchoolYearError, setActiveSchoolYearError] = useState<string | null>(null);
   const [isLoadingActiveSchoolYear, setIsLoadingActiveSchoolYear] = useState(true);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [history, setHistory] = useState<ImportHistoryItem[]>(() => readStoredImportHistory());
+  const [history, setHistory] = useState<CsvImportHistoryItem[]>([]);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [inlineMessage, setInlineMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-
-  useEffect(() => {
-    persistImportHistory(history);
-  }, [history]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -308,11 +256,47 @@ const ImportCsvPage = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const loadImportHistory = async (): Promise<void> => {
+      setIsLoadingHistory(true);
+      setHistoryError(null);
+
+      try {
+        const importHistory = await getCsvImportHistory({ signal: controller.signal });
+
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setHistory(importHistory);
+      } catch (loadError) {
+        if (isAbortError(loadError) || controller.signal.aborted) {
+          return;
+        }
+
+        setHistory([]);
+        setHistoryError(getImportHistoryErrorMessage(loadError));
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoadingHistory(false);
+        }
+      }
+    };
+
+    void loadImportHistory();
+
+    return () => {
+      controller.abort();
+    };
+  }, []);
+
   const latestImport = history[0] ?? null;
   const activeSchoolYearLabel = activeSchoolYear
     ? formatSchoolYearLabel(activeSchoolYear.label)
-    : latestImport?.activeSchoolYear
-      ? formatSchoolYearLabel(latestImport.activeSchoolYear)
+    : latestImport?.schoolYearLabel
+      ? formatSchoolYearLabel(latestImport.schoolYearLabel)
       : "Non configurée";
 
   const openFilePicker = (): void => {
@@ -419,16 +403,14 @@ const ImportCsvPage = () => {
 
     try {
       const summary = await uploadCsvImport(selectedFile);
-      const nextHistoryItem: ImportHistoryItem = {
-        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        fileName: selectedFile.name,
-        importedAt: new Date().toISOString(),
-        ...summary
-      };
 
-      setHistory((currentHistory) =>
-        [nextHistoryItem, ...currentHistory].slice(0, MAX_IMPORT_HISTORY_ITEMS)
-      );
+      if (summary.historyEntry) {
+        setHistory((currentHistory) => [
+          summary.historyEntry as CsvImportHistoryItem,
+          ...currentHistory.filter((item) => item.id !== summary.historyEntry?.id)
+        ]);
+      }
+
       clearSelectedFile();
       showSuccess(getImportSuccessMessage(summary));
     } catch (submitError) {
@@ -585,13 +567,13 @@ const ImportCsvPage = () => {
                   Résumé du dernier import
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  {latestImport.fileName} ·{" "}
-                  {dateTimeFormatter.format(new Date(latestImport.importedAt))}
+                  {latestImport.fileName ?? "Fichier non renseigné"} ·{" "}
+                  {dateTimeFormatter.format(new Date(latestImport.createdAt))}
                 </p>
               </div>
               <div className="rounded-full border border-secondary/20 bg-secondary/10 px-4 py-2 text-sm font-medium text-secondaryDark">
-                {latestImport.activeSchoolYear
-                  ? formatSchoolYearLabel(latestImport.activeSchoolYear)
+                {latestImport.schoolYearLabel
+                  ? formatSchoolYearLabel(latestImport.schoolYearLabel)
                   : activeSchoolYearLabel}
               </div>
             </div>
@@ -628,6 +610,12 @@ const ImportCsvPage = () => {
           </h2>
         </div>
 
+        {historyError ? (
+          <p className="border-b border-danger/10 bg-danger/5 px-5 py-4 text-sm text-danger sm:px-6">
+            {historyError}
+          </p>
+        ) : null}
+
         <div className="overflow-x-auto">
           <table className="min-w-full border-collapse text-left">
             <thead className="bg-white/45">
@@ -641,7 +629,16 @@ const ImportCsvPage = () => {
               </tr>
             </thead>
             <tbody>
-              {history.length === 0 ? (
+              {isLoadingHistory ? (
+                <tr>
+                  <td
+                    colSpan={2}
+                    className="px-5 py-6 text-center text-base text-slate-500 sm:px-6"
+                  >
+                    Chargement de l&apos;historique des imports...
+                  </td>
+                </tr>
+              ) : history.length === 0 ? (
                 <tr>
                   <td
                     colSpan={2}
@@ -655,9 +652,11 @@ const ImportCsvPage = () => {
                   <tr key={item.id} className="align-top">
                     <td className="border-b border-[#f2e9de] px-5 py-4 text-sm text-slate-700 sm:px-6">
                       <div className="font-medium text-slate-900">
-                        {dateTimeFormatter.format(new Date(item.importedAt))}
+                        {dateTimeFormatter.format(new Date(item.createdAt))}
                       </div>
-                      <div className="mt-1 text-slate-500">{item.fileName}</div>
+                      <div className="mt-1 text-slate-500">
+                        {item.fileName ?? "Fichier non renseigné"}
+                      </div>
                     </td>
                     <td className="border-b border-[#f2e9de] px-5 py-4 text-sm text-slate-700 sm:px-6">
                       <div className="font-medium text-slate-900">
