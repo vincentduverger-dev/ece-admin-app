@@ -52,6 +52,7 @@ type DetailFieldProps = {
 
 type SectionCardProps = {
   children: ReactNode;
+  className?: string;
   motionDelay?: number;
   subtitle?: string;
   title: string;
@@ -197,11 +198,14 @@ const SectionCard = ({
   title,
   subtitle,
   children,
+  className,
   motionDelay = 0
 }: SectionCardProps) => {
   return (
     <section
-      className="ui-animate-in ui-surface-hover ui-surface-hover--soft ui-surface-hover--no-accent rounded-[32px] border border-white/80 bg-white/90 p-6 shadow-[0_24px_50px_-34px_rgba(15,23,42,0.3)] backdrop-blur sm:p-7"
+      className={`ui-animate-in ui-surface-hover ui-surface-hover--soft ui-surface-hover--no-accent flex flex-col rounded-[32px] border border-white/80 bg-white/90 p-6 shadow-[0_24px_50px_-34px_rgba(15,23,42,0.3)] backdrop-blur sm:p-7${
+        className ? ` ${className}` : ""
+      }`}
       style={getEnterStyle(motionDelay)}
     >
       <div>
@@ -214,7 +218,7 @@ const SectionCard = ({
           </p>
         ) : null}
       </div>
-      <div className="mt-6">{children}</div>
+      <div className="mt-6 flex-1">{children}</div>
     </section>
   );
 };
@@ -478,13 +482,14 @@ const ApplicationEmailPage = () => {
         />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(340px,0.62fr)] xl:items-start">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(340px,0.62fr)] xl:items-stretch">
         <SectionCard
           title="Rédaction"
           subtitle="Composer le message avant envoi et historisation sur le dossier."
+          className="h-full"
           motionDelay={180}
         >
-          <form className="space-y-5" onSubmit={handleEmailSubmit}>
+          <form className="flex h-full flex-col gap-5" onSubmit={handleEmailSubmit}>
             <div className="rounded-[26px] border border-slate-200/90 bg-slate-50/80 p-4">
               <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Destinataire
@@ -537,7 +542,7 @@ const ApplicationEmailPage = () => {
               </label>
             </div>
 
-            <label className="block">
+            <label className="flex flex-1 flex-col">
               <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                 Message
               </span>
@@ -549,7 +554,7 @@ const ApplicationEmailPage = () => {
                 }}
                 disabled={isEmailSubmitting}
                 rows={10}
-                className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+                className="mt-2 min-h-[320px] flex-1 resize-y rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
                 placeholder={
                   selectedEmailType === "CUSTOM"
                     ? "Saisir votre message personnalisé."
@@ -558,7 +563,7 @@ const ApplicationEmailPage = () => {
               />
             </label>
 
-            <div className="flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mt-auto flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
               <Link
                 to={detailPath}
                 className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-primary/25 hover:text-primary"
@@ -578,107 +583,107 @@ const ApplicationEmailPage = () => {
           </form>
         </SectionCard>
 
-        <div className="space-y-6 xl:sticky xl:top-6">
-          <SectionCard
-            title="Dossier"
-            subtitle="Contexte de la demande pendant la rédaction."
-            motionDelay={240}
-          >
-            <div className="space-y-4">
-              <DetailField label="Famille">
-                {getApplicationFamilyTitle(application)}
-              </DetailField>
-              <DetailField label="Année scolaire">
-                {formatSchoolYearLabel(application.schoolYear.label)}
-              </DetailField>
-              <DetailField label="Statut">
-                <StatusBadge status={application.status} />
-              </DetailField>
-              <DetailField label="Contact">
-                {formatOptionalText(application.family.contactEmail)}
-              </DetailField>
-            </div>
+        <SectionCard
+          title="Dossier"
+          subtitle="Contexte de la demande pendant la rédaction."
+          className="h-full"
+          motionDelay={240}
+        >
+          <div className="space-y-4">
+            <DetailField label="Famille">
+              {getApplicationFamilyTitle(application)}
+            </DetailField>
+            <DetailField label="Année scolaire">
+              {formatSchoolYearLabel(application.schoolYear.label)}
+            </DetailField>
+            <DetailField label="Statut">
+              <StatusBadge status={application.status} />
+            </DetailField>
+            <DetailField label="Contact">
+              {formatOptionalText(application.family.contactEmail)}
+            </DetailField>
+          </div>
 
-            <div className="mt-5 space-y-3">
-              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Élèves
-              </p>
-              {application.students.length === 0 ? (
-                <p className="rounded-2xl border border-dashed border-border bg-background/70 px-4 py-5 text-sm text-slate-500">
-                  Aucun élève rattaché.
-                </p>
-              ) : (
-                application.students.map((student) => (
-                  <div
-                    key={student.id}
-                    className="flex items-center gap-3 rounded-[24px] border border-slate-200/90 bg-slate-50/80 p-3"
-                  >
-                    <PersonAvatar
-                      label={`${student.firstName} ${student.lastName}`}
-                      size="sm"
-                      variant={getStudentAvatarVariant(student.gender)}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="break-words text-sm font-semibold text-slate-900">
-                        {student.firstName} {student.lastName}
-                      </p>
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <LevelBadge
-                          code={student.level.code}
-                          label={student.level.label}
-                          size="xs"
-                        />
-                        <span className="text-xs font-medium text-slate-500">
-                          {student.level.label}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </SectionCard>
-
-          <SectionCard
-            title="Historique récent"
-            subtitle="Derniers emails enregistrés pour cette demande."
-            motionDelay={300}
-          >
-            {latestEmailLogs.length === 0 ? (
-              <p className="rounded-2xl border border-dashed border-border bg-background/70 px-4 py-6 text-sm text-slate-500">
-                Aucun email n'a encore été enregistré pour cette demande.
+          <div className="mt-5 space-y-3">
+            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+              Élèves
+            </p>
+            {application.students.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-border bg-background/70 px-4 py-5 text-sm text-slate-500">
+                Aucun élève rattaché.
               </p>
             ) : (
-              <div className="space-y-3">
-                {latestEmailLogs.map((emailLog) => (
-                  <article
-                    key={emailLog.id}
-                    className="rounded-[24px] border border-slate-200/90 bg-slate-50/80 p-4"
-                  >
-                    <div className="flex flex-wrap gap-2">
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ring-1 ${applicationEmailTypeStyles[emailLog.emailType]}`}
-                      >
-                        {applicationEmailTypeLabels[emailLog.emailType]}
-                      </span>
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ring-1 ${applicationEmailSendStatusStyles[emailLog.sendStatus]}`}
-                      >
-                        {applicationEmailSendStatusLabels[emailLog.sendStatus]}
+              application.students.map((student) => (
+                <div
+                  key={student.id}
+                  className="flex items-center gap-3 rounded-[24px] border border-slate-200/90 bg-slate-50/80 p-3"
+                >
+                  <PersonAvatar
+                    label={`${student.firstName} ${student.lastName}`}
+                    size="sm"
+                    variant={getStudentAvatarVariant(student.gender)}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-sm font-semibold text-slate-900">
+                      {student.firstName} {student.lastName}
+                    </p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <LevelBadge
+                        code={student.level.code}
+                        label={student.level.label}
+                        size="xs"
+                      />
+                      <span className="text-xs font-medium text-slate-500">
+                        {student.level.label}
                       </span>
                     </div>
-                    <h3 className="mt-3 text-sm font-semibold leading-6 text-slate-900">
-                      {emailLog.subject}
-                    </h3>
-                    <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
-                      {formatOptionalDateTime(emailLog.sentAt ?? emailLog.createdAt)}
-                    </p>
-                  </article>
-                ))}
-              </div>
+                  </div>
+                </div>
+              ))
             )}
-          </SectionCard>
-        </div>
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          title="Historique récent"
+          subtitle="Derniers emails enregistrés pour cette demande."
+          className="xl:col-span-2"
+          motionDelay={300}
+        >
+          {latestEmailLogs.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-border bg-background/70 px-4 py-6 text-sm text-slate-500">
+              Aucun email n'a encore été enregistré pour cette demande.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {latestEmailLogs.map((emailLog) => (
+                <article
+                  key={emailLog.id}
+                  className="rounded-[24px] border border-slate-200/90 bg-slate-50/80 p-4"
+                >
+                  <div className="flex flex-wrap gap-2">
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ring-1 ${applicationEmailTypeStyles[emailLog.emailType]}`}
+                    >
+                      {applicationEmailTypeLabels[emailLog.emailType]}
+                    </span>
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ring-1 ${applicationEmailSendStatusStyles[emailLog.sendStatus]}`}
+                    >
+                      {applicationEmailSendStatusLabels[emailLog.sendStatus]}
+                    </span>
+                  </div>
+                  <h3 className="mt-3 text-sm font-semibold leading-6 text-slate-900">
+                    {emailLog.subject}
+                  </h3>
+                  <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+                    {formatOptionalDateTime(emailLog.sentAt ?? emailLog.createdAt)}
+                  </p>
+                </article>
+              ))}
+            </div>
+          )}
+        </SectionCard>
       </div>
     </>
   );
