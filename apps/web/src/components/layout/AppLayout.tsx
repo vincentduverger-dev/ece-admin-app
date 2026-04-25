@@ -9,7 +9,7 @@ type IconProps = {
 };
 
 type NavigationItem = {
-  key: "dashboard" | "applications" | "imports";
+  key: "dashboard" | "applications" | "imports" | "schoolYears";
   label: string;
   to?: string;
   end?: boolean;
@@ -67,6 +67,16 @@ const UploadIcon = ({ className = "h-5 w-5" }: IconProps) => {
   );
 };
 
+const CalendarIcon = ({ className = "h-5 w-5" }: IconProps) => {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
+      <rect x="4" y="5.5" width="16" height="14" rx="2.5" />
+      <path d="M8 3.5v4M16 3.5v4M4 9.5h16" strokeLinecap="round" />
+      <path d="M8.5 13h3M8.5 16.5h7" strokeLinecap="round" />
+    </svg>
+  );
+};
+
 const LogoutIcon = ({ className = "h-5 w-5" }: IconProps) => {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
@@ -100,9 +110,15 @@ const navigationItems: NavigationItem[] = [
   },
   {
     key: "imports",
-    label: "Import CSV",
+    label: "Campagne d'inscription",
     to: "/imports/new",
     icon: UploadIcon
+  },
+  {
+    key: "schoolYears",
+    label: "Années scolaires",
+    to: "/school-years",
+    icon: CalendarIcon
   }
 ];
 
