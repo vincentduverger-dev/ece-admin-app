@@ -324,6 +324,20 @@ export const importCsv = async (req: Request, res: Response): Promise<void> => {
     throw notFound("Active school year not found");
   }
 
+  const existingSuccessfulImport = await prisma.csvImportLog.findFirst({
+    where: {
+      schoolYearId: activeSchoolYear.id,
+      status: "SUCCESS"
+    },
+    select: {
+      id: true
+    }
+  });
+
+  if (existingSuccessfulImport) {
+    throw badRequest("CSV import already completed for active school year");
+  }
+
   const levels = await prisma.level.findMany({
     select: {
       id: true,
@@ -353,6 +367,7 @@ export const importCsv = async (req: Request, res: Response): Promise<void> => {
     : levels;
   const levelLookup = buildLevelLookupMap(allLevels);
 
+  const importedFamilyIds = new Set<string>();
   let importedFamilies = 0;
   let importedApplications = 0;
   let importedStudents = 0;
@@ -395,8 +410,8 @@ export const importCsv = async (req: Request, res: Response): Promise<void> => {
 
       if (existingApplication) {
         return {
-          createdFamily: false,
           createdApplication: false,
+          familyId: null,
           createdStudents: 0,
           skippedAsDuplicate: true
         };
@@ -415,7 +430,6 @@ export const importCsv = async (req: Request, res: Response): Promise<void> => {
       });
 
       let familyId = existingFamily?.id;
-      let createdFamily = false;
 
       if (existingFamily) {
         await tx.family.update({
@@ -433,7 +447,6 @@ export const importCsv = async (req: Request, res: Response): Promise<void> => {
         });
 
         familyId = createdFamilyRecord.id;
-        createdFamily = true;
       }
 
       if (!familyId) {
@@ -467,8 +480,8 @@ export const importCsv = async (req: Request, res: Response): Promise<void> => {
       });
 
       return {
-        createdFamily,
         createdApplication: true,
+        familyId,
         createdStudents: resolvedStudents.length,
         skippedAsDuplicate: false
       };
@@ -479,15 +492,17 @@ export const importCsv = async (req: Request, res: Response): Promise<void> => {
       continue;
     }
 
-    if (importResult.createdFamily) {
-      importedFamilies += 1;
-    }
-
     if (importResult.createdApplication) {
+      if (importResult.familyId) {
+        importedFamilyIds.add(importResult.familyId);
+      }
+
       importedApplications += 1;
       importedStudents += importResult.createdStudents;
     }
   }
+
+  importedFamilies = importedFamilyIds.size;
 
   const createdImportLog = await prisma.csvImportLog.create({
     data: {
