@@ -156,6 +156,16 @@ const isValidSchoolYearLabel = (value: string): boolean => {
   return Number.parseInt(labelMatch[2], 10) === Number.parseInt(labelMatch[1], 10) + 1;
 };
 
+const getSchoolYearDraftPlaceholder = (
+  schoolYear: SchoolYearSummary | null
+): string => {
+  if (!schoolYear) {
+    return "2026-2027";
+  }
+
+  return `${schoolYear.endYear}-${schoolYear.endYear + 1}`;
+};
+
 const ChevronDownIcon = ({ className = "h-4 w-4" }: IconProps) => {
   return (
     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
@@ -349,6 +359,12 @@ const ImportCsvPage = () => {
     !isLoadingActiveSchoolYear &&
     activeSchoolYear === null &&
     activeSchoolYearError === MISSING_ACTIVE_SCHOOL_YEAR_MESSAGE;
+  const canManageSchoolYear =
+    !isLoadingActiveSchoolYear &&
+    (activeSchoolYear !== null || isSchoolYearSetupRequired);
+  const isSchoolYearFormLocked =
+    isLoadingActiveSchoolYear || isCreatingSchoolYear || isSubmitting;
+  const schoolYearDraftPlaceholder = getSchoolYearDraftPlaceholder(activeSchoolYear);
   const isUploadLocked =
     isLoadingActiveSchoolYear ||
     isCreatingSchoolYear ||
@@ -504,6 +520,7 @@ const ImportCsvPage = () => {
       setActiveSchoolYear(schoolYear);
       setActiveSchoolYearError(null);
       setSchoolYearDraft("");
+      clearSelectedFile();
       setInlineMessage(null);
       showSuccess(
         `Année scolaire ${formatSchoolYearLabel(schoolYear.label)} créée et activée.`
@@ -603,19 +620,42 @@ const ImportCsvPage = () => {
           <li>Chaque import génère un résumé des demandes importées.</li>
         </ul>
 
-        {isSchoolYearSetupRequired ? (
-          <section className="mt-5 rounded-[24px] border border-[#e7d8c6] bg-[#fcf8f1] px-4 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] sm:px-5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primaryLight">
-              Configuration requise
-            </p>
-            <h2 className="mt-2 font-serif text-[1.8rem] text-slate-900">
-              Créez une année scolaire active avant l&apos;import
-            </h2>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
-              Aucune année scolaire active n&apos;est configurée. Créez et activez
-              une année scolaire ici pour débloquer l&apos;import CSV, ou activez
-              une année existante depuis l&apos;administration.
-            </p>
+        {canManageSchoolYear ? (
+          <section
+            className={`mt-5 rounded-[24px] px-4 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] sm:px-5 ${
+              isSchoolYearSetupRequired
+                ? "border border-[#e7d8c6] bg-[#fcf8f1]"
+                : "border border-[#ebdfd2] bg-white/82"
+            }`}
+          >
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="max-w-3xl">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primaryLight">
+                  {isSchoolYearSetupRequired
+                    ? "Configuration requise"
+                    : "Nouvelle campagne"}
+                </p>
+                <h2 className="mt-2 font-serif text-[1.8rem] text-slate-900">
+                  {isSchoolYearSetupRequired
+                    ? "Créez une année scolaire active avant l'import"
+                    : "Créez et activez la prochaine année scolaire"}
+                </h2>
+                <p className="mt-3 text-sm leading-7 text-slate-600">
+                  {isSchoolYearSetupRequired
+                    ? "Aucune année scolaire active n'est configurée. Créez et activez une année scolaire ici pour débloquer l'import CSV, ou activez une année existante depuis l'administration."
+                    : `L'année scolaire active est actuellement ${activeSchoolYearLabel}. Créez et activez ici une nouvelle année scolaire pour rattacher les prochains imports à cette nouvelle campagne d'inscription.`}
+                </p>
+              </div>
+
+              {activeSchoolYear ? (
+                <div className="inline-flex w-fit flex-col rounded-2xl border border-secondary/20 bg-secondary/10 px-4 py-3 text-sm text-secondaryDark">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primaryLight">
+                    Année active
+                  </span>
+                  <span className="mt-1 font-semibold">{activeSchoolYearLabel}</span>
+                </div>
+              ) : null}
+            </div>
 
             <form
               className="mt-5 flex flex-col gap-4 lg:flex-row lg:items-end"
@@ -628,17 +668,17 @@ const ImportCsvPage = () => {
                 <input
                   type="text"
                   inputMode="numeric"
-                  placeholder="2026-2027"
+                  placeholder={schoolYearDraftPlaceholder}
                   value={schoolYearDraft}
                   onChange={handleSchoolYearDraftChange}
-                  disabled={isCreatingSchoolYear}
+                  disabled={isSchoolYearFormLocked}
                   className="mt-2 w-full rounded-2xl border border-[#dfd1c0] bg-white px-4 py-3 text-base text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-slate-100"
                 />
               </label>
 
               <button
                 type="submit"
-                disabled={isCreatingSchoolYear}
+                disabled={isSchoolYearFormLocked}
                 className="inline-flex items-center justify-center rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-wait disabled:bg-slate-300"
               >
                 {isCreatingSchoolYear
@@ -655,7 +695,7 @@ const ImportCsvPage = () => {
           </section>
         ) : null}
 
-        {activeSchoolYearError && !isSchoolYearSetupRequired ? (
+        {activeSchoolYearError && !canManageSchoolYear ? (
           <p className="mt-5 rounded-[22px] border border-danger/15 bg-danger/5 px-4 py-3 text-sm text-danger">
             {activeSchoolYearError}
           </p>
