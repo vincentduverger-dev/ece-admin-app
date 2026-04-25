@@ -126,3 +126,8 @@ export type SchoolYearSummary = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type CreateSchoolYearPayload = {
+  label: string;
+  isActive?: boolean;
+};
