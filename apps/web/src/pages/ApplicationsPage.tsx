@@ -7,7 +7,7 @@ import {
   type CSSProperties,
   type ReactNode
 } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import PageSectionHeader from "../components/layout/PageSectionHeader";
 import Breadcrumb from "../components/ui/Breadcrumb";
@@ -343,12 +343,17 @@ const PaginationControls = ({
 };
 
 const ApplicationsPage = () => {
-  const [filters, setFilters] = useState<FilterState>({
+  const [searchParams] = useSearchParams();
+  const requestedSchoolYearId = searchParams.get("schoolYearId")?.trim() ?? "";
+  const [hasInitializedSchoolYearFilter, setHasInitializedSchoolYearFilter] = useState(
+    requestedSchoolYearId.length > 0
+  );
+  const [filters, setFilters] = useState<FilterState>(() => ({
     status: "",
-    schoolYearId: "",
+    schoolYearId: requestedSchoolYearId,
     isPriority: "",
     search: ""
-  });
+  }));
   const [sort, setSort] = useState<SortOption>("createdAtDesc");
   const [applications, setApplications] = useState<ApplicationListItem[]>([]);
   const [schoolYears, setSchoolYears] = useState<SchoolYearSummary[]>([]);
@@ -391,6 +396,7 @@ const ApplicationsPage = () => {
   const activeSchoolYear = useMemo(() => {
     return schoolYears.find((schoolYear) => schoolYear.isActive) ?? null;
   }, [schoolYears]);
+  const defaultSchoolYearId = requestedSchoolYearId || activeSchoolYear?.id || "";
   const totalPages = useMemo(() => {
     return Math.max(1, Math.ceil(displayedApplications.length / pageSize));
   }, [displayedApplications.length, pageSize]);
@@ -403,12 +409,12 @@ const ApplicationsPage = () => {
 
   const hasActiveFilters =
     filters.status !== "" ||
-    filters.schoolYearId !== "" ||
+    filters.schoolYearId !== defaultSchoolYearId ||
     filters.isPriority !== "" ||
     filters.search.trim().length > 0;
   const activeFilterCount = [
     filters.status,
-    filters.schoolYearId,
+    filters.schoolYearId !== defaultSchoolYearId ? filters.schoolYearId : "",
     filters.isPriority,
     filters.search.trim()
   ].filter((value) => value !== "").length;
@@ -425,16 +431,16 @@ const ApplicationsPage = () => {
       ? selectedSchoolYear
         ? formatSchoolYearLabel(selectedSchoolYear.label)
         : "Année sélectionnée"
-      : activeSchoolYear
-        ? formatSchoolYearLabel(activeSchoolYear.label)
-        : "Toutes les années";
+      : "Toutes les années scolaires";
   const inputClassName =
     "w-full rounded-2xl border border-slate-200 bg-white/95 px-4 py-2.5 text-sm text-slate-900 shadow-[0_12px_26px_-24px_rgba(15,23,42,0.28)] outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary/15";
+  const isWaitingForDefaultSchoolYear =
+    requestedSchoolYearId.length === 0 && !hasInitializedSchoolYearFilter;
 
   const resetFilters = (): void => {
     setFilters({
       status: "",
-      schoolYearId: "",
+      schoolYearId: defaultSchoolYearId,
       isPriority: "",
       search: ""
     });
@@ -472,6 +478,10 @@ const ApplicationsPage = () => {
   }, [applicationQueryParams]);
 
   useEffect(() => {
+    if (isWaitingForDefaultSchoolYear) {
+      return;
+    }
+
     const controller = new AbortController();
 
     void loadApplications(controller.signal);
@@ -479,7 +489,7 @@ const ApplicationsPage = () => {
     return () => {
       controller.abort();
     };
-  }, [loadApplications]);
+  }, [isWaitingForDefaultSchoolYear, loadApplications]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -522,6 +532,40 @@ const ApplicationsPage = () => {
   }, []);
 
   useEffect(() => {
+    if (requestedSchoolYearId.length > 0) {
+      setHasInitializedSchoolYearFilter(true);
+
+      if (requestedSchoolYearId === filters.schoolYearId) {
+        return;
+      }
+
+      setFilters((currentFilters) => ({
+        ...currentFilters,
+        schoolYearId: requestedSchoolYearId
+      }));
+
+      return;
+    }
+
+    if (isSchoolYearsLoading || hasInitializedSchoolYearFilter) {
+      return;
+    }
+
+    setHasInitializedSchoolYearFilter(true);
+
+    setFilters((currentFilters) => ({
+      ...currentFilters,
+      schoolYearId: activeSchoolYear?.id ?? ""
+    }));
+  }, [
+    activeSchoolYear?.id,
+    filters.schoolYearId,
+    hasInitializedSchoolYearFilter,
+    isSchoolYearsLoading,
+    requestedSchoolYearId
+  ]);
+
+  useEffect(() => {
     setCurrentPage(1);
   }, [filters.status, filters.schoolYearId, filters.isPriority, filters.search, pageSize, sort]);
 
@@ -549,7 +593,11 @@ const ApplicationsPage = () => {
           style={getEnterStyle(90)}
         >
           <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-primaryLight">
-            {filters.schoolYearId ? "Année filtrée" : "Année active"}
+            {filters.schoolYearId === ""
+              ? "Toutes les années"
+              : activeSchoolYear?.id === filters.schoolYearId
+                ? "Année active"
+                : "Année filtrée"}
           </p>
           <p className="mt-1 font-semibold">{schoolYearSummaryLabel}</p>
         </div>

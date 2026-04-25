@@ -26,6 +26,11 @@ export type LoginAdminResponse = {
   user: AuthUser;
 };
 
+type DeleteSchoolYearResult = {
+  id: string;
+  activatedSchoolYearId: string | null;
+};
+
 const buildApiUrl = (path: string): string => {
   return `${API_BASE_URL}${path}`;
 };
@@ -239,6 +244,39 @@ export const createSchoolYear = async (
     },
     body: JSON.stringify(payload)
   });
+};
+
+export const activateSchoolYear = async (
+  schoolYearId: string,
+  init?: RequestInit
+): Promise<SchoolYearSummary> => {
+  return fetchJson<SchoolYearSummary>(
+    `/api/school-years/${encodeURIComponent(schoolYearId)}/activate`,
+    {
+      ...init,
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...init?.headers
+      }
+    }
+  );
+};
+
+export const deleteSchoolYear = async (
+  schoolYearId: string,
+  init?: RequestInit
+): Promise<DeleteSchoolYearResult> => {
+  return fetchJson<DeleteSchoolYearResult>(
+    `/api/school-years/${encodeURIComponent(schoolYearId)}`,
+    {
+      ...init,
+      method: "DELETE",
+      headers: {
+        ...init?.headers
+      }
+    }
+  );
 };
 
 export const uploadCsvImport = async (

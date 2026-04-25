@@ -16,6 +16,16 @@ const schoolYearSelect = {
 
 const SCHOOL_YEAR_LABEL_PATTERN = /^(\d{4})-(\d{4})$/u;
 
+const getSchoolYearIdFromRequest = (req: Request): string => {
+  const schoolYearId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+  if (typeof schoolYearId !== "string" || schoolYearId.trim().length === 0) {
+    throw badRequest("School year id is required");
+  }
+
+  return schoolYearId;
+};
+
 const parseSchoolYearPayload = (
   payload: unknown
 ): { label: string; startYear: number; endYear: number; isActive: boolean } => {
@@ -113,7 +123,7 @@ export const createSchoolYear = async (req: Request, res: Response): Promise<voi
 };
 
 export const activateSchoolYear = async (req: Request, res: Response): Promise<void> => {
-  const schoolYearId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const schoolYearId = getSchoolYearIdFromRequest(req);
 
   const existingSchoolYear = await prisma.schoolYear.findUnique({
     where: { id: schoolYearId },
@@ -139,4 +149,100 @@ export const activateSchoolYear = async (req: Request, res: Response): Promise<v
   ]);
 
   res.status(200).json(activatedSchoolYear);
+};
+
+export const deleteSchoolYear = async (req: Request, res: Response): Promise<void> => {
+  const schoolYearId = getSchoolYearIdFromRequest(req);
+
+  const schoolYearToDelete = await prisma.schoolYear.findUnique({
+    where: { id: schoolYearId },
+    select: {
+      id: true,
+      label: true,
+      isActive: true
+    }
+  });
+
+  if (!schoolYearToDelete) {
+    throw notFound("School year not found");
+  }
+
+  const deletionResult = await prisma.$transaction(async (tx) => {
+    const linkedApplications = await tx.application.findMany({
+      where: { schoolYearId },
+      select: { familyId: true }
+    });
+    const relatedFamilyIds = [...new Set(linkedApplications.map((item) => item.familyId))];
+    const replacementSchoolYear = schoolYearToDelete.isActive
+      ? await tx.schoolYear.findFirst({
+          where: {
+            id: { not: schoolYearId }
+          },
+          orderBy: { startYear: "desc" },
+          select: { id: true }
+        })
+      : null;
+
+    await tx.csvImportLog.deleteMany({
+      where: { schoolYearId }
+    });
+
+    await tx.application.deleteMany({
+      where: { schoolYearId }
+    });
+
+    if (relatedFamilyIds.length > 0) {
+      const remainingApplications = await tx.application.findMany({
+        where: {
+          familyId: {
+            in: relatedFamilyIds
+          }
+        },
+        select: { familyId: true }
+      });
+      const remainingFamilyIds = new Set(
+        remainingApplications.map((application) => application.familyId)
+      );
+      const orphanFamilyIds = relatedFamilyIds.filter(
+        (familyId) => !remainingFamilyIds.has(familyId)
+      );
+
+      if (orphanFamilyIds.length > 0) {
+        await tx.family.deleteMany({
+          where: {
+            id: {
+              in: orphanFamilyIds
+            }
+          }
+        });
+      }
+    }
+
+    await tx.schoolYear.delete({
+      where: { id: schoolYearId }
+    });
+
+    if (schoolYearToDelete.isActive && replacementSchoolYear) {
+      await tx.schoolYear.updateMany({
+        where: {
+          id: { not: replacementSchoolYear.id }
+        },
+        data: { isActive: false }
+      });
+
+      await tx.schoolYear.update({
+        where: { id: replacementSchoolYear.id },
+        data: { isActive: true }
+      });
+    }
+
+    return {
+      id: schoolYearToDelete.id,
+      activatedSchoolYearId: schoolYearToDelete.isActive
+        ? replacementSchoolYear?.id ?? null
+        : null
+    };
+  });
+
+  res.status(200).json(deletionResult);
 };

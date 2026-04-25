@@ -56,9 +56,19 @@ const pluralize = (count: number, singular: string, plural: string): string => {
   return `${numberFormatter.format(count)} ${count > 1 ? plural : singular}`;
 };
 
+const getImportedFamiliesCount = (
+  item: Pick<CsvImportHistoryItem, "importedFamilies" | "importedApplications">
+): number => {
+  if (item.importedFamilies > 0 || item.importedApplications === 0) {
+    return item.importedFamilies;
+  }
+
+  return item.importedApplications;
+};
+
 const getImportHistoryResult = (item: CsvImportHistoryItem): string => {
   return [
-    pluralize(item.importedFamilies, "famille", "familles"),
+    pluralize(getImportedFamiliesCount(item), "famille", "familles"),
     pluralize(item.importedApplications, "demande", "demandes"),
     pluralize(item.importedStudents, "élève", "élèves"),
     pluralize(item.skippedRows, "ligne ignorée", "lignes ignorées")
@@ -125,6 +135,8 @@ const getImportErrorMessage = (error: unknown): string => {
       return "Le contenu du fichier CSV est invalide.";
     case "Active school year not found":
       return "Aucune année scolaire active n'est configurée pour recevoir l'import.";
+    case "CSV import already completed for active school year":
+      return "Cette campagne d'inscription possède déjà un import CSV réussi. Créez une nouvelle année scolaire avant de lancer un nouvel import.";
     default:
       if (error.message.startsWith("CSV missing ")) {
         return "Le fichier CSV ne correspond pas au format attendu du formulaire.";
@@ -350,6 +362,13 @@ const ImportCsvPage = () => {
   }, []);
 
   const latestImport = history[0] ?? null;
+  const activeSchoolYearImport = activeSchoolYear
+    ? history.find(
+      (item) =>
+        item.schoolYearId === activeSchoolYear.id &&
+        item.status === "SUCCESS"
+    ) ?? null
+    : null;
   const activeSchoolYearLabel = activeSchoolYear
     ? formatSchoolYearLabel(activeSchoolYear.label)
     : latestImport?.schoolYearLabel
@@ -365,11 +384,14 @@ const ImportCsvPage = () => {
   const isSchoolYearFormLocked =
     isLoadingActiveSchoolYear || isCreatingSchoolYear || isSubmitting;
   const schoolYearDraftPlaceholder = getSchoolYearDraftPlaceholder(activeSchoolYear);
+  const hasCompletedImportForActiveSchoolYear = activeSchoolYearImport !== null;
   const isUploadLocked =
     isLoadingActiveSchoolYear ||
+    isLoadingHistory ||
     isCreatingSchoolYear ||
     isSubmitting ||
-    activeSchoolYear === null;
+    activeSchoolYear === null ||
+    hasCompletedImportForActiveSchoolYear;
 
   const openFilePicker = (): void => {
     if (isUploadLocked) {
@@ -540,18 +562,27 @@ const ImportCsvPage = () => {
   ): Promise<void> => {
     event.preventDefault();
 
-    if (!selectedFile) {
-      const message = "Sélectionnez un fichier CSV avant de lancer l'import.";
+    if (!activeSchoolYear) {
+      const message =
+        activeSchoolYearError ??
+        "Aucune année scolaire active n'est configurée pour recevoir l'import.";
 
       setInlineMessage(message);
       showError(message);
       return;
     }
 
-    if (!activeSchoolYear) {
+    if (hasCompletedImportForActiveSchoolYear) {
       const message =
-        activeSchoolYearError ??
-        "Aucune année scolaire active n'est configurée pour recevoir l'import.";
+        "Cette campagne d'inscription possède déjà un import CSV réussi. Créez une nouvelle année scolaire avant de lancer un nouvel import.";
+
+      setInlineMessage(message);
+      showError(message);
+      return;
+    }
+
+    if (!selectedFile) {
+      const message = "Sélectionnez un fichier CSV avant de lancer l'import.";
 
       setInlineMessage(message);
       showError(message);
@@ -701,6 +732,26 @@ const ImportCsvPage = () => {
           </p>
         ) : null}
 
+        {hasCompletedImportForActiveSchoolYear ? (
+          <section className="mt-5 rounded-[24px] border border-success/15 bg-success/5 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.92)] sm:px-5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-success">
+              Import terminé
+            </p>
+            <p className="mt-2 text-sm leading-7 text-slate-700">
+              Un import CSV réussi est déjà enregistré pour l&apos;année scolaire{" "}
+              <span className="font-semibold">{activeSchoolYearLabel}</span>.
+              Créez et activez une nouvelle année scolaire pour débloquer un
+              nouvel import.
+            </p>
+            {activeSchoolYearImport ? (
+              <p className="mt-2 text-sm text-slate-500">
+                Dernier import de cette campagne :{" "}
+                {dateTimeFormatter.format(new Date(activeSchoolYearImport.createdAt))}
+              </p>
+            ) : null}
+          </section>
+        ) : null}
+
         <form className="mt-6" onSubmit={(event) => void handleImportSubmit(event)}>
           <input
             ref={fileInputRef}
@@ -743,7 +794,9 @@ const ImportCsvPage = () => {
                     className="inline-flex items-center gap-3 rounded-2xl bg-secondary px-6 py-3 text-lg font-semibold text-white shadow-[0_18px_28px_-18px_rgba(212,162,76,0.98)] transition hover:bg-secondaryDark disabled:cursor-not-allowed disabled:bg-slate-300"
                   >
                     <UploadIcon className="h-5 w-5" />
-                    Choisir un fichier
+                    {hasCompletedImportForActiveSchoolYear
+                      ? "Import déjà effectué"
+                      : "Choisir un fichier"}
                   </button>
                   <p className="text-base text-slate-500">Format accepté : .csv</p>
                 </div>
@@ -790,7 +843,11 @@ const ImportCsvPage = () => {
                   disabled={isUploadLocked}
                   className="inline-flex items-center justify-center rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-wait disabled:bg-slate-300"
                 >
-                  {isSubmitting ? "Import en cours..." : "Lancer l'import"}
+                  {isSubmitting
+                    ? "Import en cours..."
+                    : hasCompletedImportForActiveSchoolYear
+                      ? "Import déjà terminé"
+                      : "Lancer l'import"}
                 </button>
               </div>
             </div>
@@ -826,7 +883,10 @@ const ImportCsvPage = () => {
             </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-              <SummaryMetric label="Familles" value={latestImport.importedFamilies} />
+              <SummaryMetric
+                label="Familles"
+                value={getImportedFamiliesCount(latestImport)}
+              />
               <SummaryMetric
                 label="Demandes"
                 value={latestImport.importedApplications}

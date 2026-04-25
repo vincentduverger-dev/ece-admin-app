@@ -11,32 +11,83 @@ type DashboardStatusCounts = {
 };
 
 export const getDashboardStats = async (_req: Request, res: Response): Promise<void> => {
-  const [totalApplications, statusCounts, levels, priorityApplications] = await Promise.all([
-    prisma.application.count(),
+  const activeSchoolYear = await prisma.schoolYear.findFirst({
+    where: { isActive: true },
+    select: { id: true },
+    orderBy: { startYear: "desc" }
+  });
+
+  if (!activeSchoolYear) {
+    const levels = await prisma.level.findMany({
+      select: {
+        code: true,
+        label: true,
+        sortOrder: true
+      },
+      orderBy: {
+        sortOrder: "asc"
+      }
+    });
+
+    res.status(200).json({
+      totalApplications: 0,
+      byStatus: {
+        [ApplicationStatus.RECEIVED]: 0,
+        [ApplicationStatus.IN_REVIEW]: 0,
+        [ApplicationStatus.ACCEPTED]: 0,
+        [ApplicationStatus.REFUSED]: 0
+      },
+      byLevel: levels.map((level) => ({
+        code: level.code,
+        label: level.label,
+        count: 0
+      })),
+      priorityApplications: []
+    });
+    return;
+  }
+
+  const [totalApplications, statusCounts, levels, studentCountsByLevel, priorityApplications] = await Promise.all([
+    prisma.application.count({
+      where: {
+        schoolYearId: activeSchoolYear.id
+      }
+    }),
     prisma.application.groupBy({
       by: ["status"],
+      where: {
+        schoolYearId: activeSchoolYear.id
+      },
       _count: {
         _all: true
       }
     }),
     prisma.level.findMany({
       select: {
+        id: true,
         code: true,
         label: true,
-        sortOrder: true,
-        _count: {
-          select: {
-            students: true
-          }
-        }
+        sortOrder: true
       },
       orderBy: {
         sortOrder: "asc"
       }
     }),
+    prisma.student.groupBy({
+      by: ["levelId"],
+      where: {
+        application: {
+          schoolYearId: activeSchoolYear.id
+        }
+      },
+      _count: {
+        _all: true
+      }
+    }),
     prisma.application.findMany({
       where: {
-        isPriority: true
+        isPriority: true,
+        schoolYearId: activeSchoolYear.id
       },
       orderBy: {
         createdAt: "desc"
@@ -86,10 +137,14 @@ export const getDashboardStats = async (_req: Request, res: Response): Promise<v
     byStatus[statusCount.status] = statusCount._count._all;
   }
 
+  const studentCountsByLevelId = new Map(
+    studentCountsByLevel.map((level) => [level.levelId, level._count._all])
+  );
+
   const byLevel = levels.map((level) => ({
     code: level.code,
     label: level.label,
-    count: level._count.students
+    count: studentCountsByLevelId.get(level.id) ?? 0
   }));
 
   res.status(200).json({
