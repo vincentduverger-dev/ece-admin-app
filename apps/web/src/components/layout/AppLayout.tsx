@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../../hooks/useAuth";
+import FirstRunOnboarding from "./FirstRunOnboarding";
 
 type IconProps = {
   className?: string;
@@ -169,6 +170,8 @@ const AppLayout = () => {
 
   return (
     <div className="min-h-screen bg-background text-slate-900">
+      <FirstRunOnboarding />
+
       <header
         className="fixed inset-x-0 top-0 z-40 border-b-4 border-secondary shadow-[0_20px_55px_-35px_rgba(15,23,42,0.65)]"
         style={brandTextureStyle}
