@@ -36,6 +36,120 @@ const ACCEPTED_CSV_MIME_TYPES = new Set([
   "text/plain"
 ]);
 
+const IMPORT_LEVEL_DEFINITIONS = new Map([
+  ["ps", { code: "PS", label: "Petite Section", sortOrder: 1, availablePlaces: 18 }],
+  ["ms", { code: "MS", label: "Moyenne Section", sortOrder: 2, availablePlaces: 18 }],
+  ["gs", { code: "GS", label: "Grande Section", sortOrder: 3, availablePlaces: 18 }],
+  ["cp", { code: "CP", label: "CP", sortOrder: 4, availablePlaces: 22 }],
+  ["ce1", { code: "CE1", label: "CE1", sortOrder: 5, availablePlaces: 22 }],
+  ["ce2", { code: "CE2", label: "CE2", sortOrder: 6, availablePlaces: 22 }],
+  ["cm1", { code: "CM1", label: "CM1", sortOrder: 7, availablePlaces: 24 }],
+  ["cm2", { code: "CM2", label: "CM2", sortOrder: 8, availablePlaces: 24 }],
+  ["6e", { code: "6E", label: "6e", sortOrder: 9, availablePlaces: 0 }],
+  ["5e", { code: "5E", label: "5e", sortOrder: 10, availablePlaces: 0 }],
+  ["4e", { code: "4E", label: "4e", sortOrder: 11, availablePlaces: 0 }],
+  ["3e", { code: "3E", label: "3e", sortOrder: 12, availablePlaces: 0 }],
+  ["seconde", { code: "SECONDE", label: "Seconde", sortOrder: 13, availablePlaces: 0 }],
+  ["premiere", { code: "PREMIERE", label: "Première", sortOrder: 14, availablePlaces: 0 }],
+  ["terminale", { code: "TERMINALE", label: "Terminale", sortOrder: 15, availablePlaces: 0 }]
+]);
+
+const normalizeUploadedFileName = (fileName: string): string => {
+  const trimmedFileName = fileName.trim();
+
+  if (trimmedFileName.length === 0) {
+    return trimmedFileName;
+  }
+
+  if (!/[ÃÂâ]/u.test(trimmedFileName)) {
+    return trimmedFileName;
+  }
+
+  const decodedFileName = Buffer.from(trimmedFileName, "latin1").toString("utf8").trim();
+
+  return decodedFileName.length > 0 ? decodedFileName : trimmedFileName;
+};
+
+const sanitizeLevelCode = (value: string): string => {
+  const normalizedValue = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/gu, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/gu, "");
+
+  return normalizedValue.length > 0 ? normalizedValue.slice(0, 32) : "LEVEL";
+};
+
+const buildMissingLevelDefinitions = (
+  rows: Array<{
+    students: Array<{
+      requestedLevelKey: string;
+      requestedLevelLabel: string;
+    }>;
+  }>,
+  existingLevels: Array<{ code: string; sortOrder: number }>
+): Array<{
+  code: string;
+  label: string;
+  sortOrder: number;
+  availablePlaces: number;
+}> => {
+  const existingLevelKeys = new Set(
+    existingLevels.map((level) => normalizeLevelLookupKey(level.code))
+  );
+  const usedCodes = new Set(existingLevels.map((level) => level.code.toUpperCase()));
+  const missingLevels = new Map<
+    string,
+    {
+      code: string;
+      label: string;
+      sortOrder: number;
+      availablePlaces: number;
+    }
+  >();
+  let nextFallbackSortOrder = Math.max(
+    100,
+    ...existingLevels.map((level) => level.sortOrder + 1),
+    ...Array.from(IMPORT_LEVEL_DEFINITIONS.values()).map((level) => level.sortOrder + 1)
+  );
+
+  for (const row of rows) {
+    for (const student of row.students) {
+      if (
+        existingLevelKeys.has(student.requestedLevelKey) ||
+        missingLevels.has(student.requestedLevelKey)
+      ) {
+        continue;
+      }
+
+      const predefinedLevel = IMPORT_LEVEL_DEFINITIONS.get(student.requestedLevelKey);
+
+      if (predefinedLevel) {
+        missingLevels.set(student.requestedLevelKey, predefinedLevel);
+        usedCodes.add(predefinedLevel.code.toUpperCase());
+        continue;
+      }
+
+      let fallbackCode = sanitizeLevelCode(student.requestedLevelLabel);
+
+      while (usedCodes.has(fallbackCode)) {
+        fallbackCode = `${fallbackCode}X`;
+      }
+
+      usedCodes.add(fallbackCode);
+      missingLevels.set(student.requestedLevelKey, {
+        code: fallbackCode,
+        label: student.requestedLevelLabel.trim(),
+        sortOrder: nextFallbackSortOrder,
+        availablePlaces: 0
+      });
+      nextFallbackSortOrder += 1;
+    }
+  }
+
+  return Array.from(missingLevels.values());
+};
+
 const isCsvUpload = (file: Express.Multer.File): boolean => {
   const normalizedFileName = file.originalname.trim().toLowerCase();
   const normalizedMimeType = file.mimetype.trim().toLowerCase();
@@ -194,6 +308,7 @@ export const importCsv = async (req: Request, res: Response): Promise<void> => {
   }
 
   const parsedImport = parseCsvImportFile(file.buffer);
+  const normalizedFileName = normalizeUploadedFileName(file.originalname);
   const activeSchoolYear = await prisma.schoolYear.findFirst({
     where: { isActive: true },
     select: {
@@ -213,10 +328,30 @@ export const importCsv = async (req: Request, res: Response): Promise<void> => {
     select: {
       id: true,
       code: true,
-      label: true
+      label: true,
+      sortOrder: true
     }
   });
-  const levelLookup = buildLevelLookupMap(levels);
+  const missingLevels = buildMissingLevelDefinitions(parsedImport.rows, levels);
+
+  if (missingLevels.length > 0) {
+    await prisma.level.createMany({
+      data: missingLevels,
+      skipDuplicates: true
+    });
+  }
+
+  const allLevels = missingLevels.length > 0
+    ? await prisma.level.findMany({
+      select: {
+        id: true,
+        code: true,
+        label: true,
+        sortOrder: true
+      }
+    })
+    : levels;
+  const levelLookup = buildLevelLookupMap(allLevels);
 
   let importedFamilies = 0;
   let importedApplications = 0;
@@ -357,7 +492,7 @@ export const importCsv = async (req: Request, res: Response): Promise<void> => {
   const createdImportLog = await prisma.csvImportLog.create({
     data: {
       schoolYearId: activeSchoolYear.id,
-      fileName: file.originalname.trim().length > 0 ? file.originalname.trim() : null,
+      fileName: normalizedFileName.length > 0 ? normalizedFileName : null,
       importedFamilies,
       importedApplications,
       importedStudents,

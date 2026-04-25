@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import type { ChangeEvent, DragEvent, KeyboardEvent } from "react";
+import type { ChangeEvent, DragEvent, KeyboardEvent, MouseEvent } from "react";
 import { Link } from "react-router-dom";
 
 import PageSectionHeader from "../components/layout/PageSectionHeader";
 import { useToast } from "../context/ToastContext";
-import { getActiveSchoolYear, getCsvImportHistory, uploadCsvImport } from "../lib/api";
+import {
+  createSchoolYear,
+  getActiveSchoolYear,
+  getCsvImportHistory,
+  uploadCsvImport
+} from "../lib/api";
 import type { SchoolYearSummary } from "../types/application";
 import type { CsvImportHistoryItem, CsvImportSummary } from "../types/import";
 
@@ -14,6 +19,11 @@ type IconProps = {
 
 const contentCardClassName =
   "rounded-[28px] border border-[#e9ded2] bg-white/76 shadow-[0_22px_48px_-36px_rgba(15,23,42,0.38)] backdrop-blur";
+
+const MISSING_ACTIVE_SCHOOL_YEAR_MESSAGE =
+  "Aucune année scolaire active n'est configurée pour le moment.";
+
+const SCHOOL_YEAR_LABEL_PATTERN = /^(\d{4})-(\d{4})$/u;
 
 const dateTimeFormatter = new Intl.DateTimeFormat("fr-FR", {
   dateStyle: "medium",
@@ -65,10 +75,30 @@ const getActiveSchoolYearErrorMessage = (error: unknown): string => {
   }
 
   if (error.message === "Active school year not found") {
-    return "Aucune année scolaire active n'est configurée pour le moment.";
+    return MISSING_ACTIVE_SCHOOL_YEAR_MESSAGE;
   }
 
   return `Impossible de charger l'année scolaire active. ${error.message}`;
+};
+
+const getSchoolYearCreationErrorMessage = (error: unknown): string => {
+  if (!(error instanceof Error) || error.message.trim().length === 0) {
+    return "Impossible de créer l'année scolaire.";
+  }
+
+  switch (error.message) {
+    case "School year label is required":
+      return "Renseignez une année scolaire avant de créer l'année active.";
+    case "Invalid school year label format":
+    case "Invalid school year label range":
+      return "Le format attendu est YYYY-YYYY, par exemple 2026-2027.";
+    case "Invalid school year activation value":
+      return "Impossible d'activer l'année scolaire demandée.";
+    case "School year label already exists":
+      return "Cette année scolaire existe déjà. Activez-la depuis l'administration si nécessaire.";
+    default:
+      return error.message;
+  }
 };
 
 const getImportHistoryErrorMessage = (error: unknown): string => {
@@ -110,6 +140,20 @@ const getImportErrorMessage = (error: unknown): string => {
 
 const isCsvFile = (file: File): boolean => {
   return file.name.trim().toLowerCase().endsWith(".csv");
+};
+
+const normalizeSchoolYearInput = (value: string): string => {
+  return value.replace(/[–—]/gu, "-").replace(/\s+/gu, "");
+};
+
+const isValidSchoolYearLabel = (value: string): boolean => {
+  const labelMatch = value.match(SCHOOL_YEAR_LABEL_PATTERN);
+
+  if (!labelMatch) {
+    return false;
+  }
+
+  return Number.parseInt(labelMatch[2], 10) === Number.parseInt(labelMatch[1], 10) + 1;
 };
 
 const ChevronDownIcon = ({ className = "h-4 w-4" }: IconProps) => {
@@ -216,6 +260,9 @@ const ImportCsvPage = () => {
   const [history, setHistory] = useState<CsvImportHistoryItem[]>([]);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [schoolYearDraft, setSchoolYearDraft] = useState("");
+  const [schoolYearSetupError, setSchoolYearSetupError] = useState<string | null>(null);
+  const [isCreatingSchoolYear, setIsCreatingSchoolYear] = useState(false);
   const [inlineMessage, setInlineMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -298,9 +345,18 @@ const ImportCsvPage = () => {
     : latestImport?.schoolYearLabel
       ? formatSchoolYearLabel(latestImport.schoolYearLabel)
       : "Non configurée";
+  const isSchoolYearSetupRequired =
+    !isLoadingActiveSchoolYear &&
+    activeSchoolYear === null &&
+    activeSchoolYearError === MISSING_ACTIVE_SCHOOL_YEAR_MESSAGE;
+  const isUploadLocked =
+    isLoadingActiveSchoolYear ||
+    isCreatingSchoolYear ||
+    isSubmitting ||
+    activeSchoolYear === null;
 
   const openFilePicker = (): void => {
-    if (isSubmitting) {
+    if (isUploadLocked) {
       return;
     }
 
@@ -319,6 +375,10 @@ const ImportCsvPage = () => {
   };
 
   const handleSelectedFile = (nextFile: File): void => {
+    if (isUploadLocked) {
+      return;
+    }
+
     if (!isCsvFile(nextFile)) {
       const message = "Seuls les fichiers CSV (.csv) sont acceptés.";
 
@@ -345,7 +405,18 @@ const ImportCsvPage = () => {
     handleSelectedFile(nextFile);
   };
 
+  const handleChooseFileButtonClick = (
+    event: MouseEvent<HTMLButtonElement>
+  ): void => {
+    event.stopPropagation();
+    openFilePicker();
+  };
+
   const handleUploadZoneKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+    if (isUploadLocked) {
+      return;
+    }
+
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       openFilePicker();
@@ -354,16 +425,31 @@ const ImportCsvPage = () => {
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>): void => {
     event.preventDefault();
+
+    if (isUploadLocked) {
+      return;
+    }
     setIsDragging(true);
   };
 
   const handleDragLeave = (event: DragEvent<HTMLDivElement>): void => {
     event.preventDefault();
+
+    if (isUploadLocked) {
+      setIsDragging(false);
+      return;
+    }
+
     setIsDragging(false);
   };
 
   const handleDrop = (event: DragEvent<HTMLDivElement>): void => {
     event.preventDefault();
+
+    if (isUploadLocked) {
+      setIsDragging(false);
+      return;
+    }
     setIsDragging(false);
 
     const droppedFile = event.dataTransfer.files?.[0];
@@ -373,6 +459,63 @@ const ImportCsvPage = () => {
     }
 
     handleSelectedFile(droppedFile);
+  };
+
+  const handleSchoolYearDraftChange = (event: ChangeEvent<HTMLInputElement>): void => {
+    setSchoolYearDraft(normalizeSchoolYearInput(event.target.value));
+
+    if (schoolYearSetupError) {
+      setSchoolYearSetupError(null);
+    }
+  };
+
+  const handleSchoolYearSetupSubmit = async (
+    event: React.FormEvent<HTMLFormElement>
+  ): Promise<void> => {
+    event.preventDefault();
+
+    const normalizedLabel = normalizeSchoolYearInput(schoolYearDraft);
+
+    if (normalizedLabel.length === 0) {
+      const message = "Renseignez une année scolaire avant de créer l'année active.";
+
+      setSchoolYearSetupError(message);
+      showError(message);
+      return;
+    }
+
+    if (!isValidSchoolYearLabel(normalizedLabel)) {
+      const message = "Le format attendu est YYYY-YYYY, par exemple 2026-2027.";
+
+      setSchoolYearSetupError(message);
+      showError(message);
+      return;
+    }
+
+    setIsCreatingSchoolYear(true);
+    setSchoolYearSetupError(null);
+
+    try {
+      const schoolYear = await createSchoolYear({
+        label: normalizedLabel,
+        isActive: true
+      });
+
+      setActiveSchoolYear(schoolYear);
+      setActiveSchoolYearError(null);
+      setSchoolYearDraft("");
+      setInlineMessage(null);
+      showSuccess(
+        `Année scolaire ${formatSchoolYearLabel(schoolYear.label)} créée et activée.`
+      );
+    } catch (createError) {
+      const message = getSchoolYearCreationErrorMessage(createError);
+
+      setSchoolYearSetupError(message);
+      showError(message);
+    } finally {
+      setIsCreatingSchoolYear(false);
+    }
   };
 
   const handleImportSubmit = async (
@@ -460,7 +603,59 @@ const ImportCsvPage = () => {
           <li>Chaque import génère un résumé des demandes importées.</li>
         </ul>
 
-        {activeSchoolYearError ? (
+        {isSchoolYearSetupRequired ? (
+          <section className="mt-5 rounded-[24px] border border-[#e7d8c6] bg-[#fcf8f1] px-4 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] sm:px-5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primaryLight">
+              Configuration requise
+            </p>
+            <h2 className="mt-2 font-serif text-[1.8rem] text-slate-900">
+              Créez une année scolaire active avant l&apos;import
+            </h2>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
+              Aucune année scolaire active n&apos;est configurée. Créez et activez
+              une année scolaire ici pour débloquer l&apos;import CSV, ou activez
+              une année existante depuis l&apos;administration.
+            </p>
+
+            <form
+              className="mt-5 flex flex-col gap-4 lg:flex-row lg:items-end"
+              onSubmit={(event) => void handleSchoolYearSetupSubmit(event)}
+            >
+              <label className="block flex-1">
+                <span className="text-sm font-medium text-slate-700">
+                  Année scolaire
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="2026-2027"
+                  value={schoolYearDraft}
+                  onChange={handleSchoolYearDraftChange}
+                  disabled={isCreatingSchoolYear}
+                  className="mt-2 w-full rounded-2xl border border-[#dfd1c0] bg-white px-4 py-3 text-base text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-slate-100"
+                />
+              </label>
+
+              <button
+                type="submit"
+                disabled={isCreatingSchoolYear}
+                className="inline-flex items-center justify-center rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-wait disabled:bg-slate-300"
+              >
+                {isCreatingSchoolYear
+                  ? "Création en cours..."
+                  : "Créer et activer cette année"}
+              </button>
+            </form>
+
+            {schoolYearSetupError ? (
+              <p className="mt-4 rounded-2xl border border-danger/15 bg-danger/5 px-4 py-3 text-sm text-danger">
+                {schoolYearSetupError}
+              </p>
+            ) : null}
+          </section>
+        ) : null}
+
+        {activeSchoolYearError && !isSchoolYearSetupRequired ? (
           <p className="mt-5 rounded-[22px] border border-danger/15 bg-danger/5 px-4 py-3 text-sm text-danger">
             {activeSchoolYearError}
           </p>
@@ -477,14 +672,17 @@ const ImportCsvPage = () => {
 
           <div
             role="button"
-            tabIndex={0}
+            tabIndex={isUploadLocked ? -1 : 0}
+            aria-disabled={isUploadLocked}
             onClick={openFilePicker}
             onKeyDown={handleUploadZoneKeyDown}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             className={`rounded-[28px] border border-dashed px-5 py-8 transition sm:px-8 ${
-              isDragging
+              isUploadLocked
+                ? "cursor-not-allowed border-[#ede4d8] bg-slate-100/70 opacity-75"
+                : isDragging
                 ? "border-secondary bg-secondary/8 shadow-[inset_0_0_0_1px_rgba(212,162,76,0.18)]"
                 : "border-[#eadfcf] bg-white/45"
             }`}
@@ -500,8 +698,8 @@ const ImportCsvPage = () => {
                 <div className="mt-5 flex flex-col items-center gap-3 lg:items-start">
                   <button
                     type="button"
-                    onClick={openFilePicker}
-                    disabled={isSubmitting}
+                    onClick={handleChooseFileButtonClick}
+                    disabled={isUploadLocked}
                     className="inline-flex items-center gap-3 rounded-2xl bg-secondary px-6 py-3 text-lg font-semibold text-white shadow-[0_18px_28px_-18px_rgba(212,162,76,0.98)] transition hover:bg-secondaryDark disabled:cursor-not-allowed disabled:bg-slate-300"
                   >
                     <UploadIcon className="h-5 w-5" />
@@ -532,15 +730,24 @@ const ImportCsvPage = () => {
               <div className="flex flex-col gap-3 sm:flex-row">
                 <button
                   type="button"
-                  onClick={selectedFile ? clearSelectedFile : openFilePicker}
-                  disabled={isSubmitting}
+                  onClick={(event) => {
+                    event.stopPropagation();
+
+                    if (selectedFile) {
+                      clearSelectedFile();
+                      return;
+                    }
+
+                    openFilePicker();
+                  }}
+                  disabled={isUploadLocked}
                   className="inline-flex items-center justify-center rounded-2xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {selectedFile ? "Retirer le fichier" : "Choisir un fichier"}
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting || isLoadingActiveSchoolYear}
+                  disabled={isUploadLocked}
                   className="inline-flex items-center justify-center rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-wait disabled:bg-slate-300"
                 >
                   {isSubmitting ? "Import en cours..." : "Lancer l'import"}

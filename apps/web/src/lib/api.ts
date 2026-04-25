@@ -9,6 +9,7 @@ import type {
   ApplicationPriorityUpdateResult,
   ApplicationStatus,
   ApplicationStatusUpdateResult,
+  CreateSchoolYearPayload,
   SchoolYearSummary
 } from "../types/application";
 import type { DashboardStats } from "../types/dashboard";
@@ -223,6 +224,21 @@ export const getActiveSchoolYear = async (
   init?: RequestInit
 ): Promise<SchoolYearSummary> => {
   return fetchJson<SchoolYearSummary>("/api/school-years/active", init);
+};
+
+export const createSchoolYear = async (
+  payload: CreateSchoolYearPayload,
+  init?: RequestInit
+): Promise<SchoolYearSummary> => {
+  return fetchJson<SchoolYearSummary>("/api/school-years", {
+    ...init,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...init?.headers
+    },
+    body: JSON.stringify(payload)
+  });
 };
 
 export const uploadCsvImport = async (
