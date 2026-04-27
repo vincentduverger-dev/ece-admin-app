@@ -11,6 +11,14 @@ enum ApplicationStatus {
   IN_REVIEW
   ACCEPTED
   REFUSED
+  PARTIALLY_ACCEPTED
+}
+
+enum StudentAdmissionStatus {
+  PENDING
+  ACCEPTED
+  REFUSED
+  WAITLISTED
 }
 
 enum StudentGender {
@@ -99,14 +107,15 @@ model Application {
 }
 
 model Student {
-  id            String        @id @default(cuid())
-  applicationId String
-  levelId       String
-  lastName      String
-  firstName     String
-  gender        StudentGender @default(UNKNOWN)
-  birthDate     DateTime
-  rankInForm    Int?
+  id              String                 @id @default(cuid())
+  applicationId   String
+  levelId         String
+  lastName        String
+  firstName       String
+  gender          StudentGender          @default(UNKNOWN)
+  birthDate       DateTime
+  rankInForm      Int?
+  admissionStatus StudentAdmissionStatus @default(PENDING)
 
   application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   level       Level       @relation(fields: [levelId], references: [id], onDelete: Restrict)

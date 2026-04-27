@@ -82,6 +82,25 @@ const RefusedIcon = () => {
   );
 };
 
+const PartialIcon = () => {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      className="h-3.5 w-3.5 flex-none"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3.5 8h9" />
+      <path d="m4.25 5.25 2 2-2 2" />
+      <path d="m11.75 5.25-2 2 2 2" />
+    </svg>
+  );
+};
+
 const statusBadgeConfig: Record<ApplicationStatus, StatusBadgeConfig> = {
   RECEIVED: {
     badgeClassName: "bg-slate-100 text-slate-700 ring-slate-200",
@@ -102,6 +121,11 @@ const statusBadgeConfig: Record<ApplicationStatus, StatusBadgeConfig> = {
     badgeClassName: "bg-danger/15 text-danger ring-danger/20",
     label: "Refusée",
     Icon: RefusedIcon
+  },
+  PARTIALLY_ACCEPTED: {
+    badgeClassName: "bg-secondary/15 text-secondaryDark ring-secondary/25",
+    label: "Décision partielle",
+    Icon: PartialIcon
   }
 };
 

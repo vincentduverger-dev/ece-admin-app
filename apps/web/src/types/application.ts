@@ -2,9 +2,15 @@ export type ApplicationStatus =
   | "RECEIVED"
   | "IN_REVIEW"
   | "ACCEPTED"
-  | "REFUSED";
+  | "REFUSED"
+  | "PARTIALLY_ACCEPTED";
 
 export type ApplicationDecisionStatus = "ACCEPTED" | "REFUSED";
+export type StudentAdmissionStatus =
+  | "PENDING"
+  | "ACCEPTED"
+  | "REFUSED"
+  | "WAITLISTED";
 
 export type ApplicationLevel = {
   code: string;
@@ -19,6 +25,7 @@ export type ApplicationStudent = {
   id: string;
   firstName: string;
   lastName: string;
+  admissionStatus: StudentAdmissionStatus;
   level: ApplicationLevel;
 };
 
@@ -108,6 +115,11 @@ export type ApplicationDecisionUpdateResult = {
   status: ApplicationDecisionStatus;
   decisionAt: string | null;
   decisionNote: string | null;
+};
+
+export type StudentAdmissionStatusUpdateResult = {
+  student: ApplicationDetailStudent;
+  applicationStatus: ApplicationStatus;
 };
 
 export type ApplicationFilterParams = {

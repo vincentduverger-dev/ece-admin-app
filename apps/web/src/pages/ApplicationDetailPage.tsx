@@ -24,7 +24,8 @@ import {
   getApplicationEmailLogs,
   updateApplicationDecision,
   updateApplicationPriority,
-  updateApplicationStatus
+  updateApplicationStatus,
+  updateStudentAdmissionStatus
 } from "../lib/api";
 import {
   applicationEmailSendStatusLabels,
@@ -38,7 +39,8 @@ import type {
   ApplicationDetailStudent,
   ApplicationEmailLog,
   ApplicationGender,
-  ApplicationStatus
+  ApplicationStatus,
+  StudentAdmissionStatus
 } from "../types/application";
 
 type IconProps = {
@@ -84,7 +86,8 @@ const statusOptions: Array<{
   { value: "RECEIVED", label: "Reçue" },
   { value: "IN_REVIEW", label: "En revue" },
   { value: "ACCEPTED", label: "Acceptée" },
-  { value: "REFUSED", label: "Refusée" }
+  { value: "REFUSED", label: "Refusée" },
+  { value: "PARTIALLY_ACCEPTED", label: "Décision partielle" }
 ];
 
 const decisionOptions: Array<{
@@ -94,6 +97,30 @@ const decisionOptions: Array<{
   { value: "ACCEPTED", label: "Acceptée" },
   { value: "REFUSED", label: "Refusée" }
 ];
+
+const studentAdmissionStatusOptions: Array<{
+  value: StudentAdmissionStatus;
+  label: string;
+}> = [
+  { value: "ACCEPTED", label: "Accepter" },
+  { value: "REFUSED", label: "Refuser" },
+  { value: "WAITLISTED", label: "Liste d'attente" },
+  { value: "PENDING", label: "Remettre en attente" }
+];
+
+const studentAdmissionStatusLabels: Record<StudentAdmissionStatus, string> = {
+  PENDING: "En attente",
+  ACCEPTED: "Accepté",
+  REFUSED: "Refusé",
+  WAITLISTED: "Liste d'attente"
+};
+
+const studentAdmissionStatusStyles: Record<StudentAdmissionStatus, string> = {
+  PENDING: "bg-slate-100 text-slate-700 ring-slate-200",
+  ACCEPTED: "bg-success/15 text-success ring-success/20",
+  REFUSED: "bg-danger/15 text-danger ring-danger/20",
+  WAITLISTED: "bg-info/15 text-info ring-info/20"
+};
 
 const dateTimeFormatter = new Intl.DateTimeFormat("fr-FR", {
   dateStyle: "medium",
@@ -291,6 +318,38 @@ const getDecisionSummary = (status: ApplicationDecisionStatus): string => {
   return status === "ACCEPTED" ? "Acceptation enregistrée" : "Refus enregistré";
 };
 
+const getStudentAdmissionStatus = (
+  student: ApplicationDetailStudent
+): StudentAdmissionStatus => {
+  return student.admissionStatus ?? "PENDING";
+};
+
+const getStudentAdmissionCounts = (students: ApplicationDetailStudent[]) => {
+  return students.reduce(
+    (counts, student) => {
+      counts[getStudentAdmissionStatus(student)] += 1;
+
+      return counts;
+    },
+    {
+      PENDING: 0,
+      ACCEPTED: 0,
+      REFUSED: 0,
+      WAITLISTED: 0
+    } satisfies Record<StudentAdmissionStatus, number>
+  );
+};
+
+const getStudentAdmissionSummary = (students: ApplicationDetailStudent[]): string => {
+  const counts = getStudentAdmissionCounts(students);
+
+  return `${counts.ACCEPTED} accepté${counts.ACCEPTED > 1 ? "s" : ""} · ${
+    counts.REFUSED
+  } refusé${counts.REFUSED > 1 ? "s" : ""} · ${counts.WAITLISTED} en liste d'attente · ${
+    counts.PENDING
+  } en attente`;
+};
+
 const BackIcon = ({ className = "h-4 w-4" }: IconProps) => {
   return (
     <svg
@@ -426,6 +485,20 @@ const ParentCard = ({
   );
 };
 
+const StudentAdmissionBadge = ({
+  status
+}: {
+  status: StudentAdmissionStatus;
+}) => {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] ring-1 ${studentAdmissionStatusStyles[status]}`}
+    >
+      {studentAdmissionStatusLabels[status]}
+    </span>
+  );
+};
+
 const buildTimelineEntries = (
   application: ApplicationDetail,
   emailLogs: ApplicationEmailLog[]
@@ -498,6 +571,8 @@ const ApplicationDetailPage = () => {
     useState<ApplicationDecisionStatus>("ACCEPTED");
   const [decisionNote, setDecisionNote] = useState("");
   const [isDecisionSubmitting, setIsDecisionSubmitting] = useState(false);
+  const [updatingStudentAdmissionId, setUpdatingStudentAdmissionId] =
+    useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -671,7 +746,11 @@ const ApplicationDetailPage = () => {
             ...currentApplication,
             status: updatedApplication.status,
             decisionAt: updatedApplication.decisionAt,
-            decisionNote: updatedApplication.decisionNote
+            decisionNote: updatedApplication.decisionNote,
+            students: currentApplication.students.map((student) => ({
+              ...student,
+              admissionStatus: updatedApplication.status
+            }))
           };
         });
         setSelectedDecisionStatus(updatedApplication.status);
@@ -689,6 +768,56 @@ const ApplicationDetailPage = () => {
       }
     },
     [application, decisionNote, selectedDecisionStatus, showError, showSuccess]
+  );
+
+  const handleStudentAdmissionStatusUpdate = useCallback(
+    async (
+      studentId: string,
+      admissionStatus: StudentAdmissionStatus
+    ): Promise<void> => {
+      if (!application) {
+        return;
+      }
+
+      setUpdatingStudentAdmissionId(studentId);
+
+      try {
+        const updateResult = await updateStudentAdmissionStatus(
+          studentId,
+          admissionStatus
+        );
+
+        setApplication((currentApplication) => {
+          if (!currentApplication) {
+            return currentApplication;
+          }
+
+          return {
+            ...currentApplication,
+            status: updateResult.applicationStatus,
+            students: currentApplication.students.map((student) =>
+              student.id === updateResult.student.id
+                ? {
+                    ...student,
+                    admissionStatus: updateResult.student.admissionStatus
+                  }
+                : student
+            )
+          };
+        });
+        showSuccess("La décision de l'élève a bien été mise à jour.");
+      } catch (updateError) {
+        showError(
+          getActionErrorMessage(
+            "Impossible de mettre à jour la décision de l'élève.",
+            updateError
+          )
+        );
+      } finally {
+        setUpdatingStudentAdmissionId(null);
+      }
+    },
+    [application, showError, showSuccess]
   );
 
   const pageTopBar = (
@@ -935,6 +1064,21 @@ const ApplicationDetailPage = () => {
             </form>
 
             <div className="shrink-0 rounded-[22px] border border-slate-200/90 bg-slate-50/80 p-3.5">
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Décision des élèves
+              </p>
+              <p className="mt-2 text-sm font-semibold leading-6 text-slate-900">
+                {getStudentAdmissionSummary(application.students)}
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="text-sm font-medium text-slate-600">
+                  Statut global :
+                </span>
+                <StatusBadge status={application.status} />
+              </div>
+            </div>
+
+            <div className="shrink-0 rounded-[22px] border border-slate-200/90 bg-slate-50/80 p-3.5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -1101,6 +1245,9 @@ const ApplicationDetailPage = () => {
                         <span className="text-sm font-medium text-slate-600">
                           {student.level.label}
                         </span>
+                        <StudentAdmissionBadge
+                          status={getStudentAdmissionStatus(student)}
+                        />
                       </div>
                     </div>
                   </div>
@@ -1110,6 +1257,42 @@ const ApplicationDetailPage = () => {
                     <DetailField label="Naissance">
                       {formatOptionalDate(student.birthDate)}
                     </DetailField>
+                  </div>
+
+                  <div className="mt-5 border-t border-slate-200/80 pt-4">
+                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Décision individuelle
+                    </p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {studentAdmissionStatusOptions.map((option) => {
+                        const isCurrentStatus =
+                          getStudentAdmissionStatus(student) === option.value;
+                        const isSubmitting = updatingStudentAdmissionId === student.id;
+
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() =>
+                              void handleStudentAdmissionStatusUpdate(
+                                student.id,
+                                option.value
+                              )
+                            }
+                            disabled={isSubmitting || isCurrentStatus}
+                            className={`inline-flex min-h-10 items-center justify-center rounded-full border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed ${
+                              isCurrentStatus
+                                ? "border-primary/20 bg-primary/10 text-primaryDark"
+                                : "border-slate-300 bg-white text-slate-700 hover:border-primary/25 hover:text-primary disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                            }`}
+                          >
+                            {isSubmitting && !isCurrentStatus
+                              ? "Mise à jour..."
+                              : option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </article>
               ))}

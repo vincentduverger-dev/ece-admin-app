@@ -6,6 +6,7 @@ import {
   getApplicationById,
   getApplications,
   sendApplicationEmail,
+  updateStudentAdmissionStatus,
   updateApplicationPriority,
   updateApplicationStatus
 } from "../controllers/application.controller";
@@ -19,5 +20,6 @@ router.patch("/applications/:id/status", updateApplicationStatus);
 router.patch("/applications/:id/priority", updateApplicationPriority);
 router.patch("/applications/:id/decision", updateApplicationDecision);
 router.post("/applications/:id/send-email", sendApplicationEmail);
+router.patch("/students/:id/admission-status", updateStudentAdmissionStatus);
 
 export default router;

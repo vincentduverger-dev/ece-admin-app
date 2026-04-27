@@ -8,6 +8,7 @@ type DashboardStatusCounts = {
   IN_REVIEW: number;
   ACCEPTED: number;
   REFUSED: number;
+  PARTIALLY_ACCEPTED: number;
 };
 
 export const getDashboardStats = async (_req: Request, res: Response): Promise<void> => {
@@ -35,7 +36,8 @@ export const getDashboardStats = async (_req: Request, res: Response): Promise<v
         [ApplicationStatus.RECEIVED]: 0,
         [ApplicationStatus.IN_REVIEW]: 0,
         [ApplicationStatus.ACCEPTED]: 0,
-        [ApplicationStatus.REFUSED]: 0
+        [ApplicationStatus.REFUSED]: 0,
+        [ApplicationStatus.PARTIALLY_ACCEPTED]: 0
       },
       byLevel: levels.map((level) => ({
         code: level.code,
@@ -130,7 +132,8 @@ export const getDashboardStats = async (_req: Request, res: Response): Promise<v
     [ApplicationStatus.RECEIVED]: 0,
     [ApplicationStatus.IN_REVIEW]: 0,
     [ApplicationStatus.ACCEPTED]: 0,
-    [ApplicationStatus.REFUSED]: 0
+    [ApplicationStatus.REFUSED]: 0,
+    [ApplicationStatus.PARTIALLY_ACCEPTED]: 0
   };
 
   for (const statusCount of statusCounts) {

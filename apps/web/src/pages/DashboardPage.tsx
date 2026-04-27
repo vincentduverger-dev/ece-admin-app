@@ -142,6 +142,22 @@ const RefusedMetricIcon = ({ className = "h-5 w-5" }: IconProps) => {
   );
 };
 
+const PartialMetricIcon = ({ className = "h-5 w-5" }: IconProps) => {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className={className}
+    >
+      <path d="M4.5 10h11" strokeLinecap="round" />
+      <path d="m5.3 6.8 2.8 3.2-2.8 3.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="m14.7 6.8-2.8 3.2 2.8 3.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+};
+
 const statusCards: StatusCardConfig[] = [
   {
     status: "RECEIVED",
@@ -178,6 +194,15 @@ const statusCards: StatusCardConfig[] = [
     surfaceClassName: "bg-danger/10",
     iconClassName: "bg-danger text-white",
     Icon: RefusedMetricIcon
+  },
+  {
+    status: "PARTIALLY_ACCEPTED",
+    label: "Partielles",
+    description: "Dossiers avec des décisions différentes selon les élèves.",
+    valueClassName: "text-secondaryDark",
+    surfaceClassName: "bg-secondary/10",
+    iconClassName: "bg-secondary text-white",
+    Icon: PartialMetricIcon
   }
 ];
 

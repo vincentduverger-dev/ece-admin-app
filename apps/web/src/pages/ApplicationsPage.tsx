@@ -71,7 +71,8 @@ const statusOptions: StatusOption[] = [
   { value: "RECEIVED", label: "Reçues" },
   { value: "IN_REVIEW", label: "En revue" },
   { value: "ACCEPTED", label: "Acceptées" },
-  { value: "REFUSED", label: "Refusées" }
+  { value: "REFUSED", label: "Refusées" },
+  { value: "PARTIALLY_ACCEPTED", label: "Décisions partielles" }
 ];
 
 const sortOptions: ApplicationsSortOption[] = [
