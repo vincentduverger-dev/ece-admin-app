@@ -35,6 +35,18 @@ const isApplicationStatus = (value: string): value is ApplicationStatus => {
   return Object.values(ApplicationStatus).includes(value as ApplicationStatus);
 };
 
+type StudentAdmissionStatus = "PENDING" | "ACCEPTED" | "REFUSED" | "WAITLISTED";
+const studentAdmissionStatuses: StudentAdmissionStatus[] = [
+  "PENDING",
+  "ACCEPTED",
+  "REFUSED",
+  "WAITLISTED"
+];
+
+const isStudentAdmissionStatus = (value: string): value is StudentAdmissionStatus => {
+  return studentAdmissionStatuses.includes(value as StudentAdmissionStatus);
+};
+
 type ApplicationDecisionStatus = "ACCEPTED" | "REFUSED";
 type ApplicationEmailType = "ACCEPTANCE" | "REFUSAL" | "CUSTOM";
 
@@ -50,6 +62,55 @@ const isApplicationEmailType = (value: string): value is ApplicationEmailType =>
     value === EmailType.REFUSAL ||
     value === EmailType.CUSTOM
   );
+};
+
+const getRecalculatedApplicationStatus = (
+  currentStatus: ApplicationStatus,
+  students: Array<{ admissionStatus: StudentAdmissionStatus }>
+): ApplicationStatus => {
+  if (students.length === 0) {
+    return currentStatus;
+  }
+
+  const allPending = students.every(
+    (student) => student.admissionStatus === "PENDING"
+  );
+
+  if (allPending) {
+    return currentStatus === ApplicationStatus.RECEIVED ||
+      currentStatus === ApplicationStatus.IN_REVIEW
+      ? currentStatus
+      : ApplicationStatus.IN_REVIEW;
+  }
+
+  const allAccepted = students.every(
+    (student) => student.admissionStatus === "ACCEPTED"
+  );
+
+  if (allAccepted) {
+    return ApplicationStatus.ACCEPTED;
+  }
+
+  const allRefused = students.every(
+    (student) => student.admissionStatus === "REFUSED"
+  );
+
+  if (allRefused) {
+    return ApplicationStatus.REFUSED;
+  }
+
+  const hasAccepted = students.some(
+    (student) => student.admissionStatus === "ACCEPTED"
+  );
+  const hasRefused = students.some(
+    (student) => student.admissionStatus === "REFUSED"
+  );
+
+  if (hasAccepted || hasRefused) {
+    return ApplicationStatus.PARTIALLY_ACCEPTED;
+  }
+
+  return ApplicationStatus.IN_REVIEW;
 };
 
 export const getApplications = async (req: Request, res: Response): Promise<void> => {
@@ -268,16 +329,86 @@ export const updateApplicationDecision = async (req: Request, res: Response): Pr
     throw notFound("Application not found");
   }
 
-  const updatedApplication = await prisma.application.update({
-    where: { id: applicationId },
-    data: {
-      status,
-      decisionAt: new Date(),
-      decisionNote
-    }
+  const updatedApplication = await prisma.$transaction(async (transaction) => {
+    await transaction.student.updateMany({
+      where: { applicationId },
+      data: { admissionStatus: status }
+    });
+
+    return transaction.application.update({
+      where: { id: applicationId },
+      data: {
+        status,
+        decisionAt: new Date(),
+        decisionNote
+      }
+    });
   });
 
   res.status(200).json(updatedApplication);
+};
+
+export const updateStudentAdmissionStatus = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const studentId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const admissionStatus = getQueryParam(req.body?.admissionStatus);
+
+  if (!admissionStatus || !isStudentAdmissionStatus(admissionStatus)) {
+    throw badRequest("Invalid student admission status");
+  }
+
+  const updateResult = await prisma.$transaction(async (transaction) => {
+    const existingStudent = await transaction.student.findUnique({
+      where: { id: studentId },
+      select: {
+        id: true,
+        applicationId: true,
+        application: {
+          select: {
+            status: true
+          }
+        }
+      }
+    });
+
+    if (!existingStudent) {
+      throw notFound("Student not found");
+    }
+
+    const updatedStudent = await transaction.student.update({
+      where: { id: studentId },
+      data: { admissionStatus },
+      include: {
+        level: true
+      }
+    });
+
+    const applicationStudents = await transaction.student.findMany({
+      where: { applicationId: existingStudent.applicationId },
+      select: { admissionStatus: true }
+    });
+    const recalculatedStatus = getRecalculatedApplicationStatus(
+      existingStudent.application.status,
+      applicationStudents
+    );
+    const updatedApplication = await transaction.application.update({
+      where: { id: existingStudent.applicationId },
+      data: { status: recalculatedStatus },
+      select: {
+        id: true,
+        status: true
+      }
+    });
+
+    return {
+      student: updatedStudent,
+      applicationStatus: updatedApplication.status
+    };
+  });
+
+  res.status(200).json(updateResult);
 };
 
 export const sendApplicationEmail = async (req: Request, res: Response): Promise<void> => {

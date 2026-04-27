@@ -10,7 +10,9 @@ import type {
   ApplicationStatus,
   ApplicationStatusUpdateResult,
   CreateSchoolYearPayload,
-  SchoolYearSummary
+  SchoolYearSummary,
+  StudentAdmissionStatus,
+  StudentAdmissionStatusUpdateResult
 } from "../types/application";
 import type { DashboardStats } from "../types/dashboard";
 import type { CsvImportHistoryItem, CsvImportSummary } from "../types/import";
@@ -215,6 +217,25 @@ export const updateApplicationDecision = async (
         ...init?.headers
       },
       body: JSON.stringify(payload)
+    }
+  );
+};
+
+export const updateStudentAdmissionStatus = async (
+  studentId: string,
+  admissionStatus: StudentAdmissionStatus,
+  init?: RequestInit
+): Promise<StudentAdmissionStatusUpdateResult> => {
+  return fetchJson<StudentAdmissionStatusUpdateResult>(
+    `/api/students/${encodeURIComponent(studentId)}/admission-status`,
+    {
+      ...init,
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...init?.headers
+      },
+      body: JSON.stringify({ admissionStatus })
     }
   );
 };

@@ -38,7 +38,8 @@ import type {
   ApplicationEmailLog,
   ApplicationEmailSendPayload,
   ApplicationEmailType,
-  ApplicationGender
+  ApplicationGender,
+  StudentAdmissionStatus
 } from "../types/application";
 
 type IconProps = {
@@ -62,6 +63,20 @@ const dateTimeFormatter = new Intl.DateTimeFormat("fr-FR", {
   dateStyle: "medium",
   timeStyle: "short"
 });
+
+const studentAdmissionStatusLabels: Record<StudentAdmissionStatus, string> = {
+  PENDING: "En attente",
+  ACCEPTED: "Accepté",
+  REFUSED: "Refusé",
+  WAITLISTED: "Liste d'attente"
+};
+
+const studentAdmissionStatusStyles: Record<StudentAdmissionStatus, string> = {
+  PENDING: "bg-slate-100 text-slate-700 ring-slate-200",
+  ACCEPTED: "bg-success/15 text-success ring-success/20",
+  REFUSED: "bg-danger/15 text-danger ring-danger/20",
+  WAITLISTED: "bg-info/15 text-info ring-info/20"
+};
 
 const getEnterStyle = (delay: number): CSSProperties => {
   return {
@@ -144,6 +159,12 @@ const getStudentAvatarVariant = (
   }
 
   return "neutral";
+};
+
+const getStudentAdmissionStatus = (
+  student: ApplicationDetail["students"][number]
+): StudentAdmissionStatus => {
+  return student.admissionStatus ?? "PENDING";
 };
 
 const BackIcon = ({ className = "h-4 w-4" }: IconProps) => {
@@ -635,6 +656,11 @@ const ApplicationEmailPage = () => {
                       />
                       <span className="text-xs font-medium text-slate-500">
                         {student.level.label}
+                      </span>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[0.66rem] font-semibold uppercase tracking-[0.16em] ring-1 ${studentAdmissionStatusStyles[getStudentAdmissionStatus(student)]}`}
+                      >
+                        {studentAdmissionStatusLabels[getStudentAdmissionStatus(student)]}
                       </span>
                     </div>
                   </div>
