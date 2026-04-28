@@ -168,6 +168,13 @@ const getStudentAdmissionStatus = (
   return student.admissionStatus ?? "PENDING";
 };
 
+const getRequiresSendConfirmation = (
+  selectedEmailType: ApplicationEmailType,
+  recommendedEmailType: ApplicationEmailType
+): boolean => {
+  return selectedEmailType === "CUSTOM" || selectedEmailType !== recommendedEmailType;
+};
+
 const BackIcon = ({ className = "h-4 w-4" }: IconProps) => {
   return (
     <svg
@@ -263,6 +270,7 @@ const ApplicationEmailPage = () => {
   const [isEmailSubjectDirty, setIsEmailSubjectDirty] = useState(false);
   const [isEmailBodyDirty, setIsEmailBodyDirty] = useState(false);
   const [isEmailSubmitting, setIsEmailSubmitting] = useState(false);
+  const [isSendConfirmationOpen, setIsSendConfirmationOpen] = useState(false);
 
   const resetEmailForm = useCallback((nextApplication?: ApplicationDetail): void => {
     if (!nextApplication) {
@@ -372,6 +380,56 @@ const ApplicationEmailPage = () => {
     }
   }, [application, selectedEmailType, isEmailSubjectDirty, isEmailBodyDirty]);
 
+  const getValidatedEmailPayload =
+    useCallback((): ApplicationEmailSendPayload | null => {
+      if (!application) {
+        return null;
+      }
+
+      const normalizedSubject = emailSubject.trim();
+      const normalizedBody = emailBody.trim();
+
+      if (normalizedSubject.length === 0) {
+        showError("Le sujet est obligatoire.");
+        return null;
+      }
+
+      if (normalizedBody.length === 0) {
+        showError("Le message est obligatoire.");
+        return null;
+      }
+
+      return {
+        emailType: selectedEmailType,
+        subject: normalizedSubject,
+        body: normalizedBody
+      };
+    }, [application, emailBody, emailSubject, selectedEmailType, showError]);
+
+  const sendValidatedEmail = useCallback(
+    async (payload: ApplicationEmailSendPayload): Promise<void> => {
+      if (!application) {
+        return;
+      }
+
+      setIsEmailSubmitting(true);
+
+      try {
+        const createdEmailLog = await sendApplicationEmail(application.id, payload);
+
+        setEmailLogs((currentEmailLogs) => [createdEmailLog, ...currentEmailLogs]);
+        resetEmailForm(application);
+        setIsSendConfirmationOpen(false);
+        showSuccess("L'email a été envoyé et enregistré dans l'historique.");
+      } catch (sendError) {
+        showError(getApplicationEmailActionErrorMessage(sendError));
+      } finally {
+        setIsEmailSubmitting(false);
+      }
+    },
+    [application, resetEmailForm, showError, showSuccess]
+  );
+
   const handleEmailSubmit = useCallback(
     async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
       event.preventDefault();
@@ -380,49 +438,48 @@ const ApplicationEmailPage = () => {
         return;
       }
 
-      const normalizedSubject = emailSubject.trim();
-      const normalizedBody = emailBody.trim();
+      const payload = getValidatedEmailPayload();
 
-      if (normalizedSubject.length === 0) {
-        showError("Le sujet est obligatoire.");
+      if (!payload) {
         return;
       }
 
-      if (normalizedBody.length === 0) {
-        showError("Le message est obligatoire.");
+      const recommendedEmailType =
+        getApplicationDecisionEmailContext(application).recommendedEmailType;
+      const requiresSendConfirmation = getRequiresSendConfirmation(
+        selectedEmailType,
+        recommendedEmailType
+      );
+
+      if (requiresSendConfirmation) {
+        setIsSendConfirmationOpen(true);
         return;
       }
 
-      setIsEmailSubmitting(true);
-
-      const payload: ApplicationEmailSendPayload = {
-        emailType: selectedEmailType,
-        subject: normalizedSubject,
-        body: normalizedBody
-      };
-
-      try {
-        const createdEmailLog = await sendApplicationEmail(application.id, payload);
-
-        setEmailLogs((currentEmailLogs) => [createdEmailLog, ...currentEmailLogs]);
-        resetEmailForm(application);
-        showSuccess("L'email a été envoyé et enregistré dans l'historique.");
-      } catch (sendError) {
-        showError(getApplicationEmailActionErrorMessage(sendError));
-      } finally {
-        setIsEmailSubmitting(false);
-      }
+      await sendValidatedEmail(payload);
     },
-    [
-      application,
-      emailBody,
-      emailSubject,
-      resetEmailForm,
-      selectedEmailType,
-      showError,
-      showSuccess
-    ]
+    [application, getValidatedEmailPayload, selectedEmailType, sendValidatedEmail]
   );
+
+  const handleConfirmSend = useCallback(async (): Promise<void> => {
+    const payload = getValidatedEmailPayload();
+
+    if (!payload) {
+      return;
+    }
+
+    await sendValidatedEmail(payload);
+  }, [getValidatedEmailPayload, sendValidatedEmail]);
+
+  const handleCancelSendConfirmation = useCallback((): void => {
+    if (!isEmailSubmitting) {
+      setIsSendConfirmationOpen(false);
+    }
+  }, [isEmailSubmitting]);
+
+  useEffect(() => {
+    setIsSendConfirmationOpen(false);
+  }, [selectedEmailType, emailSubject, emailBody]);
 
   const detailPath = applicationId ? `/applications/${applicationId}` : "/applications";
   const pageTopBar = (
@@ -509,6 +566,13 @@ const ApplicationEmailPage = () => {
 
   const latestEmailLogs = emailLogs.slice(0, 4);
   const decisionEmailContext = getApplicationDecisionEmailContext(application);
+  const recommendedEmailType = decisionEmailContext.recommendedEmailType;
+  const isCustomEmail = selectedEmailType === "CUSTOM";
+  const isEmailTypeMismatch = selectedEmailType !== recommendedEmailType;
+  const requiresSendConfirmation = getRequiresSendConfirmation(
+    selectedEmailType,
+    recommendedEmailType
+  );
 
   return (
     <>
@@ -608,6 +672,43 @@ const ApplicationEmailPage = () => {
                 />
               </label>
             </div>
+
+            {isCustomEmail ? (
+              <div className="rounded-[22px] border border-secondary/30 bg-secondary/10 px-4 py-3 text-sm leading-6 text-slate-800">
+                <p className="font-semibold text-slate-900">
+                  Vous envoyez un email personnalisé.
+                </p>
+                <p className="mt-1">
+                  Vérifiez attentivement le contenu avant l'envoi. Une confirmation
+                  sera demandée avant l'envoi.
+                </p>
+              </div>
+            ) : isEmailTypeMismatch ? (
+              <div className="rounded-[22px] border border-danger/25 bg-danger/10 px-4 py-3 text-sm leading-6 text-slate-800">
+                <p className="font-semibold text-slate-900">
+                  Attention : le type d'email sélectionné ne correspond pas à
+                  l'état actuel de la demande.
+                </p>
+                <div className="mt-2 space-y-1">
+                  <p>
+                    Type recommandé :{" "}
+                    <span className="font-semibold">
+                      {applicationEmailTypeLabels[recommendedEmailType]}
+                    </span>
+                  </p>
+                  <p>
+                    Type sélectionné :{" "}
+                    <span className="font-semibold">
+                      {applicationEmailTypeLabels[selectedEmailType]}
+                    </span>
+                  </p>
+                </div>
+                <p className="mt-2">
+                  Vérifiez le contenu du message avant de continuer. Une
+                  confirmation sera demandée avant l'envoi.
+                </p>
+              </div>
+            ) : null}
 
             <label className="flex flex-1 flex-col">
               <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -757,6 +858,65 @@ const ApplicationEmailPage = () => {
           )}
         </SectionCard>
       </div>
+
+      {isSendConfirmationOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-4 py-6 backdrop-blur-sm">
+          <div
+            className="w-full max-w-lg rounded-[28px] border border-white/80 bg-white p-6 shadow-[0_28px_70px_-32px_rgba(15,23,42,0.45)]"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="email-send-confirmation-title"
+          >
+            <h2
+              id="email-send-confirmation-title"
+              className="text-xl font-semibold text-slate-900"
+            >
+              Confirmer l'envoi d'un email non recommandé
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              {isCustomEmail
+                ? "Vous envoyez un email personnalisé. Vérifiez attentivement le contenu avant l'envoi."
+                : "Le type d'email sélectionné ne correspond pas à la décision actuelle du dossier. Cet envoi peut transmettre une information incorrecte à la famille."}
+            </p>
+
+            {requiresSendConfirmation ? (
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">
+                <p>
+                  Type recommandé :{" "}
+                  <span className="font-semibold text-slate-900">
+                    {applicationEmailTypeLabels[recommendedEmailType]}
+                  </span>
+                </p>
+                <p>
+                  Type sélectionné :{" "}
+                  <span className="font-semibold text-slate-900">
+                    {applicationEmailTypeLabels[selectedEmailType]}
+                  </span>
+                </p>
+              </div>
+            ) : null}
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={handleCancelSendConfirmation}
+                disabled={isEmailSubmitting}
+                className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-primary/25 hover:text-primary disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleConfirmSend()}
+                disabled={isEmailSubmitting}
+                className="inline-flex items-center justify-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                {isEmailSubmitting ? "Envoi en cours..." : "Envoyer quand même"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 };
