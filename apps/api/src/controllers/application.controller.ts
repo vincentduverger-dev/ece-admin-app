@@ -8,6 +8,7 @@ import type { Request, Response } from "express";
 
 import { badRequest, notFound } from "../lib/errors";
 import { prisma } from "../prisma/client";
+import { sendApplicationMail } from "../services/mailer.service";
 
 const getQueryParam = (value: unknown): string | undefined => {
   if (typeof value === "string") {
@@ -50,7 +51,6 @@ const isStudentAdmissionStatus = (value: string): value is StudentAdmissionStatu
 type ApplicationDecisionStatus = "ACCEPTED" | "WAITLISTED";
 type ApplicationEmailType =
   | "ACCEPTANCE"
-  | "REFUSAL"
   | "WAITLIST"
   | "PARTIAL_DECISION"
   | "CUSTOM";
@@ -64,11 +64,43 @@ const isApplicationDecisionStatus = (
 const isApplicationEmailType = (value: string): value is ApplicationEmailType => {
   return (
     value === EmailType.ACCEPTANCE ||
-    value === EmailType.REFUSAL ||
     value === EmailType.WAITLIST ||
     value === EmailType.PARTIAL_DECISION ||
     value === EmailType.CUSTOM
   );
+};
+
+const isValidEmailAddress = (value: string): boolean => {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+};
+
+const requiredStatusByEmailType: Partial<
+  Record<ApplicationEmailType, ApplicationStatus>
+> = {
+  ACCEPTANCE: ApplicationStatus.ACCEPTED,
+  WAITLIST: ApplicationStatus.WAITLISTED,
+  PARTIAL_DECISION: ApplicationStatus.PARTIALLY_ACCEPTED
+};
+
+const getEmailTypeMismatchMessage = (
+  emailType: ApplicationEmailType,
+  applicationStatus: ApplicationStatus
+): string | null => {
+  const requiredStatus = requiredStatusByEmailType[emailType];
+
+  if (!requiredStatus || applicationStatus === requiredStatus) {
+    return null;
+  }
+
+  if (emailType === "ACCEPTANCE") {
+    return "Le type d'email Acceptation est autorisé uniquement pour une demande acceptée.";
+  }
+
+  if (emailType === "WAITLIST") {
+    return "Le type d'email Liste d'attente est autorisé uniquement pour une demande en liste d'attente.";
+  }
+
+  return "Le type d'email Décision partielle est autorisé uniquement pour une demande en décision partielle.";
 };
 
 const getRecalculatedApplicationStatus = (
@@ -437,9 +469,10 @@ export const updateStudentAdmissionStatus = async (
 
 export const sendApplicationEmail = async (req: Request, res: Response): Promise<void> => {
   const applicationId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const emailType = getQueryParam(req.body?.emailType);
+  const emailType = getQueryParam(req.body?.emailType ?? req.body?.mailType);
   const subject = getQueryParam(req.body?.subject);
   const body = getQueryParam(req.body?.body);
+  const payloadRecipientEmail = getQueryParam(req.body?.recipientEmail);
 
   if (!emailType || !isApplicationEmailType(emailType)) {
     throw badRequest("Invalid email type");
@@ -452,7 +485,8 @@ export const sendApplicationEmail = async (req: Request, res: Response): Promise
   const application = await prisma.application.findUnique({
     where: { id: applicationId },
     include: {
-      family: true
+      family: true,
+      students: true
     }
   });
 
@@ -460,10 +494,61 @@ export const sendApplicationEmail = async (req: Request, res: Response): Promise
     throw notFound("Application not found");
   }
 
-  const recipientEmail = application.family.contactEmail.trim();
+  const familyEmail = application.family.contactEmail.trim();
+  const recipientEmail = payloadRecipientEmail ?? familyEmail;
 
   if (!recipientEmail) {
     throw badRequest("Missing recipient email");
+  }
+
+  if (!isValidEmailAddress(recipientEmail)) {
+    throw badRequest("Invalid recipient email");
+  }
+
+  if (
+    payloadRecipientEmail &&
+    payloadRecipientEmail.toLowerCase() !== familyEmail.toLowerCase()
+  ) {
+    throw badRequest("Recipient email must match the family contact email");
+  }
+
+  const emailTypeMismatchMessage = getEmailTypeMismatchMessage(
+    emailType,
+    application.status
+  );
+
+  if (emailTypeMismatchMessage) {
+    throw badRequest(emailTypeMismatchMessage);
+  }
+
+  try {
+    await sendApplicationMail({
+      to: recipientEmail,
+      subject,
+      body
+    });
+  } catch (error) {
+    const failedEmailLog = await prisma.applicationEmailLog.create({
+      data: {
+        applicationId: application.id,
+        emailType,
+        recipientEmail,
+        subject,
+        bodySnapshot: body,
+        sendStatus: EmailSendStatus.FAILED
+      }
+    });
+
+    console.error("Failed to send application email", error);
+
+    res.status(502).json({
+      ...failedEmailLog,
+      message:
+        error instanceof Error && error.message === "SMTP configuration is incomplete"
+          ? "SMTP configuration is incomplete"
+          : "Email sending failed"
+    });
+    return;
   }
 
   const emailLog = await prisma.applicationEmailLog.create({
@@ -478,5 +563,8 @@ export const sendApplicationEmail = async (req: Request, res: Response): Promise
     }
   });
 
-  res.status(201).json(emailLog);
+  res.status(201).json({
+    ...emailLog,
+    message: "Email sent and logged successfully"
+  });
 };

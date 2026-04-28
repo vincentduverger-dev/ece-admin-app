@@ -1,4 +1,11 @@
-import "dotenv/config";
+import path from "node:path";
+
+import dotenv from "dotenv";
+
+dotenv.config({
+  path: path.resolve(__dirname, "../../../../.env"),
+  quiet: true
+});
 
 export type NodeEnv = "development" | "test" | "production";
 
@@ -82,6 +89,26 @@ const readOptionalPort = (name: string): number | undefined => {
   return parseIntegerEnv(name, value);
 };
 
+const readOptionalBoolean = (name: string, defaultValue: boolean): boolean => {
+  const value = readOptionalString(name);
+
+  if (value === undefined) {
+    return defaultValue;
+  }
+
+  if (value === "true") {
+    return true;
+  }
+
+  if (value === "false") {
+    return false;
+  }
+
+  throw new Error(
+    `Invalid environment variable ${name}: expected true or false, received "${value}"`
+  );
+};
+
 // Centralized backend environment access. Keep application code on `config`
 // instead of reading `process.env` directly.
 export const config = {
@@ -95,8 +122,10 @@ export const config = {
   email: {
     host: readOptionalString("SMTP_HOST"),
     port: readOptionalPort("SMTP_PORT"),
+    secure: readOptionalBoolean("SMTP_SECURE", false),
     user: readOptionalString("SMTP_USER"),
-    pass: readOptionalString("SMTP_PASS")
+    pass: readOptionalString("SMTP_PASS"),
+    from: readOptionalString("SMTP_FROM")
   },
   admin: {
     email: readOptionalString("ADMIN_EMAIL"),
