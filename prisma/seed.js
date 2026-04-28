@@ -191,10 +191,10 @@ const APPLICATION_SEEDS = [
       submittedAt: createUtcDate(2026, 2, 3, 11, 0),
       declaredChildrenCount: 1,
       discoverySource: "Google Forms",
-      status: ApplicationStatus.REFUSED,
+      status: ApplicationStatus.WAITLISTED,
       isPriority: false,
       decisionAt: createUtcDate(2026, 3, 4, 15, 45),
-      decisionNote: "Dossier refuse faute de place disponible."
+      decisionNote: "Dossier place en liste d'attente faute de place disponible."
     },
     students: [
       {
@@ -208,10 +208,11 @@ const APPLICATION_SEEDS = [
     ],
     emailLogs: [
       {
-        emailType: EmailType.REFUSAL,
+        emailType: EmailType.WAITLIST,
         recipientEmail: "famille.laurent.seed@ece.test",
-        subject: "ECE - decision d'inscription",
-        bodySnapshot: "La demande n'a pas pu aboutir sur cette campagne d'inscription.",
+        subject: "ECE - decision concernant votre demande d'inscription",
+        bodySnapshot:
+          "La demande est actuellement placee en liste d'attente, dans l'attente d'une place disponible.",
         sentAt: null,
         sendStatus: EmailSendStatus.FAILED
       }

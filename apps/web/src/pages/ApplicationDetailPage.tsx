@@ -86,7 +86,7 @@ const statusOptions: Array<{
   { value: "RECEIVED", label: "Reçue" },
   { value: "IN_REVIEW", label: "En revue" },
   { value: "ACCEPTED", label: "Acceptée" },
-  { value: "REFUSED", label: "Refusée" },
+  { value: "WAITLISTED", label: "Liste d'attente" },
   { value: "PARTIALLY_ACCEPTED", label: "Décision partielle" }
 ];
 
@@ -95,7 +95,7 @@ const decisionOptions: Array<{
   label: string;
 }> = [
   { value: "ACCEPTED", label: "Acceptée" },
-  { value: "REFUSED", label: "Refusée" }
+  { value: "WAITLISTED", label: "Liste d'attente" }
 ];
 
 const studentAdmissionStatusOptions: Array<{
@@ -103,7 +103,6 @@ const studentAdmissionStatusOptions: Array<{
   label: string;
 }> = [
   { value: "ACCEPTED", label: "Accepter" },
-  { value: "REFUSED", label: "Refuser" },
   { value: "WAITLISTED", label: "Liste d'attente" },
   { value: "PENDING", label: "Remettre en attente" }
 ];
@@ -111,14 +110,14 @@ const studentAdmissionStatusOptions: Array<{
 const studentAdmissionStatusLabels: Record<StudentAdmissionStatus, string> = {
   PENDING: "En attente",
   ACCEPTED: "Accepté",
-  REFUSED: "Refusé",
+  REFUSED: "Liste d'attente",
   WAITLISTED: "Liste d'attente"
 };
 
 const studentAdmissionStatusStyles: Record<StudentAdmissionStatus, string> = {
   PENDING: "bg-slate-100 text-slate-700 ring-slate-200",
   ACCEPTED: "bg-success/15 text-success ring-success/20",
-  REFUSED: "bg-danger/15 text-danger ring-danger/20",
+  REFUSED: "bg-info/15 text-info ring-info/20",
   WAITLISTED: "bg-info/15 text-info ring-info/20"
 };
 
@@ -143,14 +142,22 @@ const isAbortError = (error: unknown): boolean => {
 
 const isDecisionStatus = (
   status: ApplicationStatus
-): status is ApplicationDecisionStatus => {
-  return status === "ACCEPTED" || status === "REFUSED";
+): boolean => {
+  return status === "ACCEPTED" || status === "WAITLISTED" || status === "REFUSED";
 };
 
 const getDecisionSelection = (
   status: ApplicationStatus
 ): ApplicationDecisionStatus => {
-  return isDecisionStatus(status) ? status : "ACCEPTED";
+  if (status === "WAITLISTED" || status === "REFUSED") {
+    return "WAITLISTED";
+  }
+
+  return status === "ACCEPTED" ? status : "ACCEPTED";
+};
+
+const getStatusSelection = (status: ApplicationStatus): ApplicationStatus => {
+  return status === "REFUSED" ? "WAITLISTED" : status;
 };
 
 const formatSchoolYearLabel = (label: string): string => {
@@ -314,8 +321,10 @@ const getHeaderDescription = (application: ApplicationDetail | null): string => 
   )} · consultation et traitement du dossier.`;
 };
 
-const getDecisionSummary = (status: ApplicationDecisionStatus): string => {
-  return status === "ACCEPTED" ? "Acceptation enregistrée" : "Refus enregistré";
+const getDecisionSummary = (status: ApplicationStatus): string => {
+  return status === "ACCEPTED"
+    ? "Acceptation enregistrée"
+    : "Liste d'attente enregistrée";
 };
 
 const getStudentAdmissionStatus = (
@@ -343,11 +352,9 @@ const getStudentAdmissionCounts = (students: ApplicationDetailStudent[]) => {
 const getStudentAdmissionSummary = (students: ApplicationDetailStudent[]): string => {
   const counts = getStudentAdmissionCounts(students);
 
-  return `${counts.ACCEPTED} accepté${counts.ACCEPTED > 1 ? "s" : ""} · ${
-    counts.REFUSED
-  } refusé${counts.REFUSED > 1 ? "s" : ""} · ${counts.WAITLISTED} en liste d'attente · ${
-    counts.PENDING
-  } en attente`;
+  const waitlistedCount = counts.WAITLISTED + counts.REFUSED;
+
+  return `${counts.ACCEPTED} accepté${counts.ACCEPTED > 1 ? "s" : ""} · ${waitlistedCount} en liste d'attente · ${counts.PENDING} en attente`;
 };
 
 const BackIcon = ({ className = "h-4 w-4" }: IconProps) => {
@@ -631,7 +638,7 @@ const ApplicationDetailPage = () => {
 
   useEffect(() => {
     if (application) {
-      setSelectedStatus(application.status);
+      setSelectedStatus(getStatusSelection(application.status));
     }
   }, [application]);
 
@@ -662,7 +669,7 @@ const ApplicationDetailPage = () => {
           };
         });
         if (isDecisionStatus(updatedApplication.status)) {
-          setSelectedDecisionStatus(updatedApplication.status);
+          setSelectedDecisionStatus(getDecisionSelection(updatedApplication.status));
         }
         showSuccess("Le statut a bien été mis à jour.");
       } catch (updateError) {

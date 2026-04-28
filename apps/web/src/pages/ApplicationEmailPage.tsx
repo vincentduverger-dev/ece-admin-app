@@ -31,7 +31,8 @@ import {
   applicationEmailTypeOptions,
   applicationEmailTypeStyles,
   getApplicationEmailActionErrorMessage,
-  getApplicationEmailTemplate
+  getApplicationDecisionEmailContext,
+  getApplicationDecisionEmailTemplate
 } from "../lib/applicationEmail";
 import type {
   ApplicationDetail,
@@ -67,14 +68,14 @@ const dateTimeFormatter = new Intl.DateTimeFormat("fr-FR", {
 const studentAdmissionStatusLabels: Record<StudentAdmissionStatus, string> = {
   PENDING: "En attente",
   ACCEPTED: "Accepté",
-  REFUSED: "Refusé",
+  REFUSED: "Liste d'attente",
   WAITLISTED: "Liste d'attente"
 };
 
 const studentAdmissionStatusStyles: Record<StudentAdmissionStatus, string> = {
   PENDING: "bg-slate-100 text-slate-700 ring-slate-200",
   ACCEPTED: "bg-success/15 text-success ring-success/20",
-  REFUSED: "bg-danger/15 text-danger ring-danger/20",
+  REFUSED: "bg-info/15 text-info ring-info/20",
   WAITLISTED: "bg-info/15 text-info ring-info/20"
 };
 
@@ -263,10 +264,25 @@ const ApplicationEmailPage = () => {
   const [isEmailBodyDirty, setIsEmailBodyDirty] = useState(false);
   const [isEmailSubmitting, setIsEmailSubmitting] = useState(false);
 
-  const resetEmailForm = useCallback((): void => {
-    setSelectedEmailType("ACCEPTANCE");
-    setEmailSubject(applicationEmailTemplates.ACCEPTANCE.subject);
-    setEmailBody(applicationEmailTemplates.ACCEPTANCE.body);
+  const resetEmailForm = useCallback((nextApplication?: ApplicationDetail): void => {
+    if (!nextApplication) {
+      setSelectedEmailType("ACCEPTANCE");
+      setEmailSubject(applicationEmailTemplates.ACCEPTANCE.subject);
+      setEmailBody(applicationEmailTemplates.ACCEPTANCE.body);
+      setIsEmailSubjectDirty(false);
+      setIsEmailBodyDirty(false);
+      return;
+    }
+
+    const decisionEmailContext = getApplicationDecisionEmailContext(nextApplication);
+    const template = getApplicationDecisionEmailTemplate(
+      nextApplication,
+      decisionEmailContext.recommendedEmailType
+    );
+
+    setSelectedEmailType(decisionEmailContext.recommendedEmailType);
+    setEmailSubject(template?.subject ?? "");
+    setEmailBody(template?.body ?? "");
     setIsEmailSubjectDirty(false);
     setIsEmailBodyDirty(false);
   }, []);
@@ -309,7 +325,7 @@ const ApplicationEmailPage = () => {
 
         setApplication(applicationData);
         setEmailLogs(emailLogsData);
-        resetEmailForm();
+        resetEmailForm(applicationData);
       } catch (loadError) {
         if (isAbortError(loadError) || controller.signal.aborted) {
           return;
@@ -337,7 +353,11 @@ const ApplicationEmailPage = () => {
   }, [applicationId, resetEmailForm]);
 
   useEffect(() => {
-    const template = getApplicationEmailTemplate(selectedEmailType);
+    if (!application) {
+      return;
+    }
+
+    const template = getApplicationDecisionEmailTemplate(application, selectedEmailType);
 
     if (!template) {
       return;
@@ -350,7 +370,7 @@ const ApplicationEmailPage = () => {
     if (!isEmailBodyDirty) {
       setEmailBody(template.body);
     }
-  }, [selectedEmailType, isEmailSubjectDirty, isEmailBodyDirty]);
+  }, [application, selectedEmailType, isEmailSubjectDirty, isEmailBodyDirty]);
 
   const handleEmailSubmit = useCallback(
     async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
@@ -385,7 +405,7 @@ const ApplicationEmailPage = () => {
         const createdEmailLog = await sendApplicationEmail(application.id, payload);
 
         setEmailLogs((currentEmailLogs) => [createdEmailLog, ...currentEmailLogs]);
-        resetEmailForm();
+        resetEmailForm(application);
         showSuccess("L'email a été envoyé et enregistré dans l'historique.");
       } catch (sendError) {
         showError(getApplicationEmailActionErrorMessage(sendError));
@@ -488,6 +508,7 @@ const ApplicationEmailPage = () => {
   }
 
   const latestEmailLogs = emailLogs.slice(0, 4);
+  const decisionEmailContext = getApplicationDecisionEmailContext(application);
 
   return (
     <>
@@ -520,6 +541,23 @@ const ApplicationEmailPage = () => {
               </p>
             </div>
 
+            {decisionEmailContext.warnings.length > 0 ? (
+              <div className="space-y-3">
+                {decisionEmailContext.warnings.map((warning) => (
+                  <div
+                    key={warning.message}
+                    className={`rounded-[22px] border px-4 py-3 text-sm font-medium leading-6 ${
+                      warning.tone === "warning"
+                        ? "border-warning/25 bg-warning/10 text-slate-800"
+                        : "border-info/25 bg-info/10 text-slate-800"
+                    }`}
+                  >
+                    {warning.message}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
             <div className="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
               <label className="block">
                 <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -539,6 +577,14 @@ const ApplicationEmailPage = () => {
                     </option>
                   ))}
                 </select>
+                <span className="mt-2 block text-xs font-medium text-slate-500">
+                  Recommandé :{" "}
+                  {
+                    applicationEmailTypeLabels[
+                      decisionEmailContext.recommendedEmailType
+                    ]
+                  }
+                </span>
               </label>
 
               <label className="block">

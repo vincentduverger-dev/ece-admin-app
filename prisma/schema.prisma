@@ -11,6 +11,7 @@ enum ApplicationStatus {
   IN_REVIEW
   ACCEPTED
   REFUSED
+  WAITLISTED
   PARTIALLY_ACCEPTED
 }
 
@@ -30,6 +31,8 @@ enum StudentGender {
 enum EmailType {
   ACCEPTANCE
   REFUSAL
+  WAITLIST
+  PARTIAL_DECISION
   CUSTOM
 }
 
