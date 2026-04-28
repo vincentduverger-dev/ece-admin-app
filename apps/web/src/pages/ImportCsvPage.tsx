@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent, KeyboardEvent, MouseEvent } from "react";
 import { Link } from "react-router-dom";
 
@@ -361,14 +361,15 @@ const ImportCsvPage = () => {
     };
   }, []);
 
-  const latestImport = history[0] ?? null;
-  const activeSchoolYearImport = activeSchoolYear
-    ? history.find(
-      (item) =>
-        item.schoolYearId === activeSchoolYear.id &&
-        item.status === "SUCCESS"
-    ) ?? null
-    : null;
+  const latestImport = useMemo(() => history[0] ?? null, [history]);
+  const activeSchoolYearImport = useMemo(() => {
+    return activeSchoolYear
+      ? history.find(
+          (item) =>
+            item.schoolYearId === activeSchoolYear.id && item.status === "SUCCESS"
+        ) ?? null
+      : null;
+  }, [activeSchoolYear, history]);
   const activeSchoolYearLabel = activeSchoolYear
     ? formatSchoolYearLabel(activeSchoolYear.label)
     : latestImport?.schoolYearLabel
@@ -393,7 +394,7 @@ const ImportCsvPage = () => {
     activeSchoolYear === null ||
     hasCompletedImportForActiveSchoolYear;
 
-  const openFilePicker = (): void => {
+  const openFilePicker = useCallback((): void => {
     if (isUploadLocked) {
       return;
     }
@@ -402,17 +403,17 @@ const ImportCsvPage = () => {
       fileInputRef.current.value = "";
       fileInputRef.current.click();
     }
-  };
+  }, [isUploadLocked]);
 
-  const clearSelectedFile = (): void => {
+  const clearSelectedFile = useCallback((): void => {
     setSelectedFile(null);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
-  };
+  }, []);
 
-  const handleSelectedFile = (nextFile: File): void => {
+  const handleSelectedFile = useCallback((nextFile: File): void => {
     if (isUploadLocked) {
       return;
     }
@@ -431,9 +432,9 @@ const ImportCsvPage = () => {
 
     setSelectedFile(nextFile);
     setInlineMessage(null);
-  };
+  }, [isUploadLocked, showError]);
 
-  const handleFileInputChange = (event: ChangeEvent<HTMLInputElement>): void => {
+  const handleFileInputChange = useCallback((event: ChangeEvent<HTMLInputElement>): void => {
     const nextFile = event.target.files?.[0];
 
     if (!nextFile) {
@@ -441,16 +442,16 @@ const ImportCsvPage = () => {
     }
 
     handleSelectedFile(nextFile);
-  };
+  }, [handleSelectedFile]);
 
-  const handleChooseFileButtonClick = (
+  const handleChooseFileButtonClick = useCallback((
     event: MouseEvent<HTMLButtonElement>
   ): void => {
     event.stopPropagation();
     openFilePicker();
-  };
+  }, [openFilePicker]);
 
-  const handleUploadZoneKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+  const handleUploadZoneKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>): void => {
     if (isUploadLocked) {
       return;
     }
@@ -459,18 +460,18 @@ const ImportCsvPage = () => {
       event.preventDefault();
       openFilePicker();
     }
-  };
+  }, [isUploadLocked, openFilePicker]);
 
-  const handleDragOver = (event: DragEvent<HTMLDivElement>): void => {
+  const handleDragOver = useCallback((event: DragEvent<HTMLDivElement>): void => {
     event.preventDefault();
 
     if (isUploadLocked) {
       return;
     }
     setIsDragging(true);
-  };
+  }, [isUploadLocked]);
 
-  const handleDragLeave = (event: DragEvent<HTMLDivElement>): void => {
+  const handleDragLeave = useCallback((event: DragEvent<HTMLDivElement>): void => {
     event.preventDefault();
 
     if (isUploadLocked) {
@@ -479,9 +480,9 @@ const ImportCsvPage = () => {
     }
 
     setIsDragging(false);
-  };
+  }, [isUploadLocked]);
 
-  const handleDrop = (event: DragEvent<HTMLDivElement>): void => {
+  const handleDrop = useCallback((event: DragEvent<HTMLDivElement>): void => {
     event.preventDefault();
 
     if (isUploadLocked) {
@@ -497,15 +498,15 @@ const ImportCsvPage = () => {
     }
 
     handleSelectedFile(droppedFile);
-  };
+  }, [handleSelectedFile, isUploadLocked]);
 
-  const handleSchoolYearDraftChange = (event: ChangeEvent<HTMLInputElement>): void => {
+  const handleSchoolYearDraftChange = useCallback((event: ChangeEvent<HTMLInputElement>): void => {
     setSchoolYearDraft(normalizeSchoolYearInput(event.target.value));
 
     if (schoolYearSetupError) {
       setSchoolYearSetupError(null);
     }
-  };
+  }, [schoolYearSetupError]);
 
   const handleSchoolYearSetupSubmit = async (
     event: React.FormEvent<HTMLFormElement>

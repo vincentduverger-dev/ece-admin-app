@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
   type CSSProperties,
   type ReactNode
@@ -827,6 +828,62 @@ const ApplicationDetailPage = () => {
     [application, showError, showSuccess]
   );
 
+  const timelineEntries = useMemo(() => {
+    return application ? buildTimelineEntries(application, emailLogs) : [];
+  }, [application, emailLogs]);
+  const familyLastNameTitle = useMemo(
+    () => (application ? getFamilyLastNameTitle(application) : "Famille non renseignée"),
+    [application]
+  );
+  const familyAvatarLabel =
+    familyLastNameTitle === "Famille non renseignée"
+      ? familyLastNameTitle
+      : `Famille ${familyLastNameTitle}`;
+  const applicationLevels = useMemo(
+    () => (application ? getApplicationLevels(application) : []),
+    [application]
+  );
+  const fatherName = useMemo(() => {
+    return application
+      ? formatParentName(
+          application.family.fatherFirstName,
+          application.family.fatherLastName
+        )
+      : "Non renseigné";
+  }, [application]);
+  const motherName = useMemo(() => {
+    return application
+      ? formatParentName(
+          application.family.motherFirstName,
+          application.family.motherLastName
+        )
+      : "Non renseigné";
+  }, [application]);
+  const studentAdmissionSummary = useMemo(() => {
+    return application ? getStudentAdmissionSummary(application.students) : "";
+  }, [application]);
+
+  const handleSelectedStatusChange = useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>): void => {
+      setSelectedStatus(event.target.value as ApplicationStatus);
+    },
+    []
+  );
+
+  const handleSelectedDecisionStatusChange = useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>): void => {
+      setSelectedDecisionStatus(event.target.value as ApplicationDecisionStatus);
+    },
+    []
+  );
+
+  const handleDecisionNoteChange = useCallback(
+    (event: React.ChangeEvent<HTMLTextAreaElement>): void => {
+      setDecisionNote(event.target.value);
+    },
+    []
+  );
+
   const pageTopBar = (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
       <div
@@ -909,22 +966,6 @@ const ApplicationDetailPage = () => {
       </>
     );
   }
-
-  const timelineEntries = buildTimelineEntries(application, emailLogs);
-  const familyLastNameTitle = getFamilyLastNameTitle(application);
-  const familyAvatarLabel =
-    familyLastNameTitle === "Famille non renseignée"
-      ? familyLastNameTitle
-      : `Famille ${familyLastNameTitle}`;
-  const applicationLevels = getApplicationLevels(application);
-  const fatherName = formatParentName(
-    application.family.fatherFirstName,
-    application.family.fatherLastName
-  );
-  const motherName = formatParentName(
-    application.family.motherFirstName,
-    application.family.motherLastName
-  );
 
   return (
     <>
@@ -1043,9 +1084,7 @@ const ApplicationDetailPage = () => {
                     id="application-status"
                     aria-label="Nouveau statut"
                     value={selectedStatus}
-                    onChange={(event) =>
-                      setSelectedStatus(event.target.value as ApplicationStatus)
-                    }
+                    onChange={handleSelectedStatusChange}
                     disabled={isStatusSubmitting}
                     className="min-w-[170px] rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
                   >
@@ -1075,7 +1114,7 @@ const ApplicationDetailPage = () => {
                 Décision des élèves
               </p>
               <p className="mt-2 text-sm font-semibold leading-6 text-slate-900">
-                {getStudentAdmissionSummary(application.students)}
+                {studentAdmissionSummary}
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <span className="text-sm font-medium text-slate-600">
@@ -1139,11 +1178,7 @@ const ApplicationDetailPage = () => {
                 <select
                   id="application-decision-status"
                   value={selectedDecisionStatus}
-                  onChange={(event) =>
-                    setSelectedDecisionStatus(
-                      event.target.value as ApplicationDecisionStatus
-                    )
-                  }
+                  onChange={handleSelectedDecisionStatusChange}
                   disabled={isDecisionSubmitting}
                   className="w-full rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
                 >
@@ -1165,7 +1200,7 @@ const ApplicationDetailPage = () => {
                 <textarea
                   id="application-decision-note"
                   value={decisionNote}
-                  onChange={(event) => setDecisionNote(event.target.value)}
+                  onChange={handleDecisionNoteChange}
                   disabled={isDecisionSubmitting}
                   rows={2}
                   className="w-full rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
