@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
   type CSSProperties,
   type ReactNode
@@ -477,11 +478,43 @@ const ApplicationEmailPage = () => {
     }
   }, [isEmailSubmitting]);
 
+  const handleEmailSubjectChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>): void => {
+      setEmailSubject(event.target.value);
+      setIsEmailSubjectDirty(true);
+    },
+    []
+  );
+
+  const handleEmailBodyChange = useCallback(
+    (event: React.ChangeEvent<HTMLTextAreaElement>): void => {
+      setEmailBody(event.target.value);
+      setIsEmailBodyDirty(true);
+    },
+    []
+  );
+
   useEffect(() => {
     setIsSendConfirmationOpen(false);
   }, [selectedEmailType, emailSubject, emailBody]);
 
   const detailPath = applicationId ? `/applications/${applicationId}` : "/applications";
+  const latestEmailLogs = useMemo(() => emailLogs.slice(0, 4), [emailLogs]);
+  const decisionEmailContext = useMemo(() => {
+    return application ? getApplicationDecisionEmailContext(application) : null;
+  }, [application]);
+  const recommendedEmailType =
+    decisionEmailContext?.recommendedEmailType ?? selectedEmailType;
+  const applicationFamilyTitle = useMemo(
+    () => getApplicationFamilyTitle(application),
+    [application]
+  );
+  const isCustomEmail = selectedEmailType === "CUSTOM";
+  const isEmailTypeMismatch = selectedEmailType !== recommendedEmailType;
+  const requiresSendConfirmation = getRequiresSendConfirmation(
+    selectedEmailType,
+    recommendedEmailType
+  );
   const pageTopBar = (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
       <div
@@ -564,15 +597,9 @@ const ApplicationEmailPage = () => {
     );
   }
 
-  const latestEmailLogs = emailLogs.slice(0, 4);
-  const decisionEmailContext = getApplicationDecisionEmailContext(application);
-  const recommendedEmailType = decisionEmailContext.recommendedEmailType;
-  const isCustomEmail = selectedEmailType === "CUSTOM";
-  const isEmailTypeMismatch = selectedEmailType !== recommendedEmailType;
-  const requiresSendConfirmation = getRequiresSendConfirmation(
-    selectedEmailType,
-    recommendedEmailType
-  );
+  if (!decisionEmailContext) {
+    return null;
+  }
 
   return (
     <>
@@ -581,9 +608,7 @@ const ApplicationEmailPage = () => {
           topBar={pageTopBar}
           eyebrow="Email de décision"
           title="Envoyer un email à la famille"
-          description={`${getApplicationFamilyTitle(
-            application
-          )} · destinataire ${formatOptionalText(application.family.contactEmail)}.`}
+          description={`${applicationFamilyTitle} · destinataire ${formatOptionalText(application.family.contactEmail)}.`}
           aside={pageHeaderAside}
         />
       </div>
@@ -658,10 +683,7 @@ const ApplicationEmailPage = () => {
                 <input
                   type="text"
                   value={emailSubject}
-                  onChange={(event) => {
-                    setEmailSubject(event.target.value);
-                    setIsEmailSubjectDirty(true);
-                  }}
+                  onChange={handleEmailSubjectChange}
                   disabled={isEmailSubmitting}
                   className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
                   placeholder={
@@ -716,10 +738,7 @@ const ApplicationEmailPage = () => {
               </span>
               <textarea
                 value={emailBody}
-                onChange={(event) => {
-                  setEmailBody(event.target.value);
-                  setIsEmailBodyDirty(true);
-                }}
+                onChange={handleEmailBodyChange}
                 disabled={isEmailSubmitting}
                 rows={10}
                 className="mt-2 min-h-[320px] flex-1 resize-y rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
@@ -759,7 +778,7 @@ const ApplicationEmailPage = () => {
         >
           <div className="space-y-4">
             <DetailField label="Famille">
-              {getApplicationFamilyTitle(application)}
+              {applicationFamilyTitle}
             </DetailField>
             <DetailField label="Année scolaire">
               {formatSchoolYearLabel(application.schoolYear.label)}

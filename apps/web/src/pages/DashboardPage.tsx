@@ -1,4 +1,11 @@
-import { useEffect, useState, type CSSProperties, type JSX } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type JSX
+} from "react";
 import { Link } from "react-router-dom";
 
 import PageSectionHeader from "../components/layout/PageSectionHeader";
@@ -299,7 +306,7 @@ const DashboardPage = () => {
   );
   const [isLoadingActiveSchoolYear, setIsLoadingActiveSchoolYear] = useState(true);
 
-  const loadDashboard = async (signal?: AbortSignal): Promise<void> => {
+  const loadDashboard = useCallback(async (signal?: AbortSignal): Promise<void> => {
     setIsLoading(true);
     setError(null);
 
@@ -327,7 +334,7 @@ const DashboardPage = () => {
         setIsLoading(false);
       }
     }
-  };
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -360,7 +367,7 @@ const DashboardPage = () => {
     return () => {
       controller.abort();
     };
-  }, []);
+  }, [loadDashboard]);
 
   useEffect(() => {
     const totalPages = Math.max(
@@ -370,6 +377,45 @@ const DashboardPage = () => {
 
     setCurrentPriorityPage((currentPage) => Math.min(currentPage, totalPages));
   }, [data?.priorityApplications.length]);
+
+  const dashboardView = useMemo(() => {
+    if (!data) {
+      return null;
+    }
+
+    const totalPriorityPages = Math.max(
+      1,
+      Math.ceil(data.priorityApplications.length / PRIORITY_DISPLAY_LIMIT)
+    );
+    const priorityStartIndex = (currentPriorityPage - 1) * PRIORITY_DISPLAY_LIMIT;
+    const visiblePriorityApplications = data.priorityApplications.slice(
+      priorityStartIndex,
+      priorityStartIndex + PRIORITY_DISPLAY_LIMIT
+    );
+
+    return {
+      maxLevelCount: Math.max(...data.byLevel.map((level) => level.count), 0),
+      totalStudents: data.byLevel.reduce((sum, level) => sum + level.count, 0),
+      totalPriorityPages,
+      visiblePriorityApplications,
+      visiblePriorityStart:
+        data.priorityApplications.length === 0 ? 0 : priorityStartIndex + 1,
+      visiblePriorityEnd: Math.min(
+        currentPriorityPage * PRIORITY_DISPLAY_LIMIT,
+        data.priorityApplications.length
+      )
+    };
+  }, [currentPriorityPage, data]);
+
+  const handlePreviousPriorityPage = useCallback((): void => {
+    setCurrentPriorityPage((page) => Math.max(1, page - 1));
+  }, []);
+
+  const handleNextPriorityPage = useCallback((): void => {
+    setCurrentPriorityPage((page) =>
+      Math.min(dashboardView?.totalPriorityPages ?? 1, page + 1)
+    );
+  }, [dashboardView?.totalPriorityPages]);
 
   const pageTopBar = (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -449,23 +495,9 @@ const DashboardPage = () => {
     );
   }
 
-  const maxLevelCount = Math.max(...data.byLevel.map((level) => level.count), 0);
-  const totalStudents = data.byLevel.reduce((sum, level) => sum + level.count, 0);
-  const totalPriorityPages = Math.max(
-    1,
-    Math.ceil(data.priorityApplications.length / PRIORITY_DISPLAY_LIMIT)
-  );
-  const priorityStartIndex = (currentPriorityPage - 1) * PRIORITY_DISPLAY_LIMIT;
-  const visiblePriorityApplications = data.priorityApplications.slice(
-    priorityStartIndex,
-    priorityStartIndex + PRIORITY_DISPLAY_LIMIT
-  );
-  const visiblePriorityStart =
-    data.priorityApplications.length === 0 ? 0 : priorityStartIndex + 1;
-  const visiblePriorityEnd = Math.min(
-    currentPriorityPage * PRIORITY_DISPLAY_LIMIT,
-    data.priorityApplications.length
-  );
+  if (!dashboardView) {
+    return null;
+  }
 
   return (
     <>
@@ -565,7 +597,7 @@ const DashboardPage = () => {
                 Total
               </p>
               <p className="mt-3 text-4xl font-semibold tracking-tight text-slate-900">
-                {totalStudents}
+                {dashboardView.totalStudents}
               </p>
               <p className="mt-1 text-sm text-slate-500">élèves répartis</p>
             </div>
@@ -579,13 +611,13 @@ const DashboardPage = () => {
             ) : (
               data.byLevel.map((level, index) => {
                 const share =
-                  totalStudents === 0
+                  dashboardView.totalStudents === 0
                     ? 0
-                    : Math.round((level.count / totalStudents) * 100);
+                    : Math.round((level.count / dashboardView.totalStudents) * 100);
                 const width =
-                  maxLevelCount === 0 || level.count === 0
+                  dashboardView.maxLevelCount === 0 || level.count === 0
                     ? 0
-                    : Math.max((level.count / maxLevelCount) * 100, 6);
+                    : Math.max((level.count / dashboardView.maxLevelCount) * 100, 6);
                 const visual = getLevelVisualStyle(level.code, level.label, index);
                 const levelCardClassName = isWideLevelCard(level.code)
                   ? "xl:col-span-6"
@@ -673,7 +705,7 @@ const DashboardPage = () => {
                 Aucune demande prioritaire pour le moment.
               </p>
             ) : (
-              visiblePriorityApplications.map((application, index) => {
+              dashboardView.visiblePriorityApplications.map((application, index) => {
                 const priorityLevels = getPriorityLevels(application);
 
                 return (
@@ -795,32 +827,26 @@ const DashboardPage = () => {
           {data.priorityApplications.length > 0 ? (
             <div className="mt-6 flex flex-col gap-4 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm text-slate-500">
-                Affichage de {visiblePriorityStart} à {visiblePriorityEnd} sur{" "}
+                Affichage de {dashboardView.visiblePriorityStart} à {dashboardView.visiblePriorityEnd} sur{" "}
                 {data.priorityApplications.length} demande
                 {data.priorityApplications.length > 1 ? "s" : ""}.
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={() =>
-                    setCurrentPriorityPage((page) => Math.max(1, page - 1))
-                  }
+                  onClick={handlePreviousPriorityPage}
                   disabled={currentPriorityPage === 1}
                   className="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Précédent
                 </button>
                 <span className="min-w-[96px] text-center text-sm font-medium text-slate-600">
-                  Page {currentPriorityPage} / {totalPriorityPages}
+                  Page {currentPriorityPage} / {dashboardView.totalPriorityPages}
                 </span>
                 <button
                   type="button"
-                  onClick={() =>
-                    setCurrentPriorityPage((page) =>
-                      Math.min(totalPriorityPages, page + 1)
-                    )
-                  }
-                  disabled={currentPriorityPage === totalPriorityPages}
+                  onClick={handleNextPriorityPage}
+                  disabled={currentPriorityPage === dashboardView.totalPriorityPages}
                   className="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Suivant

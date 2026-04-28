@@ -1,4 +1,5 @@
 import {
+  memo,
   useCallback,
   useDeferredValue,
   useEffect,
@@ -272,11 +273,11 @@ const FilterField = ({ label, className, children }: FilterFieldProps) => {
   );
 };
 
-const PaginationControls = ({
+const PaginationControls = memo(function PaginationControls({
   currentPage,
   totalPages,
   onPageChange
-}: PaginationControlsProps) => {
+}: PaginationControlsProps) {
   if (totalPages <= 1) {
     return null;
   }
@@ -341,7 +342,7 @@ const PaginationControls = ({
       </div>
     </div>
   );
-};
+});
 
 const ApplicationsPage = () => {
   const [searchParams] = useSearchParams();
@@ -408,17 +409,34 @@ const ApplicationsPage = () => {
     return displayedApplications.slice(startIndex, startIndex + pageSize);
   }, [displayedApplications, pageSize, resolvedCurrentPage]);
 
-  const hasActiveFilters =
-    filters.status !== "" ||
-    filters.schoolYearId !== defaultSchoolYearId ||
-    filters.isPriority !== "" ||
-    filters.search.trim().length > 0;
-  const activeFilterCount = [
-    filters.status,
-    filters.schoolYearId !== defaultSchoolYearId ? filters.schoolYearId : "",
+  const hasActiveFilters = useMemo(() => {
+    return (
+      filters.status !== "" ||
+      filters.schoolYearId !== defaultSchoolYearId ||
+      filters.isPriority !== "" ||
+      filters.search.trim().length > 0
+    );
+  }, [
+    defaultSchoolYearId,
     filters.isPriority,
-    filters.search.trim()
-  ].filter((value) => value !== "").length;
+    filters.schoolYearId,
+    filters.search,
+    filters.status
+  ]);
+  const activeFilterCount = useMemo(() => {
+    return [
+      filters.status,
+      filters.schoolYearId !== defaultSchoolYearId ? filters.schoolYearId : "",
+      filters.isPriority,
+      filters.search.trim()
+    ].filter((value) => value !== "").length;
+  }, [
+    defaultSchoolYearId,
+    filters.isPriority,
+    filters.schoolYearId,
+    filters.search,
+    filters.status
+  ]);
   const visibleStart = displayedApplications.length === 0
     ? 0
     : (resolvedCurrentPage - 1) * pageSize + 1;
@@ -438,7 +456,7 @@ const ApplicationsPage = () => {
   const isWaitingForDefaultSchoolYear =
     requestedSchoolYearId.length === 0 && !hasInitializedSchoolYearFilter;
 
-  const resetFilters = (): void => {
+  const resetFilters = useCallback((): void => {
     setFilters({
       status: "",
       schoolYearId: defaultSchoolYearId,
@@ -446,7 +464,68 @@ const ApplicationsPage = () => {
       search: ""
     });
     setSort("createdAtDesc");
-  };
+  }, [defaultSchoolYearId]);
+
+  const handleStatusFilterChange = useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>): void => {
+      setFilters((currentFilters) => ({
+        ...currentFilters,
+        status: event.target.value as FilterState["status"]
+      }));
+    },
+    []
+  );
+
+  const handleSchoolYearFilterChange = useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>): void => {
+      setFilters((currentFilters) => ({
+        ...currentFilters,
+        schoolYearId: event.target.value
+      }));
+    },
+    []
+  );
+
+  const handlePriorityFilterChange = useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>): void => {
+      setFilters((currentFilters) => ({
+        ...currentFilters,
+        isPriority: event.target.value as FilterState["isPriority"]
+      }));
+    },
+    []
+  );
+
+  const handleSortChange = useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>): void => {
+      setSort(event.target.value as SortOption);
+    },
+    []
+  );
+
+  const handleSearchFilterChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>): void => {
+      setFilters((currentFilters) => ({
+        ...currentFilters,
+        search: event.target.value
+      }));
+    },
+    []
+  );
+
+  const handlePageSizeChange = useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>): void => {
+      setPageSize(Number(event.target.value) as PageSize);
+    },
+    []
+  );
+
+  const handlePageChange = useCallback(
+    (page: number): void => {
+      setCurrentPage(Math.min(totalPages, Math.max(1, page)));
+    },
+    [totalPages]
+  );
 
   const loadApplications = useCallback(async (signal?: AbortSignal): Promise<void> => {
     setIsLoading(true);
@@ -686,12 +765,7 @@ const ApplicationsPage = () => {
           <FilterField label="Statut" className="block">
             <select
               value={filters.status}
-              onChange={(event) =>
-                setFilters((currentFilters) => ({
-                  ...currentFilters,
-                  status: event.target.value as FilterState["status"]
-                }))
-              }
+              onChange={handleStatusFilterChange}
               className={inputClassName}
             >
               {statusOptions.map((option) => (
@@ -705,12 +779,7 @@ const ApplicationsPage = () => {
           <FilterField label="Année scolaire" className="block">
             <select
               value={filters.schoolYearId}
-              onChange={(event) =>
-                setFilters((currentFilters) => ({
-                  ...currentFilters,
-                  schoolYearId: event.target.value
-                }))
-              }
+              onChange={handleSchoolYearFilterChange}
               disabled={isSchoolYearsLoading}
               className={`${inputClassName} disabled:cursor-wait disabled:bg-slate-50`}
             >
@@ -731,12 +800,7 @@ const ApplicationsPage = () => {
           <FilterField label="Priorité" className="block">
             <select
               value={filters.isPriority}
-              onChange={(event) =>
-                setFilters((currentFilters) => ({
-                  ...currentFilters,
-                  isPriority: event.target.value as FilterState["isPriority"]
-                }))
-              }
+              onChange={handlePriorityFilterChange}
               className={inputClassName}
             >
               <option value="">Toutes les demandes</option>
@@ -747,7 +811,7 @@ const ApplicationsPage = () => {
           <FilterField label="Tri" className="block">
             <select
               value={sort}
-              onChange={(event) => setSort(event.target.value as SortOption)}
+              onChange={handleSortChange}
               className={inputClassName}
             >
               {sortOptions.map((option) => (
@@ -766,12 +830,7 @@ const ApplicationsPage = () => {
               <input
                 type="search"
                 value={filters.search}
-                onChange={(event) =>
-                  setFilters((currentFilters) => ({
-                    ...currentFilters,
-                    search: event.target.value
-                  }))
-                }
+                onChange={handleSearchFilterChange}
                 placeholder="Famille, élève ou email..."
                 className={`${inputClassName} pl-11`}
               />
@@ -840,9 +899,7 @@ const ApplicationsPage = () => {
                     <span className="whitespace-nowrap">Demandes par page</span>
                     <select
                       value={pageSize}
-                      onChange={(event) =>
-                        setPageSize(Number(event.target.value) as PageSize)
-                      }
+                      onChange={handlePageSizeChange}
                       className="w-[4.25rem] rounded-full border border-slate-200 bg-white px-2.5 py-1 text-sm font-semibold text-slate-900 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
                     >
                       {pageSizeOptions.map((option) => (
@@ -986,7 +1043,7 @@ const ApplicationsPage = () => {
               <PaginationControls
                 currentPage={resolvedCurrentPage}
                 totalPages={totalPages}
-                onPageChange={(page) => setCurrentPage(Math.min(totalPages, Math.max(1, page)))}
+                onPageChange={handlePageChange}
               />
             </div>
           </section>
