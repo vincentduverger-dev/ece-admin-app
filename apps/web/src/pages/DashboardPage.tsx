@@ -28,6 +28,7 @@ type StatusCardConfig = {
   status: DashboardApplicationStatus;
   label: string;
   description: string;
+  getValue?: (data: DashboardStats) => number;
   valueClassName: string;
   surfaceClassName: string;
   iconClassName: string;
@@ -64,23 +65,6 @@ const getEnterStyle = (delay: number): CSSProperties => {
   return {
     "--ui-enter-delay": `${delay}ms`
   } as CSSProperties;
-};
-
-const OverviewMetricIcon = ({ className = "h-5 w-5" }: IconProps) => {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      className={className}
-    >
-      <path d="M3.5 15.5h13" strokeLinecap="round" />
-      <path d="M5.5 13V8.5" strokeLinecap="round" />
-      <path d="M10 13V5.5" strokeLinecap="round" />
-      <path d="M14.5 13v-3" strokeLinecap="round" />
-    </svg>
-  );
 };
 
 const MailMetricIcon = ({ className = "h-5 w-5" }: IconProps) => {
@@ -127,7 +111,7 @@ const AcceptedMetricIcon = ({ className = "h-5 w-5" }: IconProps) => {
   );
 };
 
-const RefusedMetricIcon = ({ className = "h-5 w-5" }: IconProps) => {
+const WaitlistedMetricIcon = ({ className = "h-5 w-5" }: IconProps) => {
   return (
     <svg
       viewBox="0 0 20 20"
@@ -136,8 +120,9 @@ const RefusedMetricIcon = ({ className = "h-5 w-5" }: IconProps) => {
       strokeWidth="1.9"
       className={className}
     >
-      <path d="m6 6 8 8" strokeLinecap="round" />
-      <path d="m14 6-8 8" strokeLinecap="round" />
+      <circle cx="10" cy="10" r="6.2" />
+      <path d="M6.8 10h6.4" strokeLinecap="round" />
+      <path d="M10 6.8v6.4" strokeLinecap="round" />
     </svg>
   );
 };
@@ -187,15 +172,6 @@ const statusCards: StatusCardConfig[] = [
     Icon: AcceptedMetricIcon
   },
   {
-    status: "REFUSED",
-    label: "Refusées",
-    description: "Demandes clôturées avec décision négative.",
-    valueClassName: "text-danger",
-    surfaceClassName: "bg-danger/10",
-    iconClassName: "bg-danger text-white",
-    Icon: RefusedMetricIcon
-  },
-  {
     status: "PARTIALLY_ACCEPTED",
     label: "Partielles",
     description: "Dossiers avec des décisions différentes selon les élèves.",
@@ -203,6 +179,16 @@ const statusCards: StatusCardConfig[] = [
     surfaceClassName: "bg-secondary/10",
     iconClassName: "bg-secondary text-white",
     Icon: PartialMetricIcon
+  },
+  {
+    status: "WAITLISTED",
+    label: "Liste d'attente",
+    description: "Élèves placés en attente d'une place disponible.",
+    getValue: (dashboardData) => dashboardData.waitlistedStudents,
+    valueClassName: "text-primary",
+    surfaceClassName: "bg-primary/10",
+    iconClassName: "bg-primary text-white",
+    Icon: WaitlistedMetricIcon
   }
 ];
 
@@ -490,13 +476,35 @@ const DashboardPage = () => {
         style={getEnterStyle(190)}
       >
         <div className="p-6 sm:p-8">
-          <div className="mt-6 flex flex-wrap gap-3">
-            <span
-              className="ui-animate-in inline-flex items-center rounded-full border border-primary/15 bg-primary/5 px-4 py-2 text-sm font-medium text-primaryDark"
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primaryLight">
+                Suivi des demandes
+              </p>
+              <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
+                Demandes par statut
+              </h2>
+              <p className="mt-3 max-w-4xl text-[1.02rem] leading-8 text-slate-600">
+                Visualisez la répartition des dossiers selon leur état de
+                traitement pour prioriser les prochaines actions.
+              </p>
+            </div>
+
+            <div
+              className="ui-animate-in inline-flex w-fit shrink-0 flex-col rounded-[28px] border border-primary/15 bg-primary/5 px-7 py-5 text-center shadow-[0_14px_26px_-22px_rgba(31,77,58,0.28)] lg:ml-6"
               style={getEnterStyle(240)}
             >
-              {data.totalApplications} demandes en base
-            </span>
+              <p className="text-[0.74rem] font-semibold uppercase tracking-[0.22em] text-primaryDark">
+                Total
+              </p>
+              <p className="mt-3 text-4xl font-semibold tracking-tight text-slate-900">
+                {data.totalApplications}
+              </p>
+              <p className="mt-1 text-sm text-slate-500">demandes suivies</p>
+            </div>
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-3">
             <span
               className="ui-animate-in inline-flex items-center rounded-full border border-secondary/20 bg-secondary/10 px-4 py-2 text-sm font-medium text-secondaryDark"
               style={getEnterStyle(300)}
@@ -512,20 +520,11 @@ const DashboardPage = () => {
           </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <MetricCard
-              label="Demandes totales"
-              value={data.totalApplications}
-              description="Vue globale des dossiers disponibles dans l'application."
-              Icon={OverviewMetricIcon}
-              iconClassName="bg-primary text-white"
-              motionDelay={300}
-              surfaceClassName="bg-primary/5"
-            />
             {statusCards.map((card, index) => (
               <MetricCard
                 key={card.status}
                 label={card.label}
-                value={data.byStatus[card.status]}
+                value={card.getValue ? card.getValue(data) : data.byStatus[card.status]}
                 description={card.description}
                 Icon={card.Icon}
                 iconClassName={card.iconClassName}

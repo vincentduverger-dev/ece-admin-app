@@ -64,7 +64,7 @@ const AcceptedIcon = () => {
   );
 };
 
-const RefusedIcon = () => {
+const WaitlistedIcon = () => {
   return (
     <svg
       aria-hidden="true"
@@ -76,8 +76,9 @@ const RefusedIcon = () => {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="m5 5 6 6" />
-      <path d="m11 5-6 6" />
+      <circle cx="8" cy="8" r="5.5" />
+      <path d="M5.2 8h5.6" />
+      <path d="M8 5.2v5.6" />
     </svg>
   );
 };
@@ -118,9 +119,14 @@ const statusBadgeConfig: Record<ApplicationStatus, StatusBadgeConfig> = {
     Icon: AcceptedIcon
   },
   REFUSED: {
-    badgeClassName: "bg-danger/15 text-danger ring-danger/20",
-    label: "Refusée",
-    Icon: RefusedIcon
+    badgeClassName: "bg-info/15 text-info ring-info/20",
+    label: "Liste d'attente",
+    Icon: WaitlistedIcon
+  },
+  WAITLISTED: {
+    badgeClassName: "bg-info/15 text-info ring-info/20",
+    label: "Liste d'attente",
+    Icon: WaitlistedIcon
   },
   PARTIALLY_ACCEPTED: {
     badgeClassName: "bg-secondary/15 text-secondaryDark ring-secondary/25",

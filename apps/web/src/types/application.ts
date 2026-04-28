@@ -3,9 +3,10 @@ export type ApplicationStatus =
   | "IN_REVIEW"
   | "ACCEPTED"
   | "REFUSED"
+  | "WAITLISTED"
   | "PARTIALLY_ACCEPTED";
 
-export type ApplicationDecisionStatus = "ACCEPTED" | "REFUSED";
+export type ApplicationDecisionStatus = "ACCEPTED" | "WAITLISTED";
 export type StudentAdmissionStatus =
   | "PENDING"
   | "ACCEPTED"
@@ -18,7 +19,12 @@ export type ApplicationLevel = {
 };
 
 export type ApplicationGender = "BOY" | "GIRL" | "UNKNOWN";
-export type ApplicationEmailType = "ACCEPTANCE" | "REFUSAL" | "CUSTOM";
+export type ApplicationEmailType =
+  | "ACCEPTANCE"
+  | "REFUSAL"
+  | "WAITLIST"
+  | "PARTIAL_DECISION"
+  | "CUSTOM";
 export type ApplicationEmailSendStatus = "PENDING" | "SENT" | "FAILED";
 
 export type ApplicationStudent = {

@@ -1,4 +1,4 @@
-import { ApplicationStatus } from "@prisma/client";
+import { ApplicationStatus, StudentAdmissionStatus } from "@prisma/client";
 import type { Request, Response } from "express";
 
 import { prisma } from "../prisma/client";
@@ -8,6 +8,7 @@ type DashboardStatusCounts = {
   IN_REVIEW: number;
   ACCEPTED: number;
   REFUSED: number;
+  WAITLISTED: number;
   PARTIALLY_ACCEPTED: number;
 };
 
@@ -32,11 +33,13 @@ export const getDashboardStats = async (_req: Request, res: Response): Promise<v
 
     res.status(200).json({
       totalApplications: 0,
+      waitlistedStudents: 0,
       byStatus: {
         [ApplicationStatus.RECEIVED]: 0,
         [ApplicationStatus.IN_REVIEW]: 0,
         [ApplicationStatus.ACCEPTED]: 0,
         [ApplicationStatus.REFUSED]: 0,
+        [ApplicationStatus.WAITLISTED]: 0,
         [ApplicationStatus.PARTIALLY_ACCEPTED]: 0
       },
       byLevel: levels.map((level) => ({
@@ -49,10 +52,27 @@ export const getDashboardStats = async (_req: Request, res: Response): Promise<v
     return;
   }
 
-  const [totalApplications, statusCounts, levels, studentCountsByLevel, priorityApplications] = await Promise.all([
+  const [
+    totalApplications,
+    waitlistedStudents,
+    statusCounts,
+    levels,
+    studentCountsByLevel,
+    priorityApplications
+  ] = await Promise.all([
     prisma.application.count({
       where: {
         schoolYearId: activeSchoolYear.id
+      }
+    }),
+    prisma.student.count({
+      where: {
+        admissionStatus: {
+          in: [StudentAdmissionStatus.WAITLISTED, StudentAdmissionStatus.REFUSED]
+        },
+        application: {
+          schoolYearId: activeSchoolYear.id
+        }
       }
     }),
     prisma.application.groupBy({
@@ -133,11 +153,17 @@ export const getDashboardStats = async (_req: Request, res: Response): Promise<v
     [ApplicationStatus.IN_REVIEW]: 0,
     [ApplicationStatus.ACCEPTED]: 0,
     [ApplicationStatus.REFUSED]: 0,
+    [ApplicationStatus.WAITLISTED]: 0,
     [ApplicationStatus.PARTIALLY_ACCEPTED]: 0
   };
 
   for (const statusCount of statusCounts) {
-    byStatus[statusCount.status] = statusCount._count._all;
+    const dashboardStatus =
+      statusCount.status === ApplicationStatus.REFUSED
+        ? ApplicationStatus.WAITLISTED
+        : statusCount.status;
+
+    byStatus[dashboardStatus] += statusCount._count._all;
   }
 
   const studentCountsByLevelId = new Map(
@@ -152,6 +178,7 @@ export const getDashboardStats = async (_req: Request, res: Response): Promise<v
 
   res.status(200).json({
     totalApplications,
+    waitlistedStudents,
     byStatus,
     byLevel,
     priorityApplications

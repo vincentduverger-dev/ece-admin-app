@@ -47,19 +47,26 @@ const isStudentAdmissionStatus = (value: string): value is StudentAdmissionStatu
   return studentAdmissionStatuses.includes(value as StudentAdmissionStatus);
 };
 
-type ApplicationDecisionStatus = "ACCEPTED" | "REFUSED";
-type ApplicationEmailType = "ACCEPTANCE" | "REFUSAL" | "CUSTOM";
+type ApplicationDecisionStatus = "ACCEPTED" | "WAITLISTED";
+type ApplicationEmailType =
+  | "ACCEPTANCE"
+  | "REFUSAL"
+  | "WAITLIST"
+  | "PARTIAL_DECISION"
+  | "CUSTOM";
 
 const isApplicationDecisionStatus = (
   value: string
 ): value is ApplicationDecisionStatus => {
-  return value === "ACCEPTED" || value === "REFUSED";
+  return value === "ACCEPTED" || value === "WAITLISTED";
 };
 
 const isApplicationEmailType = (value: string): value is ApplicationEmailType => {
   return (
     value === EmailType.ACCEPTANCE ||
     value === EmailType.REFUSAL ||
+    value === EmailType.WAITLIST ||
+    value === EmailType.PARTIAL_DECISION ||
     value === EmailType.CUSTOM
   );
 };
@@ -91,23 +98,34 @@ const getRecalculatedApplicationStatus = (
     return ApplicationStatus.ACCEPTED;
   }
 
-  const allRefused = students.every(
-    (student) => student.admissionStatus === "REFUSED"
+  const allWaitlisted = students.every(
+    (student) =>
+      student.admissionStatus === "WAITLISTED" ||
+      student.admissionStatus === "REFUSED"
   );
 
-  if (allRefused) {
-    return ApplicationStatus.REFUSED;
+  if (allWaitlisted) {
+    return ApplicationStatus.WAITLISTED;
   }
 
   const hasAccepted = students.some(
     (student) => student.admissionStatus === "ACCEPTED"
   );
-  const hasRefused = students.some(
-    (student) => student.admissionStatus === "REFUSED"
+  const hasWaitlisted = students.some(
+    (student) =>
+      student.admissionStatus === "WAITLISTED" ||
+      student.admissionStatus === "REFUSED"
+  );
+  const hasPending = students.some(
+    (student) => student.admissionStatus === "PENDING"
   );
 
-  if (hasAccepted || hasRefused) {
+  if (hasAccepted && hasWaitlisted) {
     return ApplicationStatus.PARTIALLY_ACCEPTED;
+  }
+
+  if (hasAccepted || hasWaitlisted || hasPending) {
+    return ApplicationStatus.IN_REVIEW;
   }
 
   return ApplicationStatus.IN_REVIEW;
@@ -125,7 +143,13 @@ export const getApplications = async (req: Request, res: Response): Promise<void
       throw badRequest("Invalid application status");
     }
 
-    where.status = status;
+    if (status === ApplicationStatus.WAITLISTED) {
+      where.status = {
+        in: [ApplicationStatus.WAITLISTED, ApplicationStatus.REFUSED]
+      };
+    } else {
+      where.status = status;
+    }
   }
 
   if (schoolYearId) {
@@ -332,7 +356,7 @@ export const updateApplicationDecision = async (req: Request, res: Response): Pr
   const updatedApplication = await prisma.$transaction(async (transaction) => {
     await transaction.student.updateMany({
       where: { applicationId },
-      data: { admissionStatus: status }
+    data: { admissionStatus: status }
     });
 
     return transaction.application.update({

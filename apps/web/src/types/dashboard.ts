@@ -4,6 +4,7 @@ export type DashboardApplicationStatus = ApplicationStatus;
 
 export type DashboardStats = {
   totalApplications: number;
+  waitlistedStudents: number;
   byStatus: Record<DashboardApplicationStatus, number>;
   byLevel: DashboardLevelStat[];
   priorityApplications: DashboardPriorityApplication[];
