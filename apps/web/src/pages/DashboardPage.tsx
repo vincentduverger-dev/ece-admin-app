@@ -57,13 +57,20 @@ type MetricCardProps = {
 
 type LevelBreakdownItem = DashboardLevelStat & {
   chartEnd: number;
+  chartMidAngle: number;
   chartStart: number;
   share: number;
+  tooltipX: number;
+  tooltipY: number;
   width: number;
   visual: ReturnType<typeof getLevelVisualStyle>;
 };
 
 const PRIORITY_DISPLAY_LIMIT = 3;
+const LEVEL_CHART_CENTER = 112;
+const LEVEL_CHART_INNER_RADIUS = 64;
+const LEVEL_CHART_OUTER_RADIUS = 112;
+const LEVEL_CHART_TOOLTIP_RADIUS = 80;
 
 const dashboardHeaderEyebrow = "Administration ECE";
 const dashboardHeaderTitle = "Bienvenue dans l'espace d'administration ECE";
@@ -82,6 +89,41 @@ const getEnterStyle = (delay: number): CSSProperties => {
   return {
     "--ui-enter-delay": `${delay}ms`
   } as CSSProperties;
+};
+
+const getPointOnCircle = (
+  center: number,
+  radius: number,
+  angleInDegrees: number
+): { x: number; y: number } => {
+  const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180;
+
+  return {
+    x: center + radius * Math.cos(angleInRadians),
+    y: center + radius * Math.sin(angleInRadians)
+  };
+};
+
+const getDonutSegmentPath = (
+  startAngle: number,
+  endAngle: number,
+  outerRadius = LEVEL_CHART_OUTER_RADIUS,
+  innerRadius = LEVEL_CHART_INNER_RADIUS
+): string => {
+  const safeEndAngle = endAngle - startAngle >= 360 ? startAngle + 359.999 : endAngle;
+  const outerStart = getPointOnCircle(LEVEL_CHART_CENTER, outerRadius, safeEndAngle);
+  const outerEnd = getPointOnCircle(LEVEL_CHART_CENTER, outerRadius, startAngle);
+  const innerStart = getPointOnCircle(LEVEL_CHART_CENTER, innerRadius, startAngle);
+  const innerEnd = getPointOnCircle(LEVEL_CHART_CENTER, innerRadius, safeEndAngle);
+  const largeArcFlag = safeEndAngle - startAngle > 180 ? 1 : 0;
+
+  return [
+    `M ${outerStart.x} ${outerStart.y}`,
+    `A ${outerRadius} ${outerRadius} 0 ${largeArcFlag} 0 ${outerEnd.x} ${outerEnd.y}`,
+    `L ${innerStart.x} ${innerStart.y}`,
+    `A ${innerRadius} ${innerRadius} 0 ${largeArcFlag} 1 ${innerEnd.x} ${innerEnd.y}`,
+    "Z"
+  ].join(" ");
 };
 
 const MailMetricIcon = ({ className = "h-5 w-5" }: IconProps) => {
@@ -306,6 +348,7 @@ const DashboardPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPriorityPage, setCurrentPriorityPage] = useState(1);
+  const [hoveredLevelKey, setHoveredLevelKey] = useState<string | null>(null);
   const [activeSchoolYear, setActiveSchoolYear] = useState<SchoolYearSummary | null>(
     null
   );
@@ -411,12 +454,22 @@ const DashboardPage = () => {
           : Math.max((level.count / maxLevelCount) * 100, 6);
       const chartStart = chartCursor;
       chartCursor += rawShare;
+      const chartEnd = chartCursor;
+      const chartMidAngle = ((chartStart + chartEnd) / 2) * 3.6;
+      const tooltipPoint = getPointOnCircle(
+        LEVEL_CHART_CENTER,
+        LEVEL_CHART_TOOLTIP_RADIUS,
+        chartMidAngle
+      );
 
       return {
         ...level,
         chartStart,
-        chartEnd: chartCursor,
+        chartEnd,
+        chartMidAngle,
         share,
+        tooltipX: (tooltipPoint.x / (LEVEL_CHART_CENTER * 2)) * 100,
+        tooltipY: (tooltipPoint.y / (LEVEL_CHART_CENTER * 2)) * 100,
         width,
         visual: getLevelVisualStyle(level.code, level.label, index)
       };
@@ -701,13 +754,82 @@ const DashboardPage = () => {
                 <div className="mt-6 flex justify-center">
                   <div
                     className="relative grid h-56 w-56 place-items-center rounded-full shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08),0_24px_42px_-34px_rgba(15,23,42,0.5)]"
-                    style={{
-                      background: `conic-gradient(${dashboardView.levelChartGradient})`
-                    }}
                     aria-label={`Répartition de ${dashboardView.totalStudents} élèves par niveau`}
                     role="img"
                   >
-                    <div className="grid h-32 w-32 place-items-center rounded-full border border-white/90 bg-white text-center shadow-[0_16px_30px_-28px_rgba(15,23,42,0.5)]">
+                    <svg
+                      viewBox="0 0 224 224"
+                      className="absolute inset-0 h-full w-full overflow-visible rounded-full"
+                      aria-hidden="true"
+                    >
+                      {dashboardView.levelBreakdown.map((level) => {
+                        const levelKey = `${level.code}-${level.label}`;
+                        const isHovered = hoveredLevelKey === levelKey;
+
+                        return (
+                          <path
+                            key={levelKey}
+                            d={getDonutSegmentPath(
+                              level.chartStart * 3.6,
+                              level.chartEnd * 3.6
+                            )}
+                            fill={level.visual.barColor}
+                            className="outline-none transition duration-200 hover:brightness-110 focus-visible:brightness-110"
+                            style={{
+                              filter: isHovered
+                                ? "drop-shadow(0 12px 16px rgba(15, 23, 42, 0.18))"
+                                : undefined,
+                              transform: isHovered ? "scale(1.015)" : undefined,
+                              transformBox: "fill-box",
+                              transformOrigin: "center"
+                            }}
+                            tabIndex={0}
+                            onMouseEnter={() => setHoveredLevelKey(levelKey)}
+                            onMouseLeave={() => setHoveredLevelKey(null)}
+                            onFocus={() => setHoveredLevelKey(levelKey)}
+                            onBlur={() => setHoveredLevelKey(null)}
+                          />
+                        );
+                      })}
+                    </svg>
+
+                    {dashboardView.levelBreakdown.map((level) => {
+                      const levelKey = `${level.code}-${level.label}`;
+                      const isHovered = hoveredLevelKey === levelKey;
+
+                      return (
+                        <div
+                          key={`${levelKey}-tooltip`}
+                          className={`pointer-events-none absolute z-20 min-w-[150px] rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 text-left shadow-[0_18px_34px_-22px_rgba(15,23,42,0.35)] backdrop-blur transition duration-150 ${
+                            isHovered
+                              ? "translate-y-0 scale-100 opacity-100"
+                              : "translate-y-1 scale-95 opacity-0"
+                          }`}
+                          style={{
+                            left: `${level.tooltipX}%`,
+                            top: `${level.tooltipY}%`,
+                            transform: `translate(-50%, -118%) ${
+                              isHovered ? "scale(1)" : "scale(0.95)"
+                            }`
+                          }}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="h-2.5 w-2.5 shrink-0 rounded-full"
+                              style={{ backgroundColor: level.visual.barColor }}
+                            />
+                            <p className="truncate text-sm font-semibold text-slate-900">
+                              {level.label}
+                            </p>
+                          </div>
+                          <p className="mt-1 text-xs font-medium text-slate-500">
+                            {level.count} demande{level.count > 1 ? "s" : ""}
+                          </p>
+                        </div>
+                      );
+                    })}
+
+                    <div className="relative z-10 grid h-32 w-32 place-items-center rounded-full border border-white/90 bg-white text-center shadow-[0_16px_30px_-28px_rgba(15,23,42,0.5)]">
                       <div>
                         <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
                           Total
