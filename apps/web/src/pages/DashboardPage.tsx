@@ -51,6 +51,7 @@ type MetricCardProps = {
   label: string;
   motionDelay?: number;
   surfaceClassName: string;
+  status: DashboardApplicationStatus;
   value: number;
   valueClassName?: string;
 };
@@ -316,11 +317,14 @@ const MetricCard = ({
   iconClassName,
   motionDelay = 0,
   surfaceClassName,
+  status,
   valueClassName = "text-primary"
 }: MetricCardProps) => {
   return (
-    <article
-      className={`ui-animate-in ui-surface-hover rounded-[28px] border border-white/80 p-5 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.32)] ${surfaceClassName}`}
+    <Link
+      to={`/applications?status=${encodeURIComponent(status)}`}
+      aria-label={`Voir les demandes avec le statut ${label}`}
+      className={`ui-animate-in ui-surface-hover block rounded-[28px] border border-white/80 p-5 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.32)] outline-none transition focus-visible:ring-4 focus-visible:ring-primary/20 ${surfaceClassName}`}
       style={getEnterStyle(motionDelay)}
     >
       <div className="flex items-start justify-between gap-4">
@@ -338,7 +342,7 @@ const MetricCard = ({
       </p>
       <p className="mt-2 text-sm font-medium text-slate-700">{label}</p>
       <p className="mt-3 text-sm leading-6 text-slate-500">{description}</p>
-    </article>
+    </Link>
   );
 };
 
@@ -685,6 +689,7 @@ const DashboardPage = () => {
                 iconClassName={card.iconClassName}
                 motionDelay={360 + index * 70}
                 surfaceClassName={card.surfaceClassName}
+                status={card.status}
                 valueClassName={card.valueClassName}
               />
             ))}

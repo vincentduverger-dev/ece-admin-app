@@ -76,6 +76,18 @@ const statusOptions: StatusOption[] = [
   { value: "PARTIALLY_ACCEPTED", label: "Décisions partielles" }
 ];
 
+const isApplicationStatus = (value: string): value is ApplicationStatus => {
+  return statusOptions.some((option) => option.value === value && option.value !== "");
+};
+
+const getRequestedStatusFilter = (
+  searchParams: URLSearchParams
+): "" | ApplicationStatus => {
+  const requestedStatus = searchParams.get("status")?.trim() ?? "";
+
+  return isApplicationStatus(requestedStatus) ? requestedStatus : "";
+};
+
 const sortOptions: ApplicationsSortOption[] = [
   { value: "createdAtDesc", label: "Plus récentes d'abord" },
   { value: "createdAtAsc", label: "Plus anciennes d'abord" },
@@ -347,11 +359,12 @@ const PaginationControls = memo(function PaginationControls({
 const ApplicationsPage = () => {
   const [searchParams] = useSearchParams();
   const requestedSchoolYearId = searchParams.get("schoolYearId")?.trim() ?? "";
+  const requestedStatus = getRequestedStatusFilter(searchParams);
   const [hasInitializedSchoolYearFilter, setHasInitializedSchoolYearFilter] = useState(
     requestedSchoolYearId.length > 0
   );
   const [filters, setFilters] = useState<FilterState>(() => ({
-    status: "",
+    status: requestedStatus,
     schoolYearId: requestedSchoolYearId,
     isPriority: "",
     search: ""
@@ -455,6 +468,19 @@ const ApplicationsPage = () => {
     "w-full rounded-2xl border border-slate-200 bg-white/95 px-4 py-2.5 text-sm text-slate-900 shadow-[0_12px_26px_-24px_rgba(15,23,42,0.28)] outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary/15";
   const isWaitingForDefaultSchoolYear =
     requestedSchoolYearId.length === 0 && !hasInitializedSchoolYearFilter;
+
+  useEffect(() => {
+    setFilters((currentFilters) => {
+      if (currentFilters.status === requestedStatus) {
+        return currentFilters;
+      }
+
+      return {
+        ...currentFilters,
+        status: requestedStatus
+      };
+    });
+  }, [requestedStatus]);
 
   const resetFilters = useCallback((): void => {
     setFilters({
