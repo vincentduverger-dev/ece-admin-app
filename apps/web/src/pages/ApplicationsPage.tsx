@@ -6,9 +6,10 @@ import {
   useMemo,
   useState,
   type CSSProperties,
+  type KeyboardEvent,
   type ReactNode
 } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import PageSectionHeader from "../components/layout/PageSectionHeader";
 import Breadcrumb from "../components/ui/Breadcrumb";
@@ -357,6 +358,7 @@ const PaginationControls = memo(function PaginationControls({
 });
 
 const ApplicationsPage = () => {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const requestedSchoolYearId = searchParams.get("schoolYearId")?.trim() ?? "";
   const requestedStatus = getRequestedStatusFilter(searchParams);
@@ -551,6 +553,25 @@ const ApplicationsPage = () => {
       setCurrentPage(Math.min(totalPages, Math.max(1, page)));
     },
     [totalPages]
+  );
+
+  const openApplicationDetail = useCallback(
+    (applicationId: string): void => {
+      navigate(`/applications/${applicationId}`);
+    },
+    [navigate]
+  );
+
+  const handleApplicationRowKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLElement>, applicationId: string): void => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+
+      event.preventDefault();
+      openApplicationDetail(applicationId);
+    },
+    [openApplicationDetail]
   );
 
   const loadApplications = useCallback(async (signal?: AbortSignal): Promise<void> => {
@@ -963,7 +984,12 @@ const ApplicationsPage = () => {
                   return (
                     <article
                       key={application.id}
-                      className={`group ui-animate-in ui-surface-hover ui-surface-hover--soft rounded-[28px] border p-4 shadow-[0_14px_30px_-24px_rgba(15,23,42,0.16)] sm:p-5 ${rowSurfaceClassName}`}
+                      role="link"
+                      tabIndex={0}
+                      aria-label={`Ouvrir la demande de la famille ${getFamilyDisplayName(application)}`}
+                      onClick={() => openApplicationDetail(application.id)}
+                      onKeyDown={(event) => handleApplicationRowKeyDown(event, application.id)}
+                      className={`group ui-animate-in ui-surface-hover ui-surface-hover--soft cursor-pointer rounded-[28px] border p-4 shadow-[0_14px_30px_-24px_rgba(15,23,42,0.16)] outline-none transition focus-visible:ring-4 focus-visible:ring-primary/20 sm:p-5 ${rowSurfaceClassName}`}
                       style={getEnterStyle(310 + index * 55)}
                     >
                       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_170px_minmax(0,1.7fr)_180px_130px_108px] xl:items-center">
@@ -1054,6 +1080,7 @@ const ApplicationsPage = () => {
                           </p>
                           <Link
                             to={`/applications/${application.id}`}
+                            onClick={(event) => event.stopPropagation()}
                             className="mt-1 inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition group-hover:border-primary/25 group-hover:text-primary hover:border-primary/25 hover:text-primary xl:mt-0"
                           >
                             <span>Voir</span>
