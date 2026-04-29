@@ -117,6 +117,38 @@ const getFamilyDisplayName = (application: ApplicationListItem): string => {
   return application.family.contactEmail ?? "Famille non renseignée";
 };
 
+const getStudentSearchValue = ({ application, student }: StudentListItem): string => {
+  return [
+    student.firstName,
+    student.lastName,
+    student.level.code,
+    student.level.label,
+    getFamilyDisplayName(application),
+    application.family.contactEmail
+  ]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ")
+    .toLowerCase();
+};
+
+const SearchIcon = ({ className = "h-4 w-4" }: IconProps) => {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <circle cx="7" cy="7" r="4.6" />
+      <path d="m10.3 10.3 3.2 3.2" />
+    </svg>
+  );
+};
+
 const ChevronRightIcon = ({ className = "h-4 w-4" }: IconProps) => {
   return (
     <svg
@@ -147,6 +179,26 @@ const ChevronLeftIcon = ({ className = "h-4 w-4" }: IconProps) => {
       className={className}
     >
       <path d="m9.75 3.25-4.5 4.75 4.5 4.75" />
+    </svg>
+  );
+};
+
+const StudentPanelIcon = ({ className = "h-5 w-5" }: IconProps) => {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M7.7 9.2a2.7 2.7 0 1 0 0-5.4 2.7 2.7 0 0 0 0 5.4Z" />
+      <path d="M13.7 8.5a2.1 2.1 0 1 0 0-4.2" />
+      <path d="M3.5 16.4a4.3 4.3 0 0 1 8.4 0" />
+      <path d="M12.7 15.6a3.4 3.4 0 0 1 3.8.8" />
     </svg>
   );
 };
@@ -237,12 +289,13 @@ const StudentsPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<PageSize>(8);
+  const [search, setSearch] = useState("");
 
   const selectedLevel = useMemo(() => {
     return levels.find((level) => normalizeLevelCode(level.code) === requestedLevel) ?? null;
   }, [levels, requestedLevel]);
 
-  const studentRows = useMemo<StudentListItem[]>(() => {
+  const levelStudentRows = useMemo<StudentListItem[]>(() => {
     if (!requestedLevel) {
       return [];
     }
@@ -253,6 +306,17 @@ const StudentsPage = () => {
         .map((student) => ({ application, student }))
     );
   }, [applications, requestedLevel]);
+  const studentRows = useMemo<StudentListItem[]>(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+
+    if (!normalizedSearch) {
+      return levelStudentRows;
+    }
+
+    return levelStudentRows.filter((row) =>
+      getStudentSearchValue(row).includes(normalizedSearch)
+    );
+  }, [levelStudentRows, search]);
 
   const studentsCountLabel = `${studentRows.length} élève${studentRows.length > 1 ? "s" : ""}`;
   const totalPages = useMemo(() => {
@@ -269,8 +333,11 @@ const StudentsPage = () => {
     : (resolvedCurrentPage - 1) * pageSize + 1;
   const visibleEnd = Math.min(resolvedCurrentPage * pageSize, studentRows.length);
   const selectedLevelLabel = selectedLevel?.label ?? requestedLevel;
+  const activeSchoolYearLabel = activeSchoolYear
+    ? formatSchoolYearLabel(activeSchoolYear.label)
+    : "Toutes les années";
   const inputClassName =
-    "w-full rounded-2xl border border-slate-200 bg-white/95 px-4 py-2.5 text-sm text-slate-900 shadow-[0_12px_26px_-24px_rgba(15,23,42,0.28)] outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15";
+    "w-full rounded-2xl border border-primary/15 bg-white/95 px-4 py-3 text-sm font-medium text-slate-900 shadow-[0_12px_26px_-24px_rgba(31,77,58,0.22)] outline-none transition hover:border-primary/30 focus:border-secondary focus:ring-2 focus:ring-secondary/20";
 
   const handleLevelChange = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>): void => {
@@ -286,6 +353,13 @@ const StudentsPage = () => {
       setSearchParams(nextParams);
     },
     [searchParams, setSearchParams]
+  );
+
+  const handleSearchChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>): void => {
+      setSearch(event.target.value);
+    },
+    []
   );
 
   const handlePageSizeChange = useCallback(
@@ -358,7 +432,7 @@ const StudentsPage = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [requestedLevel, pageSize]);
+  }, [requestedLevel, pageSize, search]);
 
   useEffect(() => {
     setCurrentPage((page) => Math.min(page, totalPages));
@@ -387,7 +461,7 @@ const StudentsPage = () => {
             Année active
           </p>
           <p className="mt-1 font-semibold">
-            {activeSchoolYear ? formatSchoolYearLabel(activeSchoolYear.label) : "Toutes les années"}
+            {activeSchoolYearLabel}
           </p>
         </div>
       </div>
@@ -432,25 +506,67 @@ const StudentsPage = () => {
       {pageHeader}
 
       <section
-        className="ui-animate-in ui-surface-hover ui-surface-hover--soft ui-surface-hover--no-accent rounded-[32px] border border-white/80 bg-white/92 p-6 shadow-[0_24px_50px_-34px_rgba(15,23,42,0.3)] sm:p-7"
+        className="ui-animate-in ui-surface-hover ui-surface-hover--soft ui-surface-hover--no-accent overflow-hidden rounded-[32px] border border-primary/20 bg-[#fffdf8] shadow-[0_30px_66px_-38px_rgba(31,77,58,0.42)]"
         style={getEnterStyle(190)}
       >
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primaryLight">
-              Filtre niveau
-            </p>
-            <h2 className="mt-2 text-2xl font-semibold text-slate-900">
-              {requestedLevel ? selectedLevelLabel : "Sélectionner un niveau"}
-            </h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-              Le niveau reçu dans l&apos;URL est appliqué automatiquement au chargement.
-            </p>
-          </div>
+        <div className="border-b border-secondary/30 bg-primary px-6 py-5 text-white sm:px-7">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-start gap-4">
+              <span className="mt-1 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-secondary shadow-[0_16px_30px_-22px_rgba(0,0,0,0.55)]">
+                <StudentPanelIcon />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-secondary">
+                  Poste élèves
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold text-white">
+                  {requestedLevel ? selectedLevelLabel : "Sélectionner un niveau"}
+                </h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-white/80">
+                  Consultez la cohorte d&apos;un niveau, recherchez un élève et
+                  accédez directement au dossier de chaque famille.
+                </p>
+              </div>
+            </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <label className="block min-w-[220px]">
-              <span className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="inline-flex items-center rounded-full border border-secondary/40 bg-secondary/20 px-4 py-2 text-sm font-semibold text-white">
+                {isLoading ? "Actualisation..." : studentsCountLabel}
+              </span>
+              <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white">
+                {activeSchoolYearLabel}
+              </span>
+              {requestedLevel ? (
+                <span className="inline-flex items-center rounded-full border border-secondary/40 bg-secondary/20 px-4 py-2 text-sm font-semibold text-white">
+                  {requestedLevel}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-[#fffaf2] px-6 py-5 sm:px-7">
+          <div className="grid gap-4 xl:grid-cols-[minmax(260px,1.1fr)_minmax(260px,1fr)_auto] xl:items-end">
+            <label className="block">
+              <span className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-primaryLight">
+                Recherche rapide
+              </span>
+              <div className="relative mt-2">
+                <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-primary">
+                  <SearchIcon className="h-5 w-5" />
+                </span>
+                <input
+                  type="search"
+                  value={search}
+                  onChange={handleSearchChange}
+                  placeholder="Élève, famille ou email..."
+                  className={`${inputClassName} h-14 pl-12 text-base`}
+                />
+              </div>
+            </label>
+
+            <label className="block">
+              <span className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-primaryLight">
                 Niveau
               </span>
               <select
@@ -466,9 +582,42 @@ const StudentsPage = () => {
                 ))}
               </select>
             </label>
-            <span className="inline-flex items-center justify-center rounded-full border border-primary/15 bg-primary/5 px-4 py-2.5 text-sm font-medium text-primaryDark">
-              {isLoading ? "Actualisation..." : studentsCountLabel}
+
+            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+              {requestedLevel ? (
+                <LevelBadge
+                  code={selectedLevel?.code ?? requestedLevel}
+                  label={selectedLevelLabel}
+                  size="md"
+                />
+              ) : null}
+              <span className="inline-flex items-center justify-center rounded-full border border-primary/15 bg-white px-4 py-2.5 text-sm font-semibold text-primaryDark">
+                {isLoading ? "Actualisation..." : studentsCountLabel}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-secondary/25 pt-4">
+            <span className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-primaryLight">
+              Vue active
             </span>
+            {requestedLevel ? (
+              <span className="inline-flex items-center rounded-full border border-secondary/30 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
+                {selectedLevelLabel} · {requestedLevel}
+              </span>
+            ) : (
+              <span className="inline-flex items-center rounded-full border border-primary/15 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
+                Aucun niveau sélectionné
+              </span>
+            )}
+            <span className="inline-flex items-center rounded-full border border-secondary/30 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
+              {activeSchoolYearLabel}
+            </span>
+            {search.trim() ? (
+              <span className="inline-flex items-center rounded-full border border-secondary/30 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
+                Recherche: {search.trim()}
+              </span>
+            ) : null}
           </div>
         </div>
       </section>
@@ -494,7 +643,11 @@ const StudentsPage = () => {
         {requestedLevel && !isLoading && studentRows.length === 0 ? (
           <EmptyState
             title="Aucun élève trouvé"
-            description={`Aucun élève ne correspond au niveau ${selectedLevelLabel}.`}
+            description={
+              search.trim()
+                ? `Aucun élève en ${selectedLevelLabel} ne correspond à cette recherche.`
+                : `Aucun élève ne correspond au niveau ${selectedLevelLabel}.`
+            }
           />
         ) : null}
 

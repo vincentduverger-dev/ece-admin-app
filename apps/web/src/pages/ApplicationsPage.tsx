@@ -241,6 +241,26 @@ const SearchIcon = ({ className = "h-4 w-4" }: IconProps) => {
   );
 };
 
+const CommandCenterIcon = ({ className = "h-5 w-5" }: IconProps) => {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <rect x="3.5" y="4" width="13" height="12" rx="2.4" />
+      <path d="M6.5 8h7" />
+      <path d="M6.5 12h3.2" />
+      <path d="M12.2 12h1.3" />
+    </svg>
+  );
+};
+
 const ChevronLeftIcon = ({ className = "h-4 w-4" }: IconProps) => {
   return (
     <svg
@@ -443,14 +463,16 @@ const ApplicationsPage = () => {
       filters.status,
       filters.schoolYearId !== defaultSchoolYearId ? filters.schoolYearId : "",
       filters.isPriority,
-      filters.search.trim()
+      filters.search.trim(),
+      sort !== "createdAtDesc" ? sort : ""
     ].filter((value) => value !== "").length;
   }, [
     defaultSchoolYearId,
     filters.isPriority,
     filters.schoolYearId,
     filters.search,
-    filters.status
+    filters.status,
+    sort
   ]);
   const visibleStart = displayedApplications.length === 0
     ? 0
@@ -466,8 +488,43 @@ const ApplicationsPage = () => {
         ? formatSchoolYearLabel(selectedSchoolYear.label)
         : "Année sélectionnée"
       : "Toutes les années scolaires";
+  const activeFilterSummaries = useMemo(() => {
+    const summaries: string[] = [];
+    const statusLabel = statusOptions.find((option) => option.value === filters.status)?.label;
+    const sortLabel = sortOptions.find((option) => option.value === sort)?.label;
+
+    if (filters.status && statusLabel) {
+      summaries.push(statusLabel);
+    }
+
+    if (filters.schoolYearId !== defaultSchoolYearId) {
+      summaries.push(schoolYearSummaryLabel);
+    }
+
+    if (filters.isPriority) {
+      summaries.push("Prioritaires uniquement");
+    }
+
+    if (filters.search.trim()) {
+      summaries.push(`Recherche: ${filters.search.trim()}`);
+    }
+
+    if (sort !== "createdAtDesc" && sortLabel) {
+      summaries.push(sortLabel);
+    }
+
+    return summaries;
+  }, [
+    defaultSchoolYearId,
+    filters.isPriority,
+    filters.schoolYearId,
+    filters.search,
+    filters.status,
+    schoolYearSummaryLabel,
+    sort
+  ]);
   const inputClassName =
-    "w-full rounded-2xl border border-slate-200 bg-white/95 px-4 py-2.5 text-sm text-slate-900 shadow-[0_12px_26px_-24px_rgba(15,23,42,0.28)] outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary/15";
+    "w-full rounded-2xl border border-primary/15 bg-white/95 px-4 py-3 text-sm font-medium text-slate-900 shadow-[0_12px_26px_-24px_rgba(31,77,58,0.22)] outline-none transition placeholder:text-slate-400 hover:border-primary/30 focus:border-secondary focus:ring-2 focus:ring-secondary/20";
   const isWaitingForDefaultSchoolYear =
     requestedSchoolYearId.length === 0 && !hasInitializedSchoolYearFilter;
 
@@ -770,123 +827,157 @@ const ApplicationsPage = () => {
       {pageHeader}
 
       <section
-        className="ui-animate-in ui-surface-hover ui-surface-hover--soft ui-surface-hover--no-accent rounded-[32px] border border-white/80 bg-white/92 p-6 shadow-[0_24px_50px_-34px_rgba(15,23,42,0.3)] sm:p-7"
+        className="ui-animate-in ui-surface-hover ui-surface-hover--soft ui-surface-hover--no-accent overflow-hidden rounded-[32px] border border-primary/20 bg-[#fffdf8] shadow-[0_30px_66px_-38px_rgba(31,77,58,0.42)]"
         style={getEnterStyle(190)}
       >
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primaryLight">
-              Filtres
-            </p>
-            <h2 className="mt-2 text-2xl font-semibold text-slate-900">
-              Rechercher, segmenter, trier
-            </h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-              Gardez la même logique métier, mais avec une barre de commande plus
-              dense pour scanner rapidement les dossiers utiles.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2.5">
-            <span className="inline-flex items-center rounded-full border border-primary/15 bg-primary/5 px-4 py-2 text-sm font-medium text-primaryDark">
-              {isLoading ? "Actualisation..." : getApplicationsCountLabel(displayedApplications.length)}
-            </span>
-            {activeFilterCount > 0 ? (
-              <span className="inline-flex items-center rounded-full border border-secondary/20 bg-secondary/10 px-4 py-2 text-sm font-medium text-secondaryDark">
-                {activeFilterCount} filtre{activeFilterCount > 1 ? "s" : ""} actif
-                {activeFilterCount > 1 ? "s" : ""}
+        <div className="border-b border-secondary/30 bg-primary px-6 py-5 text-white sm:px-7">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex min-w-0 items-start gap-4">
+              <span className="mt-1 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-secondary shadow-[0_16px_30px_-22px_rgba(0,0,0,0.55)]">
+                <CommandCenterIcon />
               </span>
-            ) : null}
-            <button
-              type="button"
-              onClick={resetFilters}
-              disabled={!hasActiveFilters && sort === "createdAtDesc"}
-              className="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-primary/25 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Réinitialiser
-            </button>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-secondary">
+                  Poste de tri
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold text-white">
+                  Piloter les demandes à traiter
+                </h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-white/80">
+                  Isolez une cohorte, retrouvez une famille et priorisez les dossiers
+                  sans quitter la liste de travail.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="inline-flex items-center rounded-full border border-secondary/40 bg-secondary/20 px-4 py-2 text-sm font-semibold text-white">
+                {isLoading ? "Actualisation..." : getApplicationsCountLabel(displayedApplications.length)}
+              </span>
+              <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white">
+                {schoolYearSummaryLabel}
+              </span>
+              {activeFilterCount > 0 ? (
+                <span className="inline-flex items-center rounded-full border border-secondary/40 bg-secondary/20 px-4 py-2 text-sm font-semibold text-white">
+                  {activeFilterCount} filtre{activeFilterCount > 1 ? "s" : ""} actif
+                  {activeFilterCount > 1 ? "s" : ""}
+                </span>
+              ) : null}
+              <button
+                type="button"
+                onClick={resetFilters}
+                disabled={!hasActiveFilters && sort === "createdAtDesc"}
+                className="inline-flex items-center rounded-full border border-white/25 bg-white px-4 py-2 text-sm font-semibold text-primaryDark transition hover:border-secondary hover:bg-secondary/10 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Réinitialiser
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-[190px_220px_190px_220px_minmax(0,1fr)]">
-          <FilterField label="Statut" className="block">
-            <select
-              value={filters.status}
-              onChange={handleStatusFilterChange}
-              className={inputClassName}
-            >
-              {statusOptions.map((option) => (
-                <option key={option.value || "all"} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </FilterField>
+        <div className="bg-[#fffaf2] px-6 py-5 sm:px-7">
+          <div className="grid gap-4 xl:grid-cols-[minmax(280px,1.15fr)_minmax(0,2fr)] xl:items-end">
+            <FilterField label="Recherche rapide" className="block">
+              <div className="relative">
+                <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-primary">
+                  <SearchIcon className="h-5 w-5" />
+                </span>
+                <input
+                  type="search"
+                  value={filters.search}
+                  onChange={handleSearchFilterChange}
+                  placeholder="Famille, élève ou email..."
+                  className={`${inputClassName} h-14 pl-12 text-base`}
+                />
+              </div>
+            </FilterField>
 
-          <FilterField label="Année scolaire" className="block">
-            <select
-              value={filters.schoolYearId}
-              onChange={handleSchoolYearFilterChange}
-              disabled={isSchoolYearsLoading}
-              className={`${inputClassName} disabled:cursor-wait disabled:bg-slate-50`}
-            >
-              <option value="">
-                {isSchoolYearsLoading
-                  ? "Chargement des années..."
-                  : "Toutes les années scolaires"}
-              </option>
-              {schoolYears.map((schoolYear) => (
-                <option key={schoolYear.id} value={schoolYear.id}>
-                  {formatSchoolYearLabel(schoolYear.label)}
-                  {schoolYear.isActive ? " · active" : ""}
-                </option>
-              ))}
-            </select>
-          </FilterField>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <FilterField label="Statut" className="block">
+                <select
+                  value={filters.status}
+                  onChange={handleStatusFilterChange}
+                  className={inputClassName}
+                >
+                  {statusOptions.map((option) => (
+                    <option key={option.value || "all"} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </FilterField>
 
-          <FilterField label="Priorité" className="block">
-            <select
-              value={filters.isPriority}
-              onChange={handlePriorityFilterChange}
-              className={inputClassName}
-            >
-              <option value="">Toutes les demandes</option>
-              <option value="true">Prioritaires uniquement</option>
-            </select>
-          </FilterField>
+              <FilterField label="Année scolaire" className="block">
+                <select
+                  value={filters.schoolYearId}
+                  onChange={handleSchoolYearFilterChange}
+                  disabled={isSchoolYearsLoading}
+                  className={`${inputClassName} disabled:cursor-wait disabled:bg-slate-50`}
+                >
+                  <option value="">
+                    {isSchoolYearsLoading
+                      ? "Chargement des années..."
+                      : "Toutes les années scolaires"}
+                  </option>
+                  {schoolYears.map((schoolYear) => (
+                    <option key={schoolYear.id} value={schoolYear.id}>
+                      {formatSchoolYearLabel(schoolYear.label)}
+                      {schoolYear.isActive ? " · active" : ""}
+                    </option>
+                  ))}
+                </select>
+              </FilterField>
 
-          <FilterField label="Tri" className="block">
-            <select
-              value={sort}
-              onChange={handleSortChange}
-              className={inputClassName}
-            >
-              {sortOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </FilterField>
+              <FilterField label="Priorité" className="block">
+                <select
+                  value={filters.isPriority}
+                  onChange={handlePriorityFilterChange}
+                  className={inputClassName}
+                >
+                  <option value="">Toutes les demandes</option>
+                  <option value="true">Prioritaires uniquement</option>
+                </select>
+              </FilterField>
 
-          <FilterField label="Recherche" className="block">
-            <div className="relative">
-              <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
-                <SearchIcon />
-              </span>
-              <input
-                type="search"
-                value={filters.search}
-                onChange={handleSearchFilterChange}
-                placeholder="Famille, élève ou email..."
-                className={`${inputClassName} pl-11`}
-              />
+              <FilterField label="Tri" className="block">
+                <select
+                  value={sort}
+                  onChange={handleSortChange}
+                  className={inputClassName}
+                >
+                  {sortOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </FilterField>
             </div>
-          </FilterField>
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-secondary/25 pt-4">
+            <span className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-primaryLight">
+              Vue active
+            </span>
+            {activeFilterSummaries.length > 0 ? (
+              activeFilterSummaries.map((summary) => (
+                <span
+                  key={summary}
+                  className="inline-flex items-center rounded-full border border-secondary/30 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark"
+                >
+                  {summary}
+                </span>
+              ))
+            ) : (
+              <span className="inline-flex items-center rounded-full border border-primary/15 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
+                Vue standard de l&apos;année active
+              </span>
+            )}
+          </div>
         </div>
 
         {schoolYearsError ? (
-          <p className="mt-4 rounded-[24px] border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-slate-700">
+          <p className="mx-6 mb-5 rounded-[24px] border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-slate-700 sm:mx-7">
             Impossible de charger la liste des années scolaires. Le filtre par année
             reste indisponible tant que l&apos;API ne répond pas.
           </p>

@@ -10,7 +10,7 @@ type IconProps = {
 };
 
 type NavigationItem = {
-  key: "dashboard" | "applications" | "imports" | "schoolYears";
+  key: "dashboard" | "applications" | "students" | "imports" | "schoolYears";
   label: string;
   to?: string;
   end?: boolean;
@@ -59,6 +59,17 @@ const FolderIcon = ({ className = "h-5 w-5" }: IconProps) => {
   );
 };
 
+const StudentsIcon = ({ className = "h-5 w-5" }: IconProps) => {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
+      <path d="M8.5 11.5a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" />
+      <path d="M15.8 10.5a2.6 2.6 0 1 0 0-5.2 2.6 2.6 0 0 0 0 5.2Z" />
+      <path d="M3.8 19.2a4.8 4.8 0 0 1 9.4 0" strokeLinecap="round" />
+      <path d="M13.8 18.5a4 4 0 0 1 6.4.7" strokeLinecap="round" />
+    </svg>
+  );
+};
+
 const UploadIcon = ({ className = "h-5 w-5" }: IconProps) => {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
@@ -100,6 +111,12 @@ const navigationItems: NavigationItem[] = [
     label: "Demandes",
     to: "/applications",
     icon: FolderIcon
+  },
+  {
+    key: "students",
+    label: "Élèves",
+    to: "/students",
+    icon: StudentsIcon
   },
   {
     key: "imports",
