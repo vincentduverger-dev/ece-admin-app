@@ -326,6 +326,26 @@ const getPriorityLevels = (
   return Array.from(uniqueLevels.values());
 };
 
+const StatusOverviewIcon = ({ className = "h-5 w-5" }: IconProps) => {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <rect x="3.5" y="4" width="13" height="12" rx="2.4" />
+      <path d="M6.5 8h7" />
+      <path d="M6.5 11h4.2" />
+      <path d="M13.2 11.2 15 13l3-3" />
+    </svg>
+  );
+};
+
 const MetricCard = ({
   label,
   value,
@@ -341,11 +361,11 @@ const MetricCard = ({
     <Link
       to={`/applications?status=${encodeURIComponent(status)}`}
       aria-label={`Voir les demandes avec le statut ${label}`}
-      className={`ui-animate-in ui-surface-hover block rounded-[28px] border border-white/80 p-5 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.32)] outline-none transition focus-visible:ring-4 focus-visible:ring-primary/20 ${surfaceClassName}`}
+      className={`ui-animate-in ui-surface-hover block rounded-[28px] border border-primary/10 p-5 shadow-[0_18px_40px_-30px_rgba(31,77,58,0.34)] outline-none transition hover:border-secondary/35 focus-visible:ring-4 focus-visible:ring-secondary/20 ${surfaceClassName}`}
       style={getEnterStyle(motionDelay)}
     >
       <div className="flex items-start justify-between gap-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
           {label}
         </p>
         <span
@@ -357,8 +377,8 @@ const MetricCard = ({
       <p className={`mt-6 text-4xl font-semibold tracking-tight ${valueClassName}`}>
         {value}
       </p>
-      <p className="mt-2 text-sm font-medium text-slate-700">{label}</p>
-      <p className="mt-3 text-sm leading-6 text-slate-500">{description}</p>
+      <p className="mt-2 text-sm font-semibold text-slate-800">{label}</p>
+      <p className="mt-3 text-sm leading-6 text-slate-600">{description}</p>
     </Link>
   );
 };
@@ -648,54 +668,77 @@ const DashboardPage = () => {
       {pageHeader}
 
       <section
-        className="ui-animate-in ui-surface-hover ui-surface-hover--soft ui-surface-hover--no-accent overflow-hidden rounded-[32px] border border-white/80 bg-white/92 shadow-[0_24px_50px_-34px_rgba(15,23,42,0.3)]"
+        className="ui-animate-in ui-surface-hover ui-surface-hover--soft ui-surface-hover--no-accent overflow-hidden rounded-[32px] border border-primary/20 bg-[#fffdf8] shadow-[0_30px_66px_-38px_rgba(31,77,58,0.42)]"
         style={getEnterStyle(190)}
       >
-        <div className="p-6 sm:p-8">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primaryLight">
-                Suivi des demandes
-              </p>
-              <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
-                Demandes par statut
-              </h2>
-              <p className="mt-3 max-w-4xl text-[1.02rem] leading-8 text-slate-600">
-                Visualisez la répartition des dossiers selon leur état de
-                traitement pour prioriser les prochaines actions.
-              </p>
+        <div className="border-b border-secondary/30 bg-primary px-6 py-6 text-white sm:px-8">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-start gap-4">
+              <span className="mt-1 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-secondary shadow-[0_16px_30px_-22px_rgba(0,0,0,0.55)]">
+                <StatusOverviewIcon />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-secondary">
+                  Suivi des demandes
+                </p>
+                <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white">
+                  Demandes par statut
+                </h2>
+                <p className="mt-3 max-w-4xl text-[1.02rem] leading-8 text-white/80">
+                  Visualisez la répartition des dossiers selon leur état de
+                  traitement pour prioriser les prochaines actions.
+                </p>
+              </div>
             </div>
 
-            <div
-              className="ui-animate-in inline-flex w-fit shrink-0 flex-col rounded-[28px] border border-primary/15 bg-primary/5 px-7 py-5 text-center shadow-[0_14px_26px_-22px_rgba(31,77,58,0.28)] lg:ml-6"
-              style={getEnterStyle(240)}
-            >
-              <p className="text-[0.74rem] font-semibold uppercase tracking-[0.22em] text-primaryDark">
-                Total
-              </p>
-              <p className="mt-3 text-4xl font-semibold tracking-tight text-slate-900">
-                {data.totalApplications}
-              </p>
-              <p className="mt-1 text-sm text-slate-500">demandes suivies</p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:ml-6 lg:justify-end">
+              <div className="flex flex-col items-start gap-2.5 sm:items-end">
+                <span
+                  className="ui-animate-in inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white"
+                  style={getEnterStyle(300)}
+                >
+                  {data.priorityApplications.length} prioritaires
+                </span>
+                <span
+                  className="ui-animate-in inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white"
+                  style={getEnterStyle(360)}
+                >
+                  {data.byLevel.length} niveaux
+                </span>
+              </div>
+
+              <div
+                className="ui-animate-in inline-flex w-fit shrink-0 flex-col rounded-[28px] border border-secondary/40 bg-secondary/20 px-7 py-5 text-center text-white shadow-[0_18px_34px_-24px_rgba(0,0,0,0.5)]"
+                style={getEnterStyle(240)}
+              >
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-secondary">
+                  Total
+                </p>
+                <p className="mt-2 text-4xl font-semibold tracking-tight">
+                  {data.totalApplications}
+                </p>
+                <p className="mt-1 text-sm font-medium text-white/80">
+                  demandes suivies
+                </p>
+              </div>
             </div>
           </div>
+        </div>
 
-          <div className="mt-6 flex flex-wrap gap-3">
-            <span
-              className="ui-animate-in inline-flex items-center rounded-full border border-secondary/20 bg-secondary/10 px-4 py-2 text-sm font-medium text-secondaryDark"
-              style={getEnterStyle(300)}
-            >
+        <div className="bg-[#fffaf2] p-6 sm:p-8">
+          <div className="mb-6 flex flex-wrap items-center gap-2 border-b border-secondary/25 pb-4">
+            <span className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-primaryLight">
+              Vue active
+            </span>
+            <span className="inline-flex items-center rounded-full border border-primary/15 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
+              {data.totalApplications} demandes
+            </span>
+            <span className="inline-flex items-center rounded-full border border-secondary/30 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
               {data.priorityApplications.length} prioritaires
             </span>
-            <span
-              className="ui-animate-in inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700"
-              style={getEnterStyle(360)}
-            >
-              {data.byLevel.length} niveaux suivis
-            </span>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             {statusCards.map((card, index) => (
               <MetricCard
                 key={card.status}
