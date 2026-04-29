@@ -8,6 +8,20 @@
   background:
     radial-gradient(circle at top left, rgba(212, 162, 76, 0.12), transparent 28%),
     radial-gradient(circle at top right, rgba(31, 77, 58, 0.12), transparent 32%),
+    repeating-linear-gradient(
+      0deg,
+      rgba(31, 77, 58, 0.026) 0,
+      rgba(31, 77, 58, 0.026) 1px,
+      transparent 1px,
+      transparent 15px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(31, 77, 58, 0.02) 0,
+      rgba(31, 77, 58, 0.02) 1px,
+      transparent 1px,
+      transparent 17px
+    ),
     #f8f6f2;
 }
 
@@ -27,78 +41,34 @@ body {
   color: inherit;
 }
 
+.app-background-texture {
+  background-color: #f8f6f2;
+  background-image:
+    radial-gradient(circle at top left, rgba(212, 162, 76, 0.12), transparent 28%),
+    radial-gradient(circle at top right, rgba(31, 77, 58, 0.12), transparent 32%),
+    radial-gradient(circle at 50% 78%, rgba(212, 162, 76, 0.07), transparent 26%),
+    repeating-linear-gradient(
+      0deg,
+      rgba(31, 77, 58, 0.028) 0,
+      rgba(31, 77, 58, 0.028) 1px,
+      transparent 1px,
+      transparent 15px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(31, 77, 58, 0.022) 0,
+      rgba(31, 77, 58, 0.022) 1px,
+      transparent 1px,
+      transparent 17px
+    ),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(248, 246, 242, 0.94));
+}
+
 button,
 input,
 textarea,
 select {
   font: inherit;
-}
-
-@keyframes login-illustration-draw {
-  0% {
-    opacity: 0;
-    stroke-dashoffset: 1;
-  }
-
-  20% {
-    opacity: 1;
-  }
-
-  100% {
-    opacity: 1;
-    stroke-dashoffset: 0;
-  }
-}
-
-@keyframes login-illustration-fade {
-  0% {
-    opacity: 0;
-    transform: scale(0.94);
-  }
-
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes login-illustration-pop {
-  0% {
-    opacity: 0;
-    transform: scale(0.7);
-  }
-
-  70% {
-    opacity: 1;
-    transform: scale(1.08);
-  }
-
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes login-illustration-write {
-  0% {
-    opacity: 0;
-    transform: translate(24px, 18px) rotate(-10deg);
-  }
-
-  35% {
-    opacity: 1;
-    transform: translate(0, 0) rotate(-24deg);
-  }
-
-  68% {
-    opacity: 1;
-    transform: translate(12px, -8px) rotate(-14deg);
-  }
-
-  100% {
-    opacity: 1;
-    transform: translate(0, 0) rotate(-24deg);
-  }
 }
 
 @keyframes ui-surface-enter {
@@ -113,6 +83,50 @@ select {
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
     filter: blur(0);
+  }
+}
+
+@keyframes school-login-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-7px);
+  }
+}
+
+@keyframes school-login-draw {
+  0% {
+    stroke-dashoffset: 1;
+    opacity: 0;
+  }
+
+  20% {
+    opacity: 1;
+  }
+
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+@keyframes school-login-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+
+  70% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 
@@ -226,65 +240,34 @@ select {
   }
 }
 
-.login-illustration__halo {
-  opacity: 0;
+.school-login-illustration__float {
+  animation: school-login-float 5.5s ease-in-out infinite;
   transform-origin: center;
-  animation: login-illustration-fade 700ms ease-out 180ms forwards;
 }
 
-.login-illustration__line {
-  opacity: 0;
+.school-login-illustration__line {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  animation: login-illustration-draw 1.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: school-login-draw 1.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-.login-illustration__line--1 {
-  animation-delay: 40ms;
-}
-
-.login-illustration__line--2 {
-  animation-delay: 180ms;
-}
-
-.login-illustration__line--3 {
-  animation-delay: 420ms;
-}
-
-.login-illustration__line--4 {
-  animation-delay: 680ms;
-}
-
-.login-illustration__line--5 {
-  animation-delay: 980ms;
-}
-
-.login-illustration__line--6 {
-  animation-delay: 1220ms;
-}
-
-.login-illustration__dot {
-  opacity: 0;
-  animation: login-illustration-fade 260ms ease-out 1100ms forwards;
-}
-
-.login-illustration__check {
+.school-login-illustration__check,
+.school-login-illustration__spark {
   opacity: 0;
   transform-box: fill-box;
   transform-origin: center;
-  animation: login-illustration-pop 420ms ease-out 920ms forwards;
+  animation: school-login-pop 520ms cubic-bezier(0.22, 1, 0.36, 1) 520ms forwards;
 }
 
-.login-illustration__check--1 {
-  animation-delay: 920ms;
+.school-login-illustration__check--late,
+.school-login-illustration__spark--late {
+  animation-delay: 760ms;
 }
 
-.login-illustration__pen {
-  opacity: 0;
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: login-illustration-write 1300ms cubic-bezier(0.22, 1, 0.36, 1) 1180ms
-    forwards;
+.success-feedback__check {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: school-login-draw 700ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -295,11 +278,11 @@ select {
   .ui-surface-hover__icon,
   .ui-surface-hover__bar,
   .ui-surface-hover__chip,
-  .login-illustration__halo,
-  .login-illustration__line,
-  .login-illustration__dot,
-  .login-illustration__check,
-  .login-illustration__pen {
+  .school-login-illustration__float,
+  .school-login-illustration__line,
+  .school-login-illustration__check,
+  .school-login-illustration__spark,
+  .success-feedback__check {
     animation: none;
     opacity: 1;
     transform: none;

@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent, KeyboardEvent, MouseEvent } from "react";
 import { Link } from "react-router-dom";
 
+import AppLoader from "../components/feedback/AppLoader";
+import FeedbackEmptyState from "../components/feedback/EmptyState";
+import SuccessFeedback from "../components/feedback/SuccessFeedback";
 import PageSectionHeader from "../components/layout/PageSectionHeader";
 import { useToast } from "../context/ToastContext";
 import {
@@ -734,23 +737,16 @@ const ImportCsvPage = () => {
         ) : null}
 
         {hasCompletedImportForActiveSchoolYear ? (
-          <section className="mt-5 rounded-[24px] border border-success/15 bg-success/5 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.92)] sm:px-5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-success">
-              Import terminé
-            </p>
-            <p className="mt-2 text-sm leading-7 text-slate-700">
-              Un import CSV réussi est déjà enregistré pour l&apos;année scolaire{" "}
-              <span className="font-semibold">{activeSchoolYearLabel}</span>.
-              Créez et activez une nouvelle année scolaire pour débloquer un
-              nouvel import.
-            </p>
-            {activeSchoolYearImport ? (
-              <p className="mt-2 text-sm text-slate-500">
-                Dernier import de cette campagne :{" "}
-                {dateTimeFormatter.format(new Date(activeSchoolYearImport.createdAt))}
-              </p>
-            ) : null}
-          </section>
+          <div className="mt-5">
+            <SuccessFeedback
+              title="Import terminé"
+              description={
+                activeSchoolYearImport
+                  ? `Un import CSV réussi est déjà enregistré pour l'année scolaire ${activeSchoolYearLabel}. Dernier import : ${dateTimeFormatter.format(new Date(activeSchoolYearImport.createdAt))}.`
+                  : `Un import CSV réussi est déjà enregistré pour l'année scolaire ${activeSchoolYearLabel}.`
+              }
+            />
+          </div>
         ) : null}
 
         <form className="mt-6" onSubmit={(event) => void handleImportSubmit(event)}>
@@ -941,18 +937,26 @@ const ImportCsvPage = () => {
                 <tr>
                   <td
                     colSpan={2}
-                    className="px-5 py-6 text-center text-base text-slate-500 sm:px-6"
+                    className="px-5 py-6 sm:px-6"
                   >
-                    Chargement de l&apos;historique des imports...
+                    <div className="flex justify-center">
+                      <AppLoader
+                        label="Chargement de l'historique des imports..."
+                        size="sm"
+                      />
+                    </div>
                   </td>
                 </tr>
               ) : history.length === 0 ? (
                 <tr>
                   <td
                     colSpan={2}
-                    className="px-5 py-6 text-center text-base text-slate-500 sm:px-6"
+                    className="px-5 py-6 sm:px-6"
                   >
-                    Aucun import enregistré pour le moment.
+                    <FeedbackEmptyState
+                      title="Aucun import enregistré pour le moment."
+                      description="L'historique se remplira après le premier import CSV réussi."
+                    />
                   </td>
                 </tr>
               ) : (

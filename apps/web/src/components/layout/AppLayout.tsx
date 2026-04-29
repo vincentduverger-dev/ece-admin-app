@@ -87,14 +87,6 @@ const LogoutIcon = ({ className = "h-5 w-5" }: IconProps) => {
   );
 };
 
-const ChevronDownIcon = ({ className = "h-4 w-4" }: IconProps) => {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
-      <path d="m5.5 7.5 4.5 4.5 4.5-4.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-};
-
 const navigationItems: NavigationItem[] = [
   {
     key: "dashboard",
@@ -160,7 +152,7 @@ const SidebarLink = ({ item }: { item: NavigationItem }) => {
 };
 
 const AppLayout = () => {
-  const { logout, user } = useAuth();
+  const { logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = (): void => {
@@ -169,7 +161,7 @@ const AppLayout = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background text-slate-900">
+    <div className="app-background-texture min-h-screen text-slate-900">
       <FirstRunOnboarding />
 
       <header
@@ -181,7 +173,7 @@ const AppLayout = () => {
             <img
               src="/logo_ece.png"
               alt="Logo ECE"
-              className="h-16 w-16 rounded-full border border-white/80 bg-white/95 p-1 shadow-[0_10px_30px_-18px_rgba(15,23,42,0.75)] sm:h-20 sm:w-20"
+              className="h-16 w-16 rounded-full border border-white/70 bg-white/40 p-0.5 shadow-[0_10px_30px_-18px_rgba(15,23,42,0.75)] sm:h-20 sm:w-20"
             />
             <div className="min-w-0 text-white">
               <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
@@ -200,10 +192,14 @@ const AppLayout = () => {
 
           <div className="hidden items-center gap-3 rounded-full border border-white/15 bg-white/8 px-4 py-2 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] sm:flex">
             <span className="flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-white/15 text-lg font-semibold">
-              {user?.role === "admin" ? "A" : "?"}
+              <img
+                src="/icons/Profil.svg"
+                alt=""
+                aria-hidden="true"
+                className="h-6 w-6"
+              />
             </span>
             <span className="text-lg font-medium">Admin</span>
-            <ChevronDownIcon className="h-4 w-4 text-white/80" />
           </div>
         </div>
       </header>

@@ -21,6 +21,7 @@ import { getLevelVisualStyle } from "../lib/levelVisuals";
 import type { SchoolYearSummary } from "../types/application";
 import type {
   DashboardApplicationStatus,
+  DashboardLevelStat,
   DashboardPriorityApplication,
   DashboardStats
 } from "../types/dashboard";
@@ -51,6 +52,14 @@ type MetricCardProps = {
   surfaceClassName: string;
   value: number;
   valueClassName?: string;
+};
+
+type LevelBreakdownItem = DashboardLevelStat & {
+  chartEnd: number;
+  chartStart: number;
+  share: number;
+  width: number;
+  visual: ReturnType<typeof getLevelVisualStyle>;
 };
 
 const PRIORITY_DISPLAY_LIMIT = 3;
@@ -290,12 +299,6 @@ const MetricCard = ({
   );
 };
 
-const isWideLevelCard = (levelCode: string): boolean => {
-  const normalizedCode = levelCode.trim().toUpperCase();
-
-  return normalizedCode === "CM1" || normalizedCode === "CM2";
-};
-
 const DashboardPage = () => {
   const [data, setData] = useState<DashboardStats | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -393,9 +396,55 @@ const DashboardPage = () => {
       priorityStartIndex + PRIORITY_DISPLAY_LIMIT
     );
 
+    const maxLevelCount = Math.max(...data.byLevel.map((level) => level.count), 0);
+    const totalStudents = data.byLevel.reduce((sum, level) => sum + level.count, 0);
+    let chartCursor = 0;
+    const levelBreakdown: LevelBreakdownItem[] = data.byLevel.map((level, index) => {
+      const share =
+        totalStudents === 0 ? 0 : Math.round((level.count / totalStudents) * 100);
+      const rawShare = totalStudents === 0 ? 0 : (level.count / totalStudents) * 100;
+      const width =
+        maxLevelCount === 0 || level.count === 0
+          ? 0
+          : Math.max((level.count / maxLevelCount) * 100, 6);
+      const chartStart = chartCursor;
+      chartCursor += rawShare;
+
+      return {
+        ...level,
+        chartStart,
+        chartEnd: chartCursor,
+        share,
+        width,
+        visual: getLevelVisualStyle(level.code, level.label, index)
+      };
+    });
+    const levelChartGradient =
+      totalStudents === 0
+        ? "#e2e8f0 0deg 360deg"
+        : levelBreakdown
+            .map((level) => {
+              return `${level.visual.barColor} ${level.chartStart * 3.6}deg ${
+                level.chartEnd * 3.6
+              }deg`;
+            })
+            .join(", ");
+    const topLevel = levelBreakdown.reduce<LevelBreakdownItem | null>(
+      (currentTopLevel, level) => {
+        if (!currentTopLevel || level.count > currentTopLevel.count) {
+          return level;
+        }
+
+        return currentTopLevel;
+      },
+      null
+    );
+
     return {
-      maxLevelCount: Math.max(...data.byLevel.map((level) => level.count), 0),
-      totalStudents: data.byLevel.reduce((sum, level) => sum + level.count, 0),
+      levelBreakdown,
+      levelChartGradient,
+      topLevel,
+      totalStudents,
       totalPriorityPages,
       visiblePriorityApplications,
       visiblePriorityStart:
@@ -603,76 +652,137 @@ const DashboardPage = () => {
             </div>
           </div>
 
-          <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-12">
-            {data.byLevel.length === 0 ? (
-              <p className="rounded-2xl border border-dashed border-border bg-background/70 px-4 py-6 text-sm text-slate-500">
-                Aucun niveau disponible.
-              </p>
-            ) : (
-              data.byLevel.map((level, index) => {
-                const share =
-                  dashboardView.totalStudents === 0
-                    ? 0
-                    : Math.round((level.count / dashboardView.totalStudents) * 100);
-                const width =
-                  dashboardView.maxLevelCount === 0 || level.count === 0
-                    ? 0
-                    : Math.max((level.count / dashboardView.maxLevelCount) * 100, 6);
-                const visual = getLevelVisualStyle(level.code, level.label, index);
-                const levelCardClassName = isWideLevelCard(level.code)
-                  ? "xl:col-span-6"
-                  : "xl:col-span-4";
+          {data.byLevel.length === 0 ? (
+            <p className="mt-8 rounded-2xl border border-dashed border-border bg-background/70 px-4 py-6 text-sm text-slate-500">
+              Aucun niveau disponible.
+            </p>
+          ) : (
+            <div className="mt-8 grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+              <div className="rounded-[28px] border border-slate-200/90 bg-slate-50/75 p-5 shadow-[0_18px_34px_-30px_rgba(15,23,42,0.25)]">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Vue globale
+                    </p>
+                    <h3 className="mt-1 text-xl font-semibold text-slate-900">
+                      Répartition
+                    </h3>
+                  </div>
+                  {dashboardView.topLevel ? (
+                    <LevelBadge
+                      code={dashboardView.topLevel.code}
+                      label={dashboardView.topLevel.label}
+                      size="md"
+                    />
+                  ) : null}
+                </div>
 
-                return (
+                <div className="mt-6 flex justify-center">
                   <div
-                    key={level.code}
-                    className={`ui-animate-in ui-surface-hover ui-surface-hover--soft rounded-[28px] border p-5 shadow-[0_16px_28px_-26px_rgba(15,23,42,0.16)] ${levelCardClassName}`}
+                    className="relative grid h-56 w-56 place-items-center rounded-full shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08),0_24px_42px_-34px_rgba(15,23,42,0.5)]"
                     style={{
-                      ...getEnterStyle(560 + index * 70),
-                      backgroundColor: visual.cardBackground,
-                      borderColor: visual.borderColor
+                      background: `conic-gradient(${dashboardView.levelChartGradient})`
                     }}
+                    aria-label={`Répartition de ${dashboardView.totalStudents} élèves par niveau`}
+                    role="img"
                   >
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="grid h-32 w-32 place-items-center rounded-full border border-white/90 bg-white text-center shadow-[0_16px_30px_-28px_rgba(15,23,42,0.5)]">
                       <div>
-                        <p className="text-2xl font-semibold tracking-tight text-slate-900">
-                          {level.label}
+                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Total
                         </p>
-                        <LevelBadge
-                          code={level.code}
-                          label={level.label}
-                          size="md"
-                          className="ui-surface-hover__chip mt-3"
+                        <p className="mt-1 text-4xl font-semibold tracking-tight text-slate-900">
+                          {dashboardView.totalStudents}
+                        </p>
+                        <p className="mt-1 text-xs font-medium text-slate-500">
+                          élèves
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {dashboardView.topLevel ? (
+                  <div className="mt-6 rounded-[22px] border border-white bg-white/80 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Niveau le plus demandé
+                    </p>
+                    <div className="mt-2 flex items-end justify-between gap-4">
+                      <p className="text-lg font-semibold text-slate-900">
+                        {dashboardView.topLevel.label}
+                      </p>
+                      <p className="text-2xl font-semibold tracking-tight text-slate-900">
+                        {dashboardView.topLevel.count}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="rounded-[28px] border border-slate-200/90 bg-white/70 p-5 shadow-[0_18px_34px_-30px_rgba(15,23,42,0.18)]">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Détail par niveau
+                    </p>
+                    <h3 className="mt-1 text-xl font-semibold text-slate-900">
+                      Volumes et proportions
+                    </h3>
+                  </div>
+                  <p className="text-sm font-medium text-slate-500">
+                    Curseurs calibrés sur le niveau le plus demandé.
+                  </p>
+                </div>
+
+                <div className="mt-5 space-y-3">
+                  {dashboardView.levelBreakdown.map((level) => (
+                    <div
+                      key={`${level.code}-summary`}
+                      className="grid gap-3 rounded-[22px] border border-slate-200/80 bg-slate-50/70 px-4 py-3 sm:grid-cols-[150px_minmax(0,1fr)_88px] sm:items-center"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span
+                          className="h-3 w-3 shrink-0 rounded-full"
+                          style={{ backgroundColor: level.visual.barColor }}
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-900">
+                            {level.label}
+                          </p>
+                          <p className="mt-0.5 text-xs font-medium text-slate-500">
+                            {level.code.toUpperCase()}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div
+                        className="overflow-hidden rounded-full p-1"
+                        style={{ backgroundColor: level.visual.trackColor }}
+                      >
+                        <div
+                          className="h-3 rounded-full shadow-[0_10px_18px_-14px_rgba(15,23,42,0.5)]"
+                          style={{
+                            width: `${level.width}%`,
+                            backgroundColor: level.visual.barColor
+                          }}
                         />
                       </div>
 
-                      <div className="shrink-0 text-right">
-                        <p className="text-3xl font-semibold tracking-tight text-slate-900">
+                      <div className="flex items-baseline justify-between gap-3 sm:justify-end">
+                        <p className="text-lg font-semibold text-slate-900">
                           {level.count}
                         </p>
-                        <p className="mt-2 text-sm text-slate-500">
-                          {share}% des élèves
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                          {level.share}%
                         </p>
                       </div>
                     </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
-                    <div
-                      className="mt-6 overflow-hidden rounded-full p-1"
-                      style={{ backgroundColor: visual.trackColor }}
-                    >
-                      <div
-                        className="ui-surface-hover__bar h-3.5 rounded-full shadow-[0_10px_18px_-14px_rgba(15,23,42,0.55)]"
-                        style={{
-                          width: `${width}%`,
-                          backgroundColor: visual.barColor
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
         </article>
 
         <article

@@ -8,6 +8,8 @@ import {
 } from "react";
 import { Link, useParams } from "react-router-dom";
 
+import FeedbackEmptyState from "../components/feedback/EmptyState";
+import SuccessFeedback from "../components/feedback/SuccessFeedback";
 import PageSectionHeader from "../components/layout/PageSectionHeader";
 import Breadcrumb from "../components/ui/Breadcrumb";
 import ErrorState from "../components/ui/ErrorState";
@@ -272,6 +274,7 @@ const ApplicationEmailPage = () => {
   const [isEmailBodyDirty, setIsEmailBodyDirty] = useState(false);
   const [isEmailSubmitting, setIsEmailSubmitting] = useState(false);
   const [isSendConfirmationOpen, setIsSendConfirmationOpen] = useState(false);
+  const [hasEmailSendSuccess, setHasEmailSendSuccess] = useState(false);
 
   const resetEmailForm = useCallback((nextApplication?: ApplicationDetail): void => {
     if (!nextApplication) {
@@ -414,13 +417,20 @@ const ApplicationEmailPage = () => {
       }
 
       setIsEmailSubmitting(true);
+      setHasEmailSendSuccess(false);
 
       try {
         const createdEmailLog = await sendApplicationEmail(application.id, payload);
+        const refreshedEmailLogs = await getApplicationEmailLogs(application.id);
 
-        setEmailLogs((currentEmailLogs) => [createdEmailLog, ...currentEmailLogs]);
+        setEmailLogs(
+          refreshedEmailLogs.some((emailLog) => emailLog.id === createdEmailLog.id)
+            ? refreshedEmailLogs
+            : [createdEmailLog, ...refreshedEmailLogs]
+        );
         resetEmailForm(application);
         setIsSendConfirmationOpen(false);
+        setHasEmailSendSuccess(true);
         showSuccess("L'email a été envoyé et enregistré dans l'historique.");
       } catch (sendError) {
         showError(getApplicationEmailActionErrorMessage(sendError));
@@ -499,7 +509,6 @@ const ApplicationEmailPage = () => {
   }, [selectedEmailType, emailSubject, emailBody]);
 
   const detailPath = applicationId ? `/applications/${applicationId}` : "/applications";
-  const latestEmailLogs = useMemo(() => emailLogs.slice(0, 4), [emailLogs]);
   const decisionEmailContext = useMemo(() => {
     return application ? getApplicationDecisionEmailContext(application) : null;
   }, [application]);
@@ -837,18 +846,19 @@ const ApplicationEmailPage = () => {
         </SectionCard>
 
         <SectionCard
-          title="Historique récent"
-          subtitle="Derniers emails enregistrés pour cette demande."
+          title="Historique des emails"
+          subtitle="Emails enregistrés pour cette demande."
           className="xl:col-span-2"
           motionDelay={300}
         >
-          {latestEmailLogs.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-border bg-background/70 px-4 py-6 text-sm text-slate-500">
-              Aucun email n'a encore été enregistré pour cette demande.
-            </p>
+          {emailLogs.length === 0 ? (
+            <FeedbackEmptyState
+              title="Aucun email enregistré"
+              description="Les emails envoyés depuis cette page apparaîtront ici dès leur historisation."
+            />
           ) : (
             <div className="space-y-3">
-              {latestEmailLogs.map((emailLog) => (
+              {emailLogs.map((emailLog) => (
                 <article
                   key={emailLog.id}
                   className="rounded-[24px] border border-slate-200/90 bg-slate-50/80 p-4"
@@ -877,6 +887,15 @@ const ApplicationEmailPage = () => {
           )}
         </SectionCard>
       </div>
+
+      {hasEmailSendSuccess ? (
+        <div className="mt-6">
+          <SuccessFeedback
+            title="Email envoyé"
+            description="Le message est envoyé à la famille et enregistré dans l'historique de la demande."
+          />
+        </div>
+      ) : null}
 
       {isSendConfirmationOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-4 py-6 backdrop-blur-sm">
