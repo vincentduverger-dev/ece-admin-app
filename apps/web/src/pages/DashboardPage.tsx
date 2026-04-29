@@ -4,9 +4,10 @@ import {
   useMemo,
   useState,
   type CSSProperties,
-  type JSX
+  type JSX,
+  type KeyboardEvent
 } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import PageSectionHeader from "../components/layout/PageSectionHeader";
 import Breadcrumb from "../components/ui/Breadcrumb";
@@ -300,6 +301,7 @@ const MetricCard = ({
 };
 
 const DashboardPage = () => {
+  const navigate = useNavigate();
   const [data, setData] = useState<DashboardStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -465,6 +467,25 @@ const DashboardPage = () => {
       Math.min(dashboardView?.totalPriorityPages ?? 1, page + 1)
     );
   }, [dashboardView?.totalPriorityPages]);
+
+  const openApplicationDetail = useCallback(
+    (applicationId: string): void => {
+      navigate(`/applications/${applicationId}`);
+    },
+    [navigate]
+  );
+
+  const handlePriorityCardKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLElement>, applicationId: string): void => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+
+      event.preventDefault();
+      openApplicationDetail(applicationId);
+    },
+    [openApplicationDetail]
+  );
 
   const pageTopBar = (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -821,7 +842,12 @@ const DashboardPage = () => {
                 return (
                   <article
                     key={application.id}
-                    className="ui-animate-in ui-surface-hover ui-surface-hover--soft rounded-[28px] border border-slate-200/90 bg-slate-50/80 p-5 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.18)]"
+                    role="link"
+                    tabIndex={0}
+                    aria-label={`Ouvrir la demande de la famille ${getFamilyDisplayName(application)}`}
+                    onClick={() => openApplicationDetail(application.id)}
+                    onKeyDown={(event) => handlePriorityCardKeyDown(event, application.id)}
+                    className="ui-animate-in ui-surface-hover ui-surface-hover--soft cursor-pointer rounded-[28px] border border-slate-200/90 bg-slate-50/80 p-5 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.18)] outline-none transition focus-visible:ring-4 focus-visible:ring-primary/20"
                     style={getEnterStyle(760 + index * 80)}
                   >
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -841,6 +867,7 @@ const DashboardPage = () => {
                         <StatusBadge status={application.status} />
                         <Link
                           to={`/applications/${application.id}`}
+                          onClick={(event) => event.stopPropagation()}
                           className="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-primary/30 hover:text-primary"
                         >
                           Voir la demande
@@ -886,6 +913,7 @@ const DashboardPage = () => {
                           {application.family.contactEmail ? (
                             <a
                               href={`mailto:${application.family.contactEmail}`}
+                              onClick={(event) => event.stopPropagation()}
                               className="break-all text-primary hover:text-primaryDark"
                             >
                               {application.family.contactEmail}
