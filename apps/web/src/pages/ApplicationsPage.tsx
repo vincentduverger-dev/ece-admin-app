@@ -89,6 +89,10 @@ const getRequestedStatusFilter = (
   return isApplicationStatus(requestedStatus) ? requestedStatus : "";
 };
 
+const getRequestedPriorityFilter = (searchParams: URLSearchParams): "" | "true" => {
+  return searchParams.get("isPriority")?.trim() === "true" ? "true" : "";
+};
+
 const sortOptions: ApplicationsSortOption[] = [
   { value: "createdAtDesc", label: "Plus récentes d'abord" },
   { value: "createdAtAsc", label: "Plus anciennes d'abord" },
@@ -382,13 +386,14 @@ const ApplicationsPage = () => {
   const [searchParams] = useSearchParams();
   const requestedSchoolYearId = searchParams.get("schoolYearId")?.trim() ?? "";
   const requestedStatus = getRequestedStatusFilter(searchParams);
+  const requestedPriority = getRequestedPriorityFilter(searchParams);
   const [hasInitializedSchoolYearFilter, setHasInitializedSchoolYearFilter] = useState(
     requestedSchoolYearId.length > 0
   );
   const [filters, setFilters] = useState<FilterState>(() => ({
     status: requestedStatus,
     schoolYearId: requestedSchoolYearId,
-    isPriority: "",
+    isPriority: requestedPriority,
     search: ""
   }));
   const [sort, setSort] = useState<SortOption>("createdAtDesc");
@@ -530,16 +535,20 @@ const ApplicationsPage = () => {
 
   useEffect(() => {
     setFilters((currentFilters) => {
-      if (currentFilters.status === requestedStatus) {
+      if (
+        currentFilters.status === requestedStatus &&
+        currentFilters.isPriority === requestedPriority
+      ) {
         return currentFilters;
       }
 
       return {
         ...currentFilters,
-        status: requestedStatus
+        status: requestedStatus,
+        isPriority: requestedPriority
       };
     });
-  }, [requestedStatus]);
+  }, [requestedPriority, requestedStatus]);
 
   const resetFilters = useCallback((): void => {
     setFilters({
@@ -850,15 +859,15 @@ const ApplicationsPage = () => {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5">
-              <span className="inline-flex items-center rounded-full border border-secondary/40 bg-secondary/20 px-4 py-2 text-sm font-semibold text-white">
+            <div className="flex shrink-0 flex-nowrap items-center gap-2.5 overflow-x-auto pb-1 xl:justify-end xl:pb-0">
+              <span className="inline-flex shrink-0 items-center rounded-full border border-secondary/40 bg-secondary/20 px-4 py-2 text-sm font-semibold text-white">
                 {isLoading ? "Actualisation..." : getApplicationsCountLabel(displayedApplications.length)}
               </span>
-              <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white">
+              <span className="inline-flex shrink-0 items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white">
                 {schoolYearSummaryLabel}
               </span>
               {activeFilterCount > 0 ? (
-                <span className="inline-flex items-center rounded-full border border-secondary/40 bg-secondary/20 px-4 py-2 text-sm font-semibold text-white">
+                <span className="inline-flex shrink-0 items-center rounded-full border border-secondary/40 bg-secondary/20 px-4 py-2 text-sm font-semibold text-white">
                   {activeFilterCount} filtre{activeFilterCount > 1 ? "s" : ""} actif
                   {activeFilterCount > 1 ? "s" : ""}
                 </span>
@@ -867,7 +876,7 @@ const ApplicationsPage = () => {
                 type="button"
                 onClick={resetFilters}
                 disabled={!hasActiveFilters && sort === "createdAtDesc"}
-                className="inline-flex items-center rounded-full border border-white/25 bg-white px-4 py-2 text-sm font-semibold text-primaryDark transition hover:border-secondary hover:bg-secondary/10 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex shrink-0 items-center rounded-full border border-white/25 bg-white px-4 py-2 text-sm font-semibold text-primaryDark transition hover:border-secondary hover:bg-secondary/10 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Réinitialiser
               </button>

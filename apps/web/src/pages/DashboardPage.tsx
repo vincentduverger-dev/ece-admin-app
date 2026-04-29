@@ -692,21 +692,6 @@ const DashboardPage = () => {
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:ml-6 lg:justify-end">
-              <div className="flex flex-col items-start gap-2.5 sm:items-end">
-                <span
-                  className="ui-animate-in inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white"
-                  style={getEnterStyle(300)}
-                >
-                  {data.priorityApplications.length} prioritaires
-                </span>
-                <span
-                  className="ui-animate-in inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white"
-                  style={getEnterStyle(360)}
-                >
-                  {data.byLevel.length} niveaux
-                </span>
-              </div>
-
               <div
                 className="ui-animate-in inline-flex w-fit shrink-0 flex-col rounded-[28px] border border-secondary/40 bg-secondary/20 px-7 py-5 text-center text-white shadow-[0_18px_34px_-24px_rgba(0,0,0,0.5)]"
                 style={getEnterStyle(240)}
@@ -735,6 +720,9 @@ const DashboardPage = () => {
             </span>
             <span className="inline-flex items-center rounded-full border border-secondary/30 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
               {data.priorityApplications.length} prioritaires
+            </span>
+            <span className="inline-flex items-center rounded-full border border-secondary/30 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
+              {data.byLevel.length} niveaux
             </span>
           </div>
 
@@ -1161,13 +1149,8 @@ const DashboardPage = () => {
           </div>
 
           {data.priorityApplications.length > 0 ? (
-            <div className="mt-6 flex flex-col gap-4 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm text-slate-500">
-                Affichage de {dashboardView.visiblePriorityStart} à {dashboardView.visiblePriorityEnd} sur{" "}
-                {data.priorityApplications.length} demande
-                {data.priorityApplications.length > 1 ? "s" : ""}.
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
+            <div className="mt-6 flex justify-center border-t border-slate-200 pt-5">
+              <div className="flex flex-wrap items-center justify-center gap-2">
                 <button
                   type="button"
                   onClick={handlePreviousPriorityPage}
@@ -1192,12 +1175,13 @@ const DashboardPage = () => {
           ) : null}
 
           {data.priorityApplications.length > 0 ? (
-            <div className="mt-4">
+            <div className="mt-4 flex justify-center">
               <Link
-                to="/applications"
-                className="inline-flex items-center rounded-full text-sm font-semibold text-primary transition hover:text-primaryDark"
+                to="/applications?isPriority=true"
+                className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-primary transition hover:border-primary/25 hover:text-primaryDark"
               >
-                Ouvrir toutes les demandes
+                <span>Ouvrir toutes les demandes prioritaires</span>
+                <ChevronRightIcon />
               </Link>
             </div>
           ) : null}

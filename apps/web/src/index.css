@@ -130,6 +130,108 @@ select {
   }
 }
 
+@keyframes mail-send-plane {
+  0%,
+  12% {
+    opacity: 0;
+    transform: translate3d(-70px, 18px, 0) rotate(-8deg) scale(0.86);
+  }
+
+  24% {
+    opacity: 1;
+  }
+
+  62% {
+    opacity: 1;
+    transform: translate3d(8px, -4px, 0) rotate(4deg) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(92px, -24px, 0) rotate(8deg) scale(0.92);
+  }
+}
+
+@keyframes mail-send-trail {
+  0% {
+    stroke-dashoffset: 1;
+    opacity: 0;
+  }
+
+  22% {
+    opacity: 0.85;
+  }
+
+  72% {
+    stroke-dashoffset: 0;
+    opacity: 0.55;
+  }
+
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+
+@keyframes mail-send-envelope {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  45% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes mail-send-dot {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.75);
+  }
+
+  45% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+}
+
+.mail-send-animation__trail {
+  stroke: rgba(212, 162, 76, 0.52);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: mail-send-trail 3.8s ease-in-out infinite;
+}
+
+.mail-send-animation__plane {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: mail-send-plane 3.8s ease-in-out infinite;
+}
+
+.mail-send-animation__envelope {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: mail-send-envelope 3.8s ease-in-out infinite;
+}
+
+.mail-send-animation__dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: mail-send-dot 3.8s ease-in-out infinite;
+}
+
+.mail-send-animation__dot:nth-of-type(2) {
+  animation-delay: 0.35s;
+}
+
+.mail-send-animation__dot:nth-of-type(3) {
+  animation-delay: 0.7s;
+}
+
 .ui-animate-in {
   opacity: 0;
   transform: translate3d(0, var(--ui-enter-distance, 22px), 0)

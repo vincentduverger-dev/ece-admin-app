@@ -103,6 +103,24 @@ const getEmailTypeMismatchMessage = (
   return "Le type d'email Décision partielle est autorisé uniquement pour une demande en décision partielle.";
 };
 
+const getDecisionStatusFromEmailType = (
+  emailType: ApplicationEmailType
+): ApplicationStatus | null => {
+  if (emailType === "ACCEPTANCE") {
+    return ApplicationStatus.ACCEPTED;
+  }
+
+  if (emailType === "WAITLIST") {
+    return ApplicationStatus.WAITLISTED;
+  }
+
+  if (emailType === "PARTIAL_DECISION") {
+    return ApplicationStatus.PARTIALLY_ACCEPTED;
+  }
+
+  return null;
+};
+
 const getRecalculatedApplicationStatus = (
   currentStatus: ApplicationStatus,
   students: Array<{ admissionStatus: StudentAdmissionStatus }>
@@ -327,7 +345,11 @@ export const updateApplicationStatus = async (req: Request, res: Response): Prom
 
   const existingApplication = await prisma.application.findUnique({
     where: { id: applicationId },
-    select: { id: true }
+    select: {
+      id: true,
+      status: true,
+      decisionAt: true
+    }
   });
 
   if (!existingApplication) {
@@ -378,7 +400,11 @@ export const updateApplicationDecision = async (req: Request, res: Response): Pr
 
   const existingApplication = await prisma.application.findUnique({
     where: { id: applicationId },
-    select: { id: true }
+    select: {
+      id: true,
+      status: true,
+      decisionAt: true
+    }
   });
 
   if (!existingApplication) {
@@ -388,14 +414,15 @@ export const updateApplicationDecision = async (req: Request, res: Response): Pr
   const updatedApplication = await prisma.$transaction(async (transaction) => {
     await transaction.student.updateMany({
       where: { applicationId },
-    data: { admissionStatus: status }
+      data: { admissionStatus: status }
     });
 
     return transaction.application.update({
       where: { id: applicationId },
       data: {
         status,
-        decisionAt: new Date(),
+        decisionAt:
+          existingApplication.status === status ? existingApplication.decisionAt : null,
         decisionNote
       }
     });
@@ -551,16 +578,33 @@ export const sendApplicationEmail = async (req: Request, res: Response): Promise
     return;
   }
 
-  const emailLog = await prisma.applicationEmailLog.create({
-    data: {
-      applicationId: application.id,
-      emailType,
-      recipientEmail,
-      subject,
-      bodySnapshot: body,
-      sentAt: new Date(),
-      sendStatus: EmailSendStatus.SENT
+  const sentAt = new Date();
+  const decisionStatus = getDecisionStatusFromEmailType(emailType);
+
+  const emailLog = await prisma.$transaction(async (transaction) => {
+    const createdEmailLog = await transaction.applicationEmailLog.create({
+      data: {
+        applicationId: application.id,
+        emailType,
+        recipientEmail,
+        subject,
+        bodySnapshot: body,
+        sentAt,
+        sendStatus: EmailSendStatus.SENT
+      }
+    });
+
+    if (decisionStatus) {
+      await transaction.application.update({
+        where: { id: application.id },
+        data: {
+          status: decisionStatus,
+          decisionAt: sentAt
+        }
+      });
     }
+
+    return createdEmailLog;
   });
 
   res.status(201).json({
