@@ -11,6 +11,7 @@ import DashboardPage from "./pages/DashboardPage";
 import ImportCsvPage from "./pages/ImportCsvPage";
 import LoginPage from "./pages/LoginPage";
 import SchoolYearsPage from "./pages/SchoolYearsPage";
+import StudentsPage from "./pages/StudentsPage";
 
 const NotFoundPage = () => {
   return (
@@ -57,6 +58,7 @@ function App() {
             <Route path="applications" element={<ApplicationsPage />} />
             <Route path="applications/:id/email" element={<ApplicationEmailPage />} />
             <Route path="applications/:id" element={<ApplicationDetailPage />} />
+            <Route path="students" element={<StudentsPage />} />
             <Route path="imports">
               <Route index element={<Navigate to="new" replace />} />
               <Route path="new" element={<ImportCsvPage />} />

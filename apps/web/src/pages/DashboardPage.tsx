@@ -187,6 +187,23 @@ const WaitlistedMetricIcon = ({ className = "h-5 w-5" }: IconProps) => {
   );
 };
 
+const ChevronRightIcon = ({ className = "h-4 w-4" }: IconProps) => {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="m6.25 3.25 4.5 4.75-4.5 4.75" />
+    </svg>
+  );
+};
+
 const PartialMetricIcon = ({ className = "h-5 w-5" }: IconProps) => {
   return (
     <svg
@@ -884,9 +901,12 @@ const DashboardPage = () => {
 
                 <div className="mt-5 space-y-3">
                   {dashboardView.levelBreakdown.map((level) => (
-                    <div
+                    <Link
                       key={`${level.code}-summary`}
-                      className="grid gap-3 rounded-[22px] border border-slate-200/80 bg-slate-50/70 px-4 py-3 sm:grid-cols-[150px_minmax(0,1fr)_88px] sm:items-center"
+                      to={`/students?level=${encodeURIComponent(level.code)}`}
+                      title="Voir les élèves ayant demandé ce niveau"
+                      aria-label={`Voir les élèves ayant demandé ce niveau: ${level.label}`}
+                      className="group grid gap-3 rounded-[22px] border border-slate-200/80 bg-slate-50/70 px-4 py-3 text-left transition hover:border-primary/20 hover:bg-white hover:shadow-[0_16px_30px_-28px_rgba(15,23,42,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 sm:grid-cols-[150px_minmax(0,1fr)_112px] sm:items-center"
                     >
                       <div className="flex min-w-0 items-center gap-3">
                         <span
@@ -916,15 +936,23 @@ const DashboardPage = () => {
                         />
                       </div>
 
-                      <div className="flex items-baseline justify-between gap-3 sm:justify-end">
-                        <p className="text-lg font-semibold text-slate-900">
-                          {level.count}
-                        </p>
-                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                          {level.share}%
-                        </p>
+                      <div className="flex items-center justify-between gap-3 sm:justify-end">
+                        <div className="flex items-baseline gap-3">
+                          <p className="text-lg font-semibold text-slate-900">
+                            {level.count}
+                          </p>
+                          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                            {level.share}%
+                          </p>
+                        </div>
+                        <span
+                          aria-hidden="true"
+                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 transition group-hover:border-primary/20 group-hover:text-primary"
+                        >
+                          <ChevronRightIcon />
+                        </span>
                       </div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               </div>
