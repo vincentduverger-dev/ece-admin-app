@@ -207,7 +207,7 @@ const statusCards: StatusCardConfig[] = [
   {
     status: "RECEIVED",
     label: "Reçues",
-    description: "Demandes nouvellement importées ou enregistrées.",
+    description: "Demandes nouvellement importées.",
     valueClassName: "text-slate-900",
     surfaceClassName: "bg-slate-50/90",
     iconClassName: "bg-slate-900 text-white",
@@ -216,7 +216,7 @@ const statusCards: StatusCardConfig[] = [
   {
     status: "IN_REVIEW",
     label: "En revue",
-    description: "Demandes en cours d'analyse par l'administration.",
+    description: "Demandes en cours d'analyse.",
     valueClassName: "text-info",
     surfaceClassName: "bg-info/10",
     iconClassName: "bg-info text-white",
@@ -225,7 +225,7 @@ const statusCards: StatusCardConfig[] = [
   {
     status: "ACCEPTED",
     label: "Acceptées",
-    description: "Décisions favorables déjà prises.",
+    description: "Demandes entièrement acceptées.",
     valueClassName: "text-success",
     surfaceClassName: "bg-success/10",
     iconClassName: "bg-success text-white",
@@ -234,7 +234,7 @@ const statusCards: StatusCardConfig[] = [
   {
     status: "PARTIALLY_ACCEPTED",
     label: "Partielles",
-    description: "Dossiers avec des décisions différentes selon les élèves.",
+    description: "Demandes avec acceptation partielle.",
     valueClassName: "text-secondaryDark",
     surfaceClassName: "bg-secondary/10",
     iconClassName: "bg-secondary text-white",
@@ -243,7 +243,7 @@ const statusCards: StatusCardConfig[] = [
   {
     status: "WAITLISTED",
     label: "Liste d'attente",
-    description: "Élèves placés en attente d'une place disponible.",
+    description: "Demandes entièrement en attente de place.",
     getValue: (dashboardData) => dashboardData.waitlistedStudents,
     valueClassName: "text-primary",
     surfaceClassName: "bg-primary/10",
