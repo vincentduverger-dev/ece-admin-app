@@ -67,6 +67,7 @@ type TimelineEntry = {
   content?: string;
   date: string;
   id: string;
+  markerClassName: string;
   sortDate: number;
   summary: string;
   type: string;
@@ -94,8 +95,7 @@ const studentAdmissionStatusOptions: Array<{
   label: string;
 }> = [
   { value: "ACCEPTED", label: "Accepter" },
-  { value: "WAITLISTED", label: "Liste d'attente" },
-  { value: "PENDING", label: "Remettre en attente" }
+  { value: "WAITLISTED", label: "Liste d'attente" }
 ];
 
 const studentAdmissionStatusLabels: Record<StudentAdmissionStatus, string> = {
@@ -319,12 +319,55 @@ const getDecisionSummary = (status: ApplicationStatus): string => {
   return "Liste d'attente enregistrée";
 };
 
+const getDecisionTimelineMarkerClassName = (status: ApplicationStatus): string => {
+  if (status === "ACCEPTED") {
+    return "bg-success shadow-[0_10px_20px_-14px_rgba(34,197,94,0.75)]";
+  }
+
+  if (status === "PARTIALLY_ACCEPTED") {
+    return "bg-secondary shadow-[0_10px_20px_-14px_rgba(212,162,76,0.8)]";
+  }
+
+  return "bg-info shadow-[0_10px_20px_-14px_rgba(96,165,250,0.8)]";
+};
+
+const getEmailTimelineMarkerClassName = (
+  emailLog: ApplicationEmailLog
+): string => {
+  if (emailLog.sendStatus === "FAILED") {
+    return "bg-danger shadow-[0_10px_20px_-14px_rgba(239,68,68,0.75)]";
+  }
+
+  if (emailLog.emailType === "ACCEPTANCE") {
+    return "bg-success shadow-[0_10px_20px_-14px_rgba(34,197,94,0.75)]";
+  }
+
+  if (emailLog.emailType === "PARTIAL_DECISION") {
+    return "bg-secondary shadow-[0_10px_20px_-14px_rgba(212,162,76,0.8)]";
+  }
+
+  if (emailLog.emailType === "WAITLIST" || emailLog.emailType === "REFUSAL") {
+    return "bg-info shadow-[0_10px_20px_-14px_rgba(96,165,250,0.8)]";
+  }
+
+  return "bg-slate-500 shadow-[0_10px_20px_-14px_rgba(100,116,139,0.75)]";
+};
+
 const getFinalDecisionStatus = (
   application: ApplicationDetail
 ): ApplicationStatus | null => {
   return application.decisionAt && isDecisionStatus(application.status)
     ? application.status
     : null;
+};
+
+const hasSentDecisionEmail = (emailLogs: ApplicationEmailLog[]): boolean => {
+  return emailLogs.some((emailLog) => {
+    return (
+      emailLog.sendStatus === "SENT" &&
+      emailLog.emailType !== "CUSTOM"
+    );
+  });
 };
 
 const getStudentAdmissionStatus = (
@@ -396,9 +439,9 @@ const MailSendAnimation = () => {
   return (
     <div
       aria-hidden="true"
-      className="mail-send-animation mt-6 flex min-h-[220px] flex-1 items-center overflow-hidden rounded-[24px] border border-secondary/20 bg-white/65 px-4 py-5"
+      className="mail-send-animation mt-5 flex min-h-[180px] flex-1 items-center overflow-hidden rounded-[24px] border border-secondary/20 bg-white/65 px-4 py-4"
     >
-      <svg viewBox="0 0 320 96" className="h-full min-h-[180px] w-full" fill="none">
+      <svg viewBox="0 0 320 96" className="h-full min-h-[150px] w-full" fill="none">
         <path
           d="M34 58 C88 24 128 76 180 44 C222 18 252 42 286 28"
           className="mail-send-animation__trail"
@@ -666,6 +709,7 @@ const buildTimelineEntries = (
       id: `${application.id}-created`,
       type: "Demande reçue",
       date: formatOptionalDateTime(application.createdAt),
+      markerClassName: "bg-primary shadow-[0_10px_20px_-14px_rgba(31,77,58,0.75)]",
       sortDate: createdAt.getTime(),
       summary: `Dossier créé pour ${getStudentsSummary(application.students)}.`,
       content: `Année scolaire ${formatSchoolYearLabel(application.schoolYear.label)}.`
@@ -677,6 +721,7 @@ const buildTimelineEntries = (
       id: `${application.id}-decision`,
       type: "Décision finale",
       date: formatOptionalDateTime(application.decisionAt),
+      markerClassName: getDecisionTimelineMarkerClassName(application.status),
       sortDate: new Date(application.decisionAt).getTime(),
       summary: getDecisionSummary(application.status),
       content: application.decisionNote ?? undefined,
@@ -691,6 +736,7 @@ const buildTimelineEntries = (
       id: emailLog.id,
       type: `Email ${applicationEmailTypeLabels[emailLog.emailType].toLowerCase()}`,
       date: formatOptionalDateTime(timelineDate),
+      markerClassName: getEmailTimelineMarkerClassName(emailLog),
       sortDate: new Date(timelineDate).getTime(),
       summary: emailLog.subject,
       content: emailLog.bodySnapshot,
@@ -726,6 +772,13 @@ const ApplicationDetailPage = () => {
   const [isPrioritySubmitting, setIsPrioritySubmitting] = useState(false);
   const [updatingStudentAdmissionId, setUpdatingStudentAdmissionId] =
     useState<string | null>(null);
+  const [isExceptionalEditEnabled, setIsExceptionalEditEnabled] = useState(false);
+  const [isUnlockDecisionModalOpen, setIsUnlockDecisionModalOpen] =
+    useState(false);
+  const isDecisionLocked =
+    Boolean(application?.decisionAt && isDecisionStatus(application.status)) ||
+    hasSentDecisionEmail(emailLogs);
+  const isTreatmentReadOnly = isDecisionLocked && !isExceptionalEditEnabled;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -786,11 +839,23 @@ const ApplicationDetailPage = () => {
     }
   }, [application]);
 
+  useEffect(() => {
+    setIsExceptionalEditEnabled(false);
+    setIsUnlockDecisionModalOpen(false);
+  }, [application?.id, application?.decisionAt]);
+
   const handleStatusSubmit = useCallback(
     async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
       event.preventDefault();
 
       if (!application || selectedStatus === application.status) {
+        return;
+      }
+
+      if (isTreatmentReadOnly) {
+        showError(
+          "La décision est verrouillée depuis l'envoi de l'email au parent."
+        );
         return;
       }
 
@@ -821,11 +886,18 @@ const ApplicationDetailPage = () => {
         setIsStatusSubmitting(false);
       }
     },
-    [application, selectedStatus, showError, showSuccess]
+    [application, isTreatmentReadOnly, selectedStatus, showError, showSuccess]
   );
 
   const handlePriorityToggle = useCallback(async (): Promise<void> => {
     if (!application) {
+      return;
+    }
+
+    if (isTreatmentReadOnly) {
+      showError(
+        "La décision est verrouillée depuis l'envoi de l'email au parent."
+      );
       return;
     }
 
@@ -864,7 +936,7 @@ const ApplicationDetailPage = () => {
     } finally {
       setIsPrioritySubmitting(false);
     }
-  }, [application, showError, showSuccess]);
+  }, [application, isTreatmentReadOnly, showError, showSuccess]);
 
   const handleStudentAdmissionStatusUpdate = useCallback(
     async (
@@ -872,6 +944,13 @@ const ApplicationDetailPage = () => {
       admissionStatus: StudentAdmissionStatus
     ): Promise<void> => {
       if (!application) {
+        return;
+      }
+
+      if (isTreatmentReadOnly) {
+        showError(
+          "La décision est verrouillée depuis l'envoi de l'email au parent."
+        );
         return;
       }
 
@@ -913,8 +992,22 @@ const ApplicationDetailPage = () => {
         setUpdatingStudentAdmissionId(null);
       }
     },
-    [application, showError, showSuccess]
+    [application, isTreatmentReadOnly, showError, showSuccess]
   );
+
+  const handleOpenExceptionalEditModal = useCallback((): void => {
+    setIsUnlockDecisionModalOpen(true);
+  }, []);
+
+  const handleCloseExceptionalEditModal = useCallback((): void => {
+    setIsUnlockDecisionModalOpen(false);
+  }, []);
+
+  const handleConfirmExceptionalEdit = useCallback((): void => {
+    setIsExceptionalEditEnabled(true);
+    setIsUnlockDecisionModalOpen(false);
+    showSuccess("Les modifications exceptionnelles sont maintenant activées.");
+  }, [showSuccess]);
 
   const timelineEntries = useMemo(() => {
     return application ? buildTimelineEntries(application, emailLogs) : [];
@@ -1041,6 +1134,23 @@ const ApplicationDetailPage = () => {
     );
   }
 
+  const treatmentAction = isDecisionLocked ? (
+    <button
+      type="button"
+      onClick={handleOpenExceptionalEditModal}
+      disabled={isExceptionalEditEnabled}
+      className={`inline-flex items-center justify-center rounded-full border px-4 py-2 text-xs font-semibold transition ${
+        isExceptionalEditEnabled
+          ? "cursor-default border-success/20 bg-success/10 text-success"
+          : "border-danger/20 bg-danger/5 text-danger hover:border-danger/30 hover:bg-danger/10"
+      }`}
+    >
+      {isExceptionalEditEnabled
+        ? "Modification activée"
+        : "Modifier exceptionnellement"}
+    </button>
+  ) : null;
+
   return (
     <>
       <div className="ui-animate-in ui-animate-in--subtle" style={getEnterStyle(120)}>
@@ -1143,12 +1253,30 @@ const ApplicationDetailPage = () => {
           <SectionCard
             title="Traitement"
             subtitle="Statut, priorité, décision finale et email."
+            action={treatmentAction}
             bodyClassName="!mt-4 flex flex-1 flex-col gap-3 xl:min-h-0"
             className="!p-5 sm:!p-6 xl:flex xl:h-full xl:min-h-0 xl:flex-col"
             motionDelay={220}
           >
+            {isDecisionLocked ? (
+              <div
+                className={`rounded-[20px] border px-4 py-3 text-xs font-medium leading-5 ${
+                  isExceptionalEditEnabled
+                    ? "border-success/20 bg-success/10 text-success"
+                    : "border-slate-200 bg-slate-50 text-slate-500"
+                }`}
+              >
+                {isExceptionalEditEnabled
+                  ? "Mode exceptionnel activé : les contrôles peuvent être modifiés."
+                  : "Décision verrouillée : l'email de décision a déjà été envoyé au parent."}
+              </div>
+            ) : null}
             <form className="shrink-0" onSubmit={handleStatusSubmit}>
-              <div className="rounded-[22px] border border-slate-200/90 bg-slate-50/80 p-3.5">
+              <div
+                className={`rounded-[22px] border border-slate-200/90 bg-slate-50/80 p-4 transition ${
+                  isTreatmentReadOnly ? "opacity-55 saturate-50" : ""
+                }`}
+              >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -1163,7 +1291,7 @@ const ApplicationDetailPage = () => {
                     aria-label="Nouveau statut"
                     value={selectedStatus}
                     onChange={handleSelectedStatusChange}
-                    disabled={isStatusSubmitting}
+                    disabled={isTreatmentReadOnly || isStatusSubmitting}
                     className="min-w-[170px] rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
                   >
                     {statusOptions.map((option) => (
@@ -1176,7 +1304,11 @@ const ApplicationDetailPage = () => {
 
                 <button
                   type="submit"
-                  disabled={isStatusSubmitting || selectedStatus === application.status}
+                  disabled={
+                    isTreatmentReadOnly ||
+                    isStatusSubmitting ||
+                    selectedStatus === application.status
+                  }
                   className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
                   <SaveIcon />
@@ -1187,7 +1319,11 @@ const ApplicationDetailPage = () => {
               </div>
             </form>
 
-            <div className="shrink-0 rounded-[22px] border border-slate-200/90 bg-slate-50/80 p-3.5">
+            <div
+              className={`shrink-0 rounded-[22px] border border-slate-200/90 bg-slate-50/80 p-4 transition ${
+                isTreatmentReadOnly ? "opacity-55 saturate-50" : ""
+              }`}
+            >
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -1206,7 +1342,7 @@ const ApplicationDetailPage = () => {
                 <button
                   type="button"
                   onClick={handlePriorityToggle}
-                  disabled={isPrioritySubmitting}
+                  disabled={isTreatmentReadOnly || isPrioritySubmitting}
                   className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:border-primary/25 hover:text-primary disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
                 >
                   <StarIcon />
@@ -1221,7 +1357,11 @@ const ApplicationDetailPage = () => {
               </div>
             </div>
 
-            <div className="shrink-0 rounded-[22px] border border-slate-200/90 bg-slate-50/80 p-3.5">
+            <div
+              className={`shrink-0 rounded-[22px] border border-slate-200/90 bg-slate-50/80 p-4 transition ${
+                isTreatmentReadOnly ? "opacity-55 saturate-50" : ""
+              }`}
+            >
               <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Décision des élèves
               </p>
@@ -1236,7 +1376,11 @@ const ApplicationDetailPage = () => {
               </div>
             </div>
 
-            <div className="flex min-h-[150px] flex-1 flex-col rounded-[22px] border border-secondary/20 bg-secondary/10 p-4">
+            <div
+              className={`flex min-h-[360px] flex-1 flex-col rounded-[22px] border border-secondary/20 bg-secondary/10 p-4 transition xl:mb-0 ${
+                isTreatmentReadOnly ? "opacity-55 saturate-50" : ""
+              }`}
+            >
               <div className="flex flex-1 flex-col">
                 <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-secondaryDark">
                   Email
@@ -1247,13 +1391,23 @@ const ApplicationDetailPage = () => {
                 </p>
                 <MailSendAnimation />
               </div>
-              <Link
-                to={`/applications/${application.id}/email`}
-                className="mt-4 inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-full bg-secondary px-5 py-2 text-sm font-semibold text-white transition hover:bg-secondaryDark"
-              >
-                <MailIcon />
-                <span>Accéder à l'envoi d'email</span>
-              </Link>
+              {isTreatmentReadOnly ? (
+                <span
+                  aria-disabled="true"
+                  className="mt-4 inline-flex w-full shrink-0 cursor-not-allowed items-center justify-center gap-2 rounded-full bg-slate-300 px-5 py-2 text-sm font-semibold text-white"
+                >
+                  <MailIcon />
+                  <span>Envoi d'email verrouillé</span>
+                </span>
+              ) : (
+                <Link
+                  to={`/applications/${application.id}/email`}
+                  className="mt-4 inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-full bg-secondary px-5 py-2 text-sm font-semibold text-white transition hover:bg-secondaryDark"
+                >
+                  <MailIcon />
+                  <span>Accéder à l'envoi d'email</span>
+                </Link>
+              )}
             </div>
           </SectionCard>
         </div>
@@ -1287,11 +1441,6 @@ const ApplicationDetailPage = () => {
                         <h3 className="break-words text-lg font-semibold text-slate-900">
                           {student.firstName} {student.lastName}
                         </h3>
-                        {student.rankInForm ? (
-                          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-700 ring-1 ring-slate-200">
-                            Rang {student.rankInForm}
-                          </span>
-                        ) : null}
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <LevelBadge
@@ -1299,9 +1448,6 @@ const ApplicationDetailPage = () => {
                           label={student.level.label}
                           size="sm"
                         />
-                        <span className="text-sm font-medium text-slate-600">
-                          {student.level.label}
-                        </span>
                         <StudentAdmissionBadge
                           status={getStudentAdmissionStatus(student)}
                         />
@@ -1316,7 +1462,11 @@ const ApplicationDetailPage = () => {
                     </DetailField>
                   </div>
 
-                  <div className="mt-5 border-t border-slate-200/80 pt-4">
+                  <div
+                    className={`mt-5 border-t border-slate-200/80 pt-4 transition ${
+                      isTreatmentReadOnly ? "opacity-55 saturate-50" : ""
+                    }`}
+                  >
                     <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
                       Décision individuelle
                     </p>
@@ -1325,6 +1475,16 @@ const ApplicationDetailPage = () => {
                         const isCurrentStatus =
                           getStudentAdmissionStatus(student) === option.value;
                         const isSubmitting = updatingStudentAdmissionId === student.id;
+                        const activeButtonClassName =
+                          option.value === "ACCEPTED"
+                            ? "border-success/20 bg-success/15 text-success"
+                            : "border-info/20 bg-info/15 text-info";
+                        const interactiveButtonClassName =
+                          option.value === "ACCEPTED"
+                            ? "border-slate-300 bg-white text-slate-700 hover:border-success/25 hover:bg-success/10 hover:text-success"
+                            : "border-slate-300 bg-white text-slate-700 hover:border-info/25 hover:bg-info/10 hover:text-info";
+                        const readOnlyButtonClassName =
+                          "border-slate-200 bg-slate-100 text-slate-400";
 
                         return (
                           <button
@@ -1336,11 +1496,15 @@ const ApplicationDetailPage = () => {
                                 option.value
                               )
                             }
-                            disabled={isSubmitting || isCurrentStatus}
+                            disabled={
+                              isTreatmentReadOnly || isSubmitting || isCurrentStatus
+                            }
                             className={`inline-flex min-h-10 items-center justify-center rounded-full border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed ${
-                              isCurrentStatus
-                                ? "border-primary/20 bg-primary/10 text-primaryDark"
-                                : "border-slate-300 bg-white text-slate-700 hover:border-primary/25 hover:text-primary disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                              isTreatmentReadOnly
+                                ? readOnlyButtonClassName
+                                : isCurrentStatus
+                                ? activeButtonClassName
+                                : `${interactiveButtonClassName} disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400`
                             }`}
                           >
                             {isSubmitting && !isCurrentStatus
@@ -1367,7 +1531,9 @@ const ApplicationDetailPage = () => {
           <ol className="relative space-y-4 before:absolute before:bottom-3 before:left-[0.95rem] before:top-3 before:w-px before:bg-slate-200">
             {timelineEntries.map((entry) => (
               <li key={entry.id} className="relative pl-10">
-                <span className="absolute left-0 top-1.5 flex h-8 w-8 items-center justify-center rounded-full border border-white bg-primary text-white shadow-[0_10px_20px_-14px_rgba(31,77,58,0.7)]">
+                <span
+                  className={`absolute left-0 top-1.5 flex h-8 w-8 items-center justify-center rounded-full border border-white text-white ${entry.markerClassName}`}
+                >
                   <span className="h-2.5 w-2.5 rounded-full bg-white" />
                 </span>
                 <article className="rounded-[26px] border border-slate-200/90 bg-slate-50/80 p-5">
@@ -1396,6 +1562,48 @@ const ApplicationDetailPage = () => {
           </ol>
         </SectionCard>
       </div>
+
+      {isUnlockDecisionModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-4 py-6 backdrop-blur-sm">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="unlock-decision-title"
+            className="w-full max-w-lg rounded-[28px] border border-white/80 bg-white p-6 shadow-[0_24px_70px_-24px_rgba(15,23,42,0.45)]"
+          >
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-secondaryDark">
+              Modification exceptionnelle
+            </p>
+            <h2
+              id="unlock-decision-title"
+              className="mt-2 text-2xl font-semibold text-slate-900"
+            >
+              Autoriser la modification après envoi ?
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              L'email de décision a déjà été envoyé au parent. Cette action
+              réactive temporairement les contrôles de traitement et les décisions
+              individuelles pour corriger le dossier.
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={handleCloseExceptionalEditModal}
+                className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-primary/25 hover:text-primary"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmExceptionalEdit}
+                className="inline-flex items-center justify-center rounded-full bg-secondary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-secondaryDark"
+              >
+                Autoriser la modification
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 };

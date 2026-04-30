@@ -32,6 +32,10 @@ const getQueryParam = (value: unknown): string | undefined => {
   return undefined;
 };
 
+const getBooleanPayloadParam = (value: unknown): boolean => {
+  return value === true || value === "true";
+};
+
 const isApplicationStatus = (value: string): value is ApplicationStatus => {
   return Object.values(ApplicationStatus).includes(value as ApplicationStatus);
 };
@@ -500,6 +504,7 @@ export const sendApplicationEmail = async (req: Request, res: Response): Promise
   const subject = getQueryParam(req.body?.subject);
   const body = getQueryParam(req.body?.body);
   const payloadRecipientEmail = getQueryParam(req.body?.recipientEmail);
+  const shouldSyncDecisionAt = getBooleanPayloadParam(req.body?.syncDecisionAt);
 
   if (!emailType || !isApplicationEmailType(emailType)) {
     throw badRequest("Invalid email type");
@@ -580,6 +585,13 @@ export const sendApplicationEmail = async (req: Request, res: Response): Promise
 
   const sentAt = new Date();
   const decisionStatus = getDecisionStatusFromEmailType(emailType);
+  const shouldRefreshDecisionAt =
+    shouldSyncDecisionAt &&
+    !decisionStatus &&
+    (application.status === ApplicationStatus.ACCEPTED ||
+      application.status === ApplicationStatus.WAITLISTED ||
+      application.status === ApplicationStatus.REFUSED ||
+      application.status === ApplicationStatus.PARTIALLY_ACCEPTED);
 
   const emailLog = await prisma.$transaction(async (transaction) => {
     const createdEmailLog = await transaction.applicationEmailLog.create({
@@ -599,6 +611,13 @@ export const sendApplicationEmail = async (req: Request, res: Response): Promise
         where: { id: application.id },
         data: {
           status: decisionStatus,
+          decisionAt: sentAt
+        }
+      });
+    } else if (shouldRefreshDecisionAt) {
+      await transaction.application.update({
+        where: { id: application.id },
+        data: {
           decisionAt: sentAt
         }
       });

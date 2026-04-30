@@ -105,6 +105,7 @@ export type ApplicationEmailSendPayload = {
   emailType: ApplicationEmailType;
   subject: string;
   body: string;
+  syncDecisionAt?: boolean;
 };
 
 export type ApplicationStatusUpdateResult = {
