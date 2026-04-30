@@ -185,12 +185,12 @@ const AppLayout = () => {
         className="fixed inset-x-0 top-0 z-40 border-b-4 border-secondary shadow-[0_20px_55px_-35px_rgba(15,23,42,0.65)]"
         style={brandTextureStyle}
       >
-        <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-6 py-6 sm:gap-5 sm:px-10 sm:py-7 lg:gap-6 lg:px-14 lg:py-8">
           <div className="flex min-w-0 items-center gap-4">
             <img
               src="/logo_ece.png"
               alt="Logo ECE"
-              className="h-16 w-16 rounded-full border border-white/70 bg-white/40 p-0.5 shadow-[0_10px_30px_-18px_rgba(15,23,42,0.75)] sm:h-20 sm:w-20"
+              className="h-[82px] w-[82px] rounded-full border border-white/70 bg-white/40 object-cover p-0.5 shadow-[0_10px_30px_-18px_rgba(15,23,42,0.75)] sm:h-[96px] sm:w-[96px] lg:h-[112px] lg:w-[112px]"
             />
             <div className="min-w-0 text-white">
               <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
@@ -213,7 +213,7 @@ const AppLayout = () => {
                 src="/icons/Profil.svg"
                 alt=""
                 aria-hidden="true"
-                className="h-6 w-6"
+                className="h-10 w-10"
               />
             </span>
             <span className="text-lg font-medium">Admin</span>
@@ -221,10 +221,10 @@ const AppLayout = () => {
         </div>
       </header>
 
-      <div className="mx-auto max-w-[1600px] px-4 pb-6 pt-[108px] sm:px-6 sm:pt-[124px] lg:px-8 lg:pt-[136px]">
+      <div className="mx-auto max-w-[1600px] px-4 pb-6 pt-[134px] sm:px-6 sm:pt-[156px] lg:px-8 lg:pt-[192px]">
         <div className="lg:pl-[272px]">
           <aside
-            className="mb-4 overflow-hidden rounded-[30px] border border-primaryDark/10 text-white shadow-[0_24px_58px_-38px_rgba(15,23,42,0.78)] lg:fixed lg:top-[136px] lg:z-30 lg:mb-0 lg:max-h-[calc(100vh-160px)] lg:w-[248px] lg:overflow-y-auto"
+            className="mb-4 overflow-hidden rounded-[30px] border border-primaryDark/10 text-white shadow-[0_24px_58px_-38px_rgba(15,23,42,0.78)] lg:fixed lg:top-[192px] lg:z-30 lg:mb-0 lg:max-h-[calc(100vh-216px)] lg:w-[248px] lg:overflow-y-auto"
             style={{
               ...brandTextureStyle,
               ...desktopSidebarPositionStyle
@@ -257,7 +257,7 @@ const AppLayout = () => {
             </main>
 
             <footer className="py-2 text-center text-sm text-slate-500">
-              © ECE - École de la Culture et de l&apos;Éducation
+              ECE - École de la Culture et de l&apos;Éducation
             </footer>
           </div>
         </div>

@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ChangeEvent, DragEvent, KeyboardEvent, MouseEvent } from "react";
-import { Link } from "react-router-dom";
+import type {
+  CSSProperties,
+  ChangeEvent,
+  DragEvent,
+  KeyboardEvent,
+  MouseEvent
+} from "react";
 
 import AppLoader from "../components/feedback/AppLoader";
 import FeedbackEmptyState from "../components/feedback/EmptyState";
 import SuccessFeedback from "../components/feedback/SuccessFeedback";
 import PageSectionHeader from "../components/layout/PageSectionHeader";
+import Breadcrumb from "../components/ui/Breadcrumb";
 import { useToast } from "../context/ToastContext";
 import {
   createSchoolYear,
@@ -37,6 +43,12 @@ const numberFormatter = new Intl.NumberFormat("fr-FR");
 
 const isAbortError = (error: unknown): boolean => {
   return error instanceof DOMException && error.name === "AbortError";
+};
+
+const getEnterStyle = (delay: number): CSSProperties => {
+  return {
+    "--ui-enter-delay": `${delay}ms`
+  } as CSSProperties;
 };
 
 const formatSchoolYearLabel = (label: string): string => {
@@ -181,18 +193,11 @@ const getSchoolYearDraftPlaceholder = (
   return `${schoolYear.endYear}-${schoolYear.endYear + 1}`;
 };
 
-const ChevronDownIcon = ({ className = "h-4 w-4" }: IconProps) => {
+const CampaignIcon = ({ className = "h-5 w-5" }: IconProps) => {
   return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
-      <path d="m5.5 7.5 4.5 4.5 4.5-4.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-};
-
-const ArrowLeftIcon = ({ className = "h-4 w-4" }: IconProps) => {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
-      <path d="M12.5 4.5 7 10l5.5 5.5M7 10h8" strokeLinecap="round" strokeLinejoin="round" />
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" className={className}>
+      <rect x="3.5" y="4.5" width="13" height="11.5" rx="2.5" />
+      <path d="M6.5 3.25v3M13.5 3.25v3M3.75 8.25h12.5M7 11h2.5M7 13.25h4.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 };
@@ -619,26 +624,34 @@ const ImportCsvPage = () => {
   };
 
   const pageTopBar = (
-    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-      <Link
-        to="/applications"
-        className="inline-flex items-center gap-2 text-base font-medium text-slate-700 transition hover:text-primaryDark"
-      >
-        <ArrowLeftIcon className="h-5 w-5" />
-        Retour à l&apos;administration
-      </Link>
+    <div
+      className="ui-animate-in ui-animate-in--subtle flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
+      style={getEnterStyle(20)}
+    >
+      <div className="w-fit rounded-2xl border border-primary/10 bg-white/80 px-4 py-3 text-sm text-primaryDark shadow-[0_10px_22px_-22px_rgba(15,23,42,0.18)]">
+        <Breadcrumb
+          items={[
+            { label: "Tableau de bord", href: "/" },
+            { label: "Campagnes d'inscriptions" }
+          ]}
+        />
+      </div>
 
-      <div className="inline-flex max-w-full items-center gap-3 rounded-2xl border border-[#e4d7c8] bg-white/80 px-4 py-3 text-sm text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+      <div className="inline-flex max-w-full items-center rounded-2xl border border-[#e4d7c8] bg-white/80 px-4 py-3 text-sm text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
         <span className="truncate font-medium">{activeSchoolYearLabel}</span>
-        <ChevronDownIcon className="h-4 w-4 shrink-0 text-slate-500" />
       </div>
     </div>
   );
 
   return (
     <>
-      <PageSectionHeader topBar={pageTopBar} title="Import CSV" />
-      <section className={`${contentCardClassName} p-5 sm:p-6`}>
+      <div className="ui-animate-in ui-animate-in--subtle" style={getEnterStyle(120)}>
+        <PageSectionHeader topBar={pageTopBar} title="Import CSV" />
+      </div>
+      <section
+        className={`ui-animate-in ui-surface-hover ui-surface-hover--soft ui-surface-hover--no-accent ${contentCardClassName} p-5 sm:p-6`}
+        style={getEnterStyle(180)}
+      >
         <p className="max-w-5xl text-[1.05rem] leading-8 text-slate-700">
           Téléversez un fichier CSV pour importer des demandes d&apos;inscription
           collectées via un formulaire Google et les centraliser pour
@@ -657,73 +670,81 @@ const ImportCsvPage = () => {
 
         {canManageSchoolYear ? (
           <section
-            className={`mt-5 rounded-[24px] px-4 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] sm:px-5 ${
-              isSchoolYearSetupRequired
-                ? "border border-[#e7d8c6] bg-[#fcf8f1]"
-                : "border border-[#ebdfd2] bg-white/82"
-            }`}
+            className="ui-animate-in mt-5 overflow-hidden rounded-[32px] border border-primary/20 bg-[#fffdf8] shadow-[0_30px_66px_-44px_rgba(31,77,58,0.42)]"
+            style={getEnterStyle(240)}
           >
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div className="max-w-3xl">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primaryLight">
-                  {isSchoolYearSetupRequired
-                    ? "Configuration requise"
-                    : "Nouvelle campagne"}
-                </p>
-                <h2 className="mt-2 font-serif text-[1.8rem] text-slate-900">
-                  {isSchoolYearSetupRequired
-                    ? "Créez une année scolaire active avant l'import"
-                    : "Créez et activez la prochaine année scolaire"}
-                </h2>
-                <p className="mt-3 text-sm leading-7 text-slate-600">
-                  {isSchoolYearSetupRequired
-                    ? "Aucune année scolaire active n'est configurée. Créez et activez une année scolaire ici pour débloquer l'import CSV, ou activez une année existante depuis l'administration."
-                    : `L'année scolaire active est actuellement ${activeSchoolYearLabel}. Créez et activez ici une nouvelle année scolaire pour rattacher les prochains imports à cette nouvelle campagne d'inscription.`}
-                </p>
-              </div>
-
-              {activeSchoolYear ? (
-                <div className="inline-flex w-fit flex-col rounded-2xl border border-secondary/20 bg-secondary/10 px-4 py-3 text-sm text-secondaryDark">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primaryLight">
-                    Année active
+            <div className="border-b border-secondary/30 bg-primary px-5 py-5 text-white sm:px-6">
+              <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex min-w-0 items-start gap-4">
+                  <span className="mt-1 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-secondary shadow-[0_16px_30px_-22px_rgba(0,0,0,0.55)]">
+                    <CampaignIcon />
                   </span>
-                  <span className="mt-1 font-semibold">{activeSchoolYearLabel}</span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold uppercase tracking-[0.2em] text-secondary">
+                      {isSchoolYearSetupRequired
+                        ? "Configuration requise"
+                        : "Nouvelle campagne"}
+                    </p>
+                    <h2 className="mt-2 text-2xl font-semibold text-white">
+                      {isSchoolYearSetupRequired
+                        ? "Créez une année scolaire active avant l'import"
+                        : "Créez et activez la prochaine année scolaire"}
+                    </h2>
+                    <p className="mt-2 max-w-4xl text-sm leading-6 text-white/80">
+                      {isSchoolYearSetupRequired
+                        ? "Aucune année scolaire active n'est configurée. Créez et activez une année scolaire ici pour débloquer l'import CSV, ou activez une année existante depuis l'administration."
+                        : `L'année scolaire active est actuellement ${activeSchoolYearLabel}. Créez et activez ici une nouvelle année scolaire pour rattacher les prochains imports à cette nouvelle campagne d'inscription.`}
+                    </p>
+                  </div>
                 </div>
-              ) : null}
+
+                {activeSchoolYear ? (
+                  <div className="inline-flex w-fit shrink-0 flex-col items-center rounded-2xl border border-secondary/40 bg-secondary/20 px-5 py-3 text-center text-sm text-white shadow-[0_16px_30px_-24px_rgba(0,0,0,0.45)]">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-secondary">
+                      Année active
+                    </span>
+                    <span className="mt-1 text-lg font-semibold">
+                      {activeSchoolYearLabel}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             <form
-              className="mt-5 flex flex-col gap-4 lg:flex-row lg:items-end"
+              className="bg-[#fffaf2] px-5 py-5 sm:px-6"
               onSubmit={(event) => void handleSchoolYearSetupSubmit(event)}
             >
-              <label className="block flex-1">
-                <span className="text-sm font-medium text-slate-700">
-                  Année scolaire
-                </span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder={schoolYearDraftPlaceholder}
-                  value={schoolYearDraft}
-                  onChange={handleSchoolYearDraftChange}
-                  disabled={isSchoolYearFormLocked}
-                  className="mt-2 w-full rounded-2xl border border-[#dfd1c0] bg-white px-4 py-3 text-base text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-slate-100"
-                />
-              </label>
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+                <label className="block">
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Année scolaire
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder={schoolYearDraftPlaceholder}
+                    value={schoolYearDraft}
+                    onChange={handleSchoolYearDraftChange}
+                    disabled={isSchoolYearFormLocked}
+                    className="mt-2 h-14 w-full rounded-2xl border border-[#dfd1c0] bg-white px-4 text-base font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  />
+                </label>
 
-              <button
-                type="submit"
-                disabled={isSchoolYearFormLocked}
-                className="inline-flex items-center justify-center rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-wait disabled:bg-slate-300"
-              >
-                {isCreatingSchoolYear
-                  ? "Création en cours..."
-                  : "Créer et activer cette année"}
-              </button>
+                <button
+                  type="submit"
+                  disabled={isSchoolYearFormLocked}
+                  className="inline-flex h-14 items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-wait disabled:bg-slate-300"
+                >
+                  {isCreatingSchoolYear
+                    ? "Création en cours..."
+                    : "Créer et activer cette année"}
+                </button>
+              </div>
             </form>
 
             {schoolYearSetupError ? (
-              <p className="mt-4 rounded-2xl border border-danger/15 bg-danger/5 px-4 py-3 text-sm text-danger">
+              <p className="mx-5 mb-5 rounded-2xl border border-danger/15 bg-danger/5 px-4 py-3 text-sm text-danger sm:mx-6">
                 {schoolYearSetupError}
               </p>
             ) : null}
@@ -749,7 +770,11 @@ const ImportCsvPage = () => {
           </div>
         ) : null}
 
-        <form className="mt-6" onSubmit={(event) => void handleImportSubmit(event)}>
+        <form
+          className="ui-animate-in mt-6"
+          style={getEnterStyle(300)}
+          onSubmit={(event) => void handleImportSubmit(event)}
+        >
           <input
             ref={fileInputRef}
             type="file"
@@ -858,7 +883,10 @@ const ImportCsvPage = () => {
         </form>
 
         {latestImport ? (
-          <section className="mt-6 rounded-[26px] border border-[#ebdfd3] bg-white/78 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] sm:p-5">
+          <section
+            className="ui-animate-in mt-6 rounded-[26px] border border-[#ebdfd3] bg-white/78 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] sm:p-5"
+            style={getEnterStyle(360)}
+          >
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primaryLight">
@@ -907,7 +935,10 @@ const ImportCsvPage = () => {
         ) : null}
       </section>
 
-      <section className={`${contentCardClassName} mt-6 overflow-hidden`}>
+      <section
+        className={`ui-animate-in ui-surface-hover ui-surface-hover--soft ui-surface-hover--no-accent ${contentCardClassName} mt-6 overflow-hidden`}
+        style={getEnterStyle(420)}
+      >
         <div className="border-b border-[#eadfd2] px-5 py-4 sm:px-6">
           <h2 className="font-serif text-[2rem] text-slate-900">
             Historique des imports

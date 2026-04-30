@@ -6,7 +6,7 @@ import {
   type CSSProperties,
   type ReactNode
 } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 import FeedbackEmptyState from "../components/feedback/EmptyState";
 import SuccessFeedback from "../components/feedback/SuccessFeedback";
@@ -259,6 +259,7 @@ const SectionCard = ({
 
 const ApplicationEmailPage = () => {
   const { id: applicationId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { showError, showSuccess } = useToast();
   const [application, setApplication] = useState<ApplicationDetail | null>(null);
   const [emailLogs, setEmailLogs] = useState<ApplicationEmailLog[]>([]);
@@ -478,13 +479,14 @@ const ApplicationEmailPage = () => {
         setIsSendConfirmationOpen(false);
         setHasEmailSendSuccess(true);
         showSuccess("L'email a été envoyé et enregistré dans l'historique.");
+        navigate(`/applications/${application.id}`, { replace: true });
       } catch (sendError) {
         showError(getApplicationEmailActionErrorMessage(sendError));
       } finally {
         setIsEmailSubmitting(false);
       }
     },
-    [application, resetEmailForm, showError, showSuccess]
+    [application, navigate, resetEmailForm, showError, showSuccess]
   );
 
   const handleEmailSubmit = useCallback(
@@ -501,27 +503,11 @@ const ApplicationEmailPage = () => {
         return;
       }
 
-      const recommendedEmailType = getLatestSentDecisionEmailLog(emailLogs)
-        ? "CUSTOM"
-        : getApplicationDecisionEmailContext(application).recommendedEmailType;
-      const requiresSendConfirmation = getRequiresSendConfirmation(
-        selectedEmailType,
-        recommendedEmailType
-      );
-
-      if (requiresSendConfirmation) {
-        setIsSendConfirmationOpen(true);
-        return;
-      }
-
-      await sendValidatedEmail(payload);
+      setIsSendConfirmationOpen(true);
     },
     [
       application,
-      emailLogs,
       getValidatedEmailPayload,
-      selectedEmailType,
-      sendValidatedEmail
     ]
   );
 
@@ -1010,14 +996,18 @@ const ApplicationEmailPage = () => {
             >
               {isDecisionChangeEmail
                 ? "Confirmer l'envoi de la mise à jour"
-                : "Confirmer l'envoi d'un email non recommandé"}
+                : requiresSendConfirmation
+                  ? "Confirmer l'envoi d'un email non recommandé"
+                  : "Confirmer l'envoi de l'email"}
             </h2>
             <p className="mt-3 text-sm leading-6 text-slate-600">
               {isDecisionChangeEmail
                 ? "Ce message informe la famille qu'une décision déjà communiquée a été modifiée. Vérifiez le récapitulatif avant l'envoi."
-                : isCustomEmail
-                ? "Vous envoyez un email personnalisé. Vérifiez attentivement le contenu avant l'envoi."
-                : "Le type d'email sélectionné ne correspond pas à la décision actuelle du dossier. Cet envoi peut transmettre une information incorrecte à la famille."}
+                : requiresSendConfirmation
+                  ? isCustomEmail
+                    ? "Vous envoyez un email personnalisé. Vérifiez attentivement le contenu avant l'envoi."
+                    : "Le type d'email sélectionné ne correspond pas à la décision actuelle du dossier. Cet envoi peut transmettre une information incorrecte à la famille."
+                  : "Cette action va envoyer l'email à la famille et l'enregistrer dans l'historique du dossier."}
             </p>
 
             {requiresSendConfirmation && !isDecisionChangeEmail ? (
@@ -1056,7 +1046,9 @@ const ApplicationEmailPage = () => {
                   ? "Envoi en cours..."
                   : isDecisionChangeEmail
                     ? "Envoyer la mise à jour"
-                    : "Envoyer quand même"}
+                    : requiresSendConfirmation
+                      ? "Envoyer quand même"
+                      : "Confirmer l'envoi"}
               </button>
             </div>
           </div>
