@@ -23,7 +23,6 @@ import { useToast } from "../context/ToastContext";
 import {
   getApplicationById,
   getApplicationEmailLogs,
-  updateApplicationDecision,
   updateApplicationPriority,
   updateApplicationStatus,
   updateStudentAdmissionStatus
@@ -35,7 +34,6 @@ import {
   applicationEmailTypeStyles
 } from "../lib/applicationEmail";
 import type {
-  ApplicationDecisionStatus,
   ApplicationDetail,
   ApplicationDetailStudent,
   ApplicationEmailLog,
@@ -69,6 +67,7 @@ type TimelineEntry = {
   content?: string;
   date: string;
   id: string;
+  markerClassName: string;
   sortDate: number;
   summary: string;
   type: string;
@@ -91,21 +90,12 @@ const statusOptions: Array<{
   { value: "PARTIALLY_ACCEPTED", label: "Décision partielle" }
 ];
 
-const decisionOptions: Array<{
-  value: ApplicationDecisionStatus;
-  label: string;
-}> = [
-  { value: "ACCEPTED", label: "Acceptée" },
-  { value: "WAITLISTED", label: "Liste d'attente" }
-];
-
 const studentAdmissionStatusOptions: Array<{
   value: StudentAdmissionStatus;
   label: string;
 }> = [
   { value: "ACCEPTED", label: "Accepter" },
-  { value: "WAITLISTED", label: "Liste d'attente" },
-  { value: "PENDING", label: "Remettre en attente" }
+  { value: "WAITLISTED", label: "Liste d'attente" }
 ];
 
 const studentAdmissionStatusLabels: Record<StudentAdmissionStatus, string> = {
@@ -144,17 +134,12 @@ const isAbortError = (error: unknown): boolean => {
 const isDecisionStatus = (
   status: ApplicationStatus
 ): boolean => {
-  return status === "ACCEPTED" || status === "WAITLISTED" || status === "REFUSED";
-};
-
-const getDecisionSelection = (
-  status: ApplicationStatus
-): ApplicationDecisionStatus => {
-  if (status === "WAITLISTED" || status === "REFUSED") {
-    return "WAITLISTED";
-  }
-
-  return status === "ACCEPTED" ? status : "ACCEPTED";
+  return (
+    status === "ACCEPTED" ||
+    status === "WAITLISTED" ||
+    status === "REFUSED" ||
+    status === "PARTIALLY_ACCEPTED"
+  );
 };
 
 const getStatusSelection = (status: ApplicationStatus): ApplicationStatus => {
@@ -323,9 +308,66 @@ const getHeaderDescription = (application: ApplicationDetail | null): string => 
 };
 
 const getDecisionSummary = (status: ApplicationStatus): string => {
-  return status === "ACCEPTED"
-    ? "Acceptation enregistrée"
-    : "Liste d'attente enregistrée";
+  if (status === "ACCEPTED") {
+    return "Acceptation enregistrée";
+  }
+
+  if (status === "PARTIALLY_ACCEPTED") {
+    return "Décision partielle enregistrée";
+  }
+
+  return "Liste d'attente enregistrée";
+};
+
+const getDecisionTimelineMarkerClassName = (status: ApplicationStatus): string => {
+  if (status === "ACCEPTED") {
+    return "bg-success shadow-[0_10px_20px_-14px_rgba(34,197,94,0.75)]";
+  }
+
+  if (status === "PARTIALLY_ACCEPTED") {
+    return "bg-secondary shadow-[0_10px_20px_-14px_rgba(212,162,76,0.8)]";
+  }
+
+  return "bg-info shadow-[0_10px_20px_-14px_rgba(96,165,250,0.8)]";
+};
+
+const getEmailTimelineMarkerClassName = (
+  emailLog: ApplicationEmailLog
+): string => {
+  if (emailLog.sendStatus === "FAILED") {
+    return "bg-danger shadow-[0_10px_20px_-14px_rgba(239,68,68,0.75)]";
+  }
+
+  if (emailLog.emailType === "ACCEPTANCE") {
+    return "bg-success shadow-[0_10px_20px_-14px_rgba(34,197,94,0.75)]";
+  }
+
+  if (emailLog.emailType === "PARTIAL_DECISION") {
+    return "bg-secondary shadow-[0_10px_20px_-14px_rgba(212,162,76,0.8)]";
+  }
+
+  if (emailLog.emailType === "WAITLIST" || emailLog.emailType === "REFUSAL") {
+    return "bg-info shadow-[0_10px_20px_-14px_rgba(96,165,250,0.8)]";
+  }
+
+  return "bg-slate-500 shadow-[0_10px_20px_-14px_rgba(100,116,139,0.75)]";
+};
+
+const getFinalDecisionStatus = (
+  application: ApplicationDetail
+): ApplicationStatus | null => {
+  return application.decisionAt && isDecisionStatus(application.status)
+    ? application.status
+    : null;
+};
+
+const hasSentDecisionEmail = (emailLogs: ApplicationEmailLog[]): boolean => {
+  return emailLogs.some((emailLog) => {
+    return (
+      emailLog.sendStatus === "SENT" &&
+      emailLog.emailType !== "CUSTOM"
+    );
+  });
 };
 
 const getStudentAdmissionStatus = (
@@ -393,6 +435,63 @@ const MailIcon = ({ className = "h-4 w-4" }: IconProps) => {
   );
 };
 
+const MailSendAnimation = () => {
+  return (
+    <div
+      aria-hidden="true"
+      className="mail-send-animation mt-5 flex min-h-[180px] flex-1 items-center overflow-hidden rounded-[24px] border border-secondary/20 bg-white/65 px-4 py-4"
+    >
+      <svg viewBox="0 0 320 96" className="h-full min-h-[150px] w-full" fill="none">
+        <path
+          d="M34 58 C88 24 128 76 180 44 C222 18 252 42 286 28"
+          className="mail-send-animation__trail"
+          pathLength="1"
+        />
+        <g className="mail-send-animation__envelope">
+          <rect x="26" y="36" width="62" height="42" rx="9" className="fill-white" />
+          <rect
+            x="26"
+            y="36"
+            width="62"
+            height="42"
+            rx="9"
+            className="stroke-secondary/35"
+            strokeWidth="2"
+          />
+          <path
+            d="M31 44 57 62 83 44"
+            className="stroke-primary"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </g>
+        <g className="mail-send-animation__plane">
+          <path
+            d="M218 29 290 48 218 67 230 50 218 29Z"
+            className="fill-secondary"
+          />
+          <path
+            d="M230 50h31"
+            className="stroke-white/85"
+            strokeWidth="3"
+            strokeLinecap="round"
+          />
+          <path
+            d="M218 29 248 51 218 67"
+            className="stroke-secondaryDark/35"
+            strokeWidth="2"
+            strokeLinejoin="round"
+          />
+        </g>
+        <circle cx="126" cy="34" r="4" className="mail-send-animation__dot fill-primary" />
+        <circle cx="151" cy="63" r="3.5" className="mail-send-animation__dot fill-secondary" />
+        <circle cx="185" cy="34" r="3" className="mail-send-animation__dot fill-primary" />
+      </svg>
+    </div>
+  );
+};
+
 const SaveIcon = ({ className = "h-4 w-4" }: IconProps) => {
   return (
     <svg
@@ -417,6 +516,97 @@ const StarIcon = ({ className = "h-4 w-4" }: IconProps) => {
     <svg aria-hidden="true" viewBox="0 0 16 16" fill="currentColor" className={className}>
       <path d="m8 2.15 1.62 3.28 3.62.52-2.62 2.55.62 3.6L8 10.4l-3.24 1.7.62-3.6L2.76 5.95l3.62-.52L8 2.15Z" />
     </svg>
+  );
+};
+
+const ParentAvatar = ({
+  label,
+  variant
+}: {
+  label: string;
+  variant: "father" | "mother";
+}) => {
+  const isFather = variant === "father";
+
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      className={`inline-flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl ring-1 ${
+        isFather
+          ? "bg-primary/10 ring-primary/15"
+          : "bg-secondary/15 ring-secondary/25"
+      }`}
+    >
+      <svg viewBox="0 0 72 72" className="h-full w-full" aria-hidden="true">
+        <rect width="72" height="72" rx="18" fill="currentColor" className="text-white/55" />
+        {isFather ? (
+          <>
+            <path
+              d="M20 67c2.5-14 8.5-21 16-21s13.5 7 16 21H20Z"
+              fill="#1F4D3A"
+            />
+            <path d="M33 47h6l-3 7-3-7Z" fill="#F8F6F2" />
+            <path d="M34 53h4l2 14h-8l2-14Z" fill="#D4A24C" />
+            <circle cx="36" cy="32" r="13" fill="#E8BE98" />
+            <path
+              d="M22.5 29.4c.8-10 6.3-16 15.1-15.1 7 .8 11.3 5.7 11 14-4.4-2.6-8.4-3.8-12.8-3.8-5.1 0-9.1 1.5-13.3 4.9Z"
+              fill="#26364A"
+            />
+            <path
+              d="M27.5 38.7c4.9 3.5 12.1 3.5 17 0"
+              fill="none"
+              stroke="#26364A"
+              strokeLinecap="round"
+              strokeWidth="1.8"
+            />
+            <path
+              d="M26.5 31.5h7.5M38 31.5h7.5"
+              stroke="#26364A"
+              strokeLinecap="round"
+              strokeWidth="1.8"
+            />
+            <path
+              d="M33.8 35.4c1.3.8 3.1.8 4.4 0"
+              stroke="#26364A"
+              strokeLinecap="round"
+              strokeWidth="1.6"
+            />
+          </>
+        ) : (
+          <>
+            <path
+              d="M17.5 67c2.7-13.3 9.5-20 18.5-20s15.8 6.7 18.5 20h-37Z"
+              fill="#D4A24C"
+            />
+            <path
+              d="M23 33c0-13.4 5.2-21.2 13-21.2S49 19.6 49 33v18H23V33Z"
+              fill="#4A332E"
+            />
+            <circle cx="36" cy="32" r="12.5" fill="#E8BE98" />
+            <path
+              d="M25.4 29.5c4.2-1.2 7.7-3.8 10.4-7.8 3.6 4.1 7.1 6.5 10.8 7.3-1.1-7.1-5.1-11.3-10.6-11.3-5.8 0-9.6 4.4-10.6 11.8Z"
+              fill="#4A332E"
+            />
+            <path
+              d="M29.5 39c4 3 9 3 13 0"
+              fill="none"
+              stroke="#26364A"
+              strokeLinecap="round"
+              strokeWidth="1.8"
+            />
+            <circle cx="31.5" cy="32.6" r="1.5" fill="#26364A" />
+            <circle cx="40.5" cy="32.6" r="1.5" fill="#26364A" />
+            <path
+              d="M31 50.5c2.8 2.2 7.2 2.2 10 0"
+              stroke="#F8F6F2"
+              strokeLinecap="round"
+              strokeWidth="2"
+            />
+          </>
+        )}
+      </svg>
+    </span>
   );
 };
 
@@ -474,12 +664,14 @@ const ParentCard = ({
 }: {
   name: string;
   role: string;
-  variant: PersonAvatarVariant;
+  variant: "man" | "woman";
 }) => {
+  const parentVariant = variant === "man" ? "father" : "mother";
+
   return (
     <article className="rounded-[26px] border border-slate-200/90 bg-slate-50/80 p-4">
       <div className="flex items-center gap-4">
-        <PersonAvatar label={`${role} - ${name}`} size="md" variant={variant} />
+        <ParentAvatar label={`${role} - ${name}`} variant={parentVariant} />
         <div className="min-w-0">
           <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
             {role}
@@ -517,6 +709,7 @@ const buildTimelineEntries = (
       id: `${application.id}-created`,
       type: "Demande reçue",
       date: formatOptionalDateTime(application.createdAt),
+      markerClassName: "bg-primary shadow-[0_10px_20px_-14px_rgba(31,77,58,0.75)]",
       sortDate: createdAt.getTime(),
       summary: `Dossier créé pour ${getStudentsSummary(application.students)}.`,
       content: `Année scolaire ${formatSchoolYearLabel(application.schoolYear.label)}.`
@@ -528,6 +721,7 @@ const buildTimelineEntries = (
       id: `${application.id}-decision`,
       type: "Décision finale",
       date: formatOptionalDateTime(application.decisionAt),
+      markerClassName: getDecisionTimelineMarkerClassName(application.status),
       sortDate: new Date(application.decisionAt).getTime(),
       summary: getDecisionSummary(application.status),
       content: application.decisionNote ?? undefined,
@@ -542,6 +736,7 @@ const buildTimelineEntries = (
       id: emailLog.id,
       type: `Email ${applicationEmailTypeLabels[emailLog.emailType].toLowerCase()}`,
       date: formatOptionalDateTime(timelineDate),
+      markerClassName: getEmailTimelineMarkerClassName(emailLog),
       sortDate: new Date(timelineDate).getTime(),
       summary: emailLog.subject,
       content: emailLog.bodySnapshot,
@@ -575,12 +770,15 @@ const ApplicationDetailPage = () => {
   const [selectedStatus, setSelectedStatus] = useState<ApplicationStatus>("RECEIVED");
   const [isStatusSubmitting, setIsStatusSubmitting] = useState(false);
   const [isPrioritySubmitting, setIsPrioritySubmitting] = useState(false);
-  const [selectedDecisionStatus, setSelectedDecisionStatus] =
-    useState<ApplicationDecisionStatus>("ACCEPTED");
-  const [decisionNote, setDecisionNote] = useState("");
-  const [isDecisionSubmitting, setIsDecisionSubmitting] = useState(false);
   const [updatingStudentAdmissionId, setUpdatingStudentAdmissionId] =
     useState<string | null>(null);
+  const [isExceptionalEditEnabled, setIsExceptionalEditEnabled] = useState(false);
+  const [isUnlockDecisionModalOpen, setIsUnlockDecisionModalOpen] =
+    useState(false);
+  const isDecisionLocked =
+    Boolean(application?.decisionAt && isDecisionStatus(application.status)) ||
+    hasSentDecisionEmail(emailLogs);
+  const isTreatmentReadOnly = isDecisionLocked && !isExceptionalEditEnabled;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -609,8 +807,6 @@ const ApplicationDetailPage = () => {
 
         setApplication(applicationData);
         setEmailLogs(emailLogsData);
-        setSelectedDecisionStatus(getDecisionSelection(applicationData.status));
-        setDecisionNote(applicationData.decisionNote ?? "");
       } catch (loadError) {
         if (isAbortError(loadError) || controller.signal.aborted) {
           return;
@@ -643,11 +839,23 @@ const ApplicationDetailPage = () => {
     }
   }, [application]);
 
+  useEffect(() => {
+    setIsExceptionalEditEnabled(false);
+    setIsUnlockDecisionModalOpen(false);
+  }, [application?.id, application?.decisionAt]);
+
   const handleStatusSubmit = useCallback(
     async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
       event.preventDefault();
 
       if (!application || selectedStatus === application.status) {
+        return;
+      }
+
+      if (isTreatmentReadOnly) {
+        showError(
+          "La décision est verrouillée depuis l'envoi de l'email au parent."
+        );
         return;
       }
 
@@ -669,9 +877,6 @@ const ApplicationDetailPage = () => {
             status: updatedApplication.status
           };
         });
-        if (isDecisionStatus(updatedApplication.status)) {
-          setSelectedDecisionStatus(getDecisionSelection(updatedApplication.status));
-        }
         showSuccess("Le statut a bien été mis à jour.");
       } catch (updateError) {
         showError(
@@ -681,11 +886,18 @@ const ApplicationDetailPage = () => {
         setIsStatusSubmitting(false);
       }
     },
-    [application, selectedStatus, showError, showSuccess]
+    [application, isTreatmentReadOnly, selectedStatus, showError, showSuccess]
   );
 
   const handlePriorityToggle = useCallback(async (): Promise<void> => {
     if (!application) {
+      return;
+    }
+
+    if (isTreatmentReadOnly) {
+      showError(
+        "La décision est verrouillée depuis l'envoi de l'email au parent."
+      );
       return;
     }
 
@@ -724,59 +936,7 @@ const ApplicationDetailPage = () => {
     } finally {
       setIsPrioritySubmitting(false);
     }
-  }, [application, showError, showSuccess]);
-
-  const handleDecisionSubmit = useCallback(
-    async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
-      event.preventDefault();
-
-      if (!application) {
-        return;
-      }
-
-      setIsDecisionSubmitting(true);
-
-      const normalizedDecisionNote = decisionNote.trim();
-
-      try {
-        const updatedApplication = await updateApplicationDecision(application.id, {
-          status: selectedDecisionStatus,
-          decisionNote:
-            normalizedDecisionNote.length > 0 ? normalizedDecisionNote : null
-        });
-
-        setApplication((currentApplication) => {
-          if (!currentApplication || currentApplication.id !== updatedApplication.id) {
-            return currentApplication;
-          }
-
-          return {
-            ...currentApplication,
-            status: updatedApplication.status,
-            decisionAt: updatedApplication.decisionAt,
-            decisionNote: updatedApplication.decisionNote,
-            students: currentApplication.students.map((student) => ({
-              ...student,
-              admissionStatus: updatedApplication.status
-            }))
-          };
-        });
-        setSelectedDecisionStatus(updatedApplication.status);
-        setDecisionNote(updatedApplication.decisionNote ?? "");
-        showSuccess("La décision finale a bien été enregistrée.");
-      } catch (updateError) {
-        showError(
-          getActionErrorMessage(
-            "Impossible d'enregistrer la décision finale.",
-            updateError
-          )
-        );
-      } finally {
-        setIsDecisionSubmitting(false);
-      }
-    },
-    [application, decisionNote, selectedDecisionStatus, showError, showSuccess]
-  );
+  }, [application, isTreatmentReadOnly, showError, showSuccess]);
 
   const handleStudentAdmissionStatusUpdate = useCallback(
     async (
@@ -784,6 +944,13 @@ const ApplicationDetailPage = () => {
       admissionStatus: StudentAdmissionStatus
     ): Promise<void> => {
       if (!application) {
+        return;
+      }
+
+      if (isTreatmentReadOnly) {
+        showError(
+          "La décision est verrouillée depuis l'envoi de l'email au parent."
+        );
         return;
       }
 
@@ -825,8 +992,22 @@ const ApplicationDetailPage = () => {
         setUpdatingStudentAdmissionId(null);
       }
     },
-    [application, showError, showSuccess]
+    [application, isTreatmentReadOnly, showError, showSuccess]
   );
+
+  const handleOpenExceptionalEditModal = useCallback((): void => {
+    setIsUnlockDecisionModalOpen(true);
+  }, []);
+
+  const handleCloseExceptionalEditModal = useCallback((): void => {
+    setIsUnlockDecisionModalOpen(false);
+  }, []);
+
+  const handleConfirmExceptionalEdit = useCallback((): void => {
+    setIsExceptionalEditEnabled(true);
+    setIsUnlockDecisionModalOpen(false);
+    showSuccess("Les modifications exceptionnelles sont maintenant activées.");
+  }, [showSuccess]);
 
   const timelineEntries = useMemo(() => {
     return application ? buildTimelineEntries(application, emailLogs) : [];
@@ -866,20 +1047,6 @@ const ApplicationDetailPage = () => {
   const handleSelectedStatusChange = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>): void => {
       setSelectedStatus(event.target.value as ApplicationStatus);
-    },
-    []
-  );
-
-  const handleSelectedDecisionStatusChange = useCallback(
-    (event: React.ChangeEvent<HTMLSelectElement>): void => {
-      setSelectedDecisionStatus(event.target.value as ApplicationDecisionStatus);
-    },
-    []
-  );
-
-  const handleDecisionNoteChange = useCallback(
-    (event: React.ChangeEvent<HTMLTextAreaElement>): void => {
-      setDecisionNote(event.target.value);
     },
     []
   );
@@ -967,6 +1134,23 @@ const ApplicationDetailPage = () => {
     );
   }
 
+  const treatmentAction = isDecisionLocked ? (
+    <button
+      type="button"
+      onClick={handleOpenExceptionalEditModal}
+      disabled={isExceptionalEditEnabled}
+      className={`inline-flex items-center justify-center rounded-full border px-4 py-2 text-xs font-semibold transition ${
+        isExceptionalEditEnabled
+          ? "cursor-default border-success/20 bg-success/10 text-success"
+          : "border-danger/20 bg-danger/5 text-danger hover:border-danger/30 hover:bg-danger/10"
+      }`}
+    >
+      {isExceptionalEditEnabled
+        ? "Modification activée"
+        : "Modifier exceptionnellement"}
+    </button>
+  ) : null;
+
   return (
     <>
       <div className="ui-animate-in ui-animate-in--subtle" style={getEnterStyle(120)}>
@@ -1028,8 +1212,12 @@ const ApplicationDetailPage = () => {
               <DetailField label="Décision prise le">
                 {formatOptionalDateTime(application.decisionAt)}
               </DetailField>
-              <DetailField label="Note de décision">
-                {formatOptionalText(application.decisionNote)}
+              <DetailField label="Décision finale">
+                {getFinalDecisionStatus(application) ? (
+                  <StatusBadge status={getFinalDecisionStatus(application) as ApplicationStatus} />
+                ) : (
+                  "Non renseigné"
+                )}
               </DetailField>
             </div>
         </SectionCard>
@@ -1065,12 +1253,30 @@ const ApplicationDetailPage = () => {
           <SectionCard
             title="Traitement"
             subtitle="Statut, priorité, décision finale et email."
+            action={treatmentAction}
             bodyClassName="!mt-4 flex flex-1 flex-col gap-3 xl:min-h-0"
             className="!p-5 sm:!p-6 xl:flex xl:h-full xl:min-h-0 xl:flex-col"
             motionDelay={220}
           >
+            {isDecisionLocked ? (
+              <div
+                className={`rounded-[20px] border px-4 py-3 text-xs font-medium leading-5 ${
+                  isExceptionalEditEnabled
+                    ? "border-success/20 bg-success/10 text-success"
+                    : "border-slate-200 bg-slate-50 text-slate-500"
+                }`}
+              >
+                {isExceptionalEditEnabled
+                  ? "Mode exceptionnel activé : les contrôles peuvent être modifiés."
+                  : "Décision verrouillée : l'email de décision a déjà été envoyé au parent."}
+              </div>
+            ) : null}
             <form className="shrink-0" onSubmit={handleStatusSubmit}>
-              <div className="rounded-[22px] border border-slate-200/90 bg-slate-50/80 p-3.5">
+              <div
+                className={`rounded-[22px] border border-slate-200/90 bg-slate-50/80 p-4 transition ${
+                  isTreatmentReadOnly ? "opacity-55 saturate-50" : ""
+                }`}
+              >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -1085,7 +1291,7 @@ const ApplicationDetailPage = () => {
                     aria-label="Nouveau statut"
                     value={selectedStatus}
                     onChange={handleSelectedStatusChange}
-                    disabled={isStatusSubmitting}
+                    disabled={isTreatmentReadOnly || isStatusSubmitting}
                     className="min-w-[170px] rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
                   >
                     {statusOptions.map((option) => (
@@ -1098,7 +1304,11 @@ const ApplicationDetailPage = () => {
 
                 <button
                   type="submit"
-                  disabled={isStatusSubmitting || selectedStatus === application.status}
+                  disabled={
+                    isTreatmentReadOnly ||
+                    isStatusSubmitting ||
+                    selectedStatus === application.status
+                  }
                   className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
                   <SaveIcon />
@@ -1109,22 +1319,11 @@ const ApplicationDetailPage = () => {
               </div>
             </form>
 
-            <div className="shrink-0 rounded-[22px] border border-slate-200/90 bg-slate-50/80 p-3.5">
-              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Décision des élèves
-              </p>
-              <p className="mt-2 text-sm font-semibold leading-6 text-slate-900">
-                {studentAdmissionSummary}
-              </p>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium text-slate-600">
-                  Statut global :
-                </span>
-                <StatusBadge status={application.status} />
-              </div>
-            </div>
-
-            <div className="shrink-0 rounded-[22px] border border-slate-200/90 bg-slate-50/80 p-3.5">
+            <div
+              className={`shrink-0 rounded-[22px] border border-slate-200/90 bg-slate-50/80 p-4 transition ${
+                isTreatmentReadOnly ? "opacity-55 saturate-50" : ""
+              }`}
+            >
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -1143,7 +1342,7 @@ const ApplicationDetailPage = () => {
                 <button
                   type="button"
                   onClick={handlePriorityToggle}
-                  disabled={isPrioritySubmitting}
+                  disabled={isTreatmentReadOnly || isPrioritySubmitting}
                   className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:border-primary/25 hover:text-primary disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
                 >
                   <StarIcon />
@@ -1158,72 +1357,31 @@ const ApplicationDetailPage = () => {
               </div>
             </div>
 
-            <form
-              className="shrink-0 rounded-[22px] border border-slate-200/90 bg-slate-50/80 p-3.5"
-              onSubmit={handleDecisionSubmit}
+            <div
+              className={`shrink-0 rounded-[22px] border border-slate-200/90 bg-slate-50/80 p-4 transition ${
+                isTreatmentReadOnly ? "opacity-55 saturate-50" : ""
+              }`}
             >
-              <div>
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Décision finale
-                </p>
-              </div>
-
-              <div className="mt-3 space-y-1.5">
-                <label
-                  htmlFor="application-decision-status"
-                  className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
-                >
-                  Décision
-                </label>
-                <select
-                  id="application-decision-status"
-                  value={selectedDecisionStatus}
-                  onChange={handleSelectedDecisionStatusChange}
-                  disabled={isDecisionSubmitting}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
-                >
-                  {decisionOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="mt-3 space-y-1.5">
-                <label
-                  htmlFor="application-decision-note"
-                  className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
-                >
-                  Note
-                </label>
-                <textarea
-                  id="application-decision-note"
-                  value={decisionNote}
-                  onChange={handleDecisionNoteChange}
-                  disabled={isDecisionSubmitting}
-                  rows={2}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
-                  placeholder="Note interne de décision."
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isDecisionSubmitting}
-                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-not-allowed disabled:bg-slate-300"
-              >
-                <SaveIcon />
-                <span>
-                  {isDecisionSubmitting
-                    ? "Enregistrement..."
-                    : "Enregistrer la décision"}
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Décision des élèves
+              </p>
+              <p className="mt-2 text-sm font-semibold leading-6 text-slate-900">
+                {studentAdmissionSummary}
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="text-sm font-medium text-slate-600">
+                  Statut global :
                 </span>
-              </button>
-            </form>
+                <StatusBadge status={application.status} />
+              </div>
+            </div>
 
-            <div className="flex min-h-[150px] flex-1 flex-col justify-between rounded-[22px] border border-secondary/20 bg-secondary/10 p-4">
-              <div>
+            <div
+              className={`flex min-h-[360px] flex-1 flex-col rounded-[22px] border border-secondary/20 bg-secondary/10 p-4 transition xl:mb-0 ${
+                isTreatmentReadOnly ? "opacity-55 saturate-50" : ""
+              }`}
+            >
+              <div className="flex flex-1 flex-col">
                 <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-secondaryDark">
                   Email
                 </p>
@@ -1231,14 +1389,25 @@ const ApplicationDetailPage = () => {
                   Ouvrez la page dédiée pour rédiger le message de décision, choisir
                   le type d'email et enregistrer l'envoi dans l'historique du dossier.
                 </p>
+                <MailSendAnimation />
               </div>
-              <Link
-                to={`/applications/${application.id}/email`}
-                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-secondary px-5 py-2 text-sm font-semibold text-white transition hover:bg-secondaryDark"
-              >
-                <MailIcon />
-                <span>Accéder à l'envoi d'email</span>
-              </Link>
+              {isTreatmentReadOnly ? (
+                <span
+                  aria-disabled="true"
+                  className="mt-4 inline-flex w-full shrink-0 cursor-not-allowed items-center justify-center gap-2 rounded-full bg-slate-300 px-5 py-2 text-sm font-semibold text-white"
+                >
+                  <MailIcon />
+                  <span>Envoi d'email verrouillé</span>
+                </span>
+              ) : (
+                <Link
+                  to={`/applications/${application.id}/email`}
+                  className="mt-4 inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-full bg-secondary px-5 py-2 text-sm font-semibold text-white transition hover:bg-secondaryDark"
+                >
+                  <MailIcon />
+                  <span>Accéder à l'envoi d'email</span>
+                </Link>
+              )}
             </div>
           </SectionCard>
         </div>
@@ -1272,11 +1441,6 @@ const ApplicationDetailPage = () => {
                         <h3 className="break-words text-lg font-semibold text-slate-900">
                           {student.firstName} {student.lastName}
                         </h3>
-                        {student.rankInForm ? (
-                          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-700 ring-1 ring-slate-200">
-                            Rang {student.rankInForm}
-                          </span>
-                        ) : null}
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <LevelBadge
@@ -1284,9 +1448,6 @@ const ApplicationDetailPage = () => {
                           label={student.level.label}
                           size="sm"
                         />
-                        <span className="text-sm font-medium text-slate-600">
-                          {student.level.label}
-                        </span>
                         <StudentAdmissionBadge
                           status={getStudentAdmissionStatus(student)}
                         />
@@ -1301,7 +1462,11 @@ const ApplicationDetailPage = () => {
                     </DetailField>
                   </div>
 
-                  <div className="mt-5 border-t border-slate-200/80 pt-4">
+                  <div
+                    className={`mt-5 border-t border-slate-200/80 pt-4 transition ${
+                      isTreatmentReadOnly ? "opacity-55 saturate-50" : ""
+                    }`}
+                  >
                     <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
                       Décision individuelle
                     </p>
@@ -1310,6 +1475,16 @@ const ApplicationDetailPage = () => {
                         const isCurrentStatus =
                           getStudentAdmissionStatus(student) === option.value;
                         const isSubmitting = updatingStudentAdmissionId === student.id;
+                        const activeButtonClassName =
+                          option.value === "ACCEPTED"
+                            ? "border-success/20 bg-success/15 text-success"
+                            : "border-info/20 bg-info/15 text-info";
+                        const interactiveButtonClassName =
+                          option.value === "ACCEPTED"
+                            ? "border-slate-300 bg-white text-slate-700 hover:border-success/25 hover:bg-success/10 hover:text-success"
+                            : "border-slate-300 bg-white text-slate-700 hover:border-info/25 hover:bg-info/10 hover:text-info";
+                        const readOnlyButtonClassName =
+                          "border-slate-200 bg-slate-100 text-slate-400";
 
                         return (
                           <button
@@ -1321,11 +1496,15 @@ const ApplicationDetailPage = () => {
                                 option.value
                               )
                             }
-                            disabled={isSubmitting || isCurrentStatus}
+                            disabled={
+                              isTreatmentReadOnly || isSubmitting || isCurrentStatus
+                            }
                             className={`inline-flex min-h-10 items-center justify-center rounded-full border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed ${
-                              isCurrentStatus
-                                ? "border-primary/20 bg-primary/10 text-primaryDark"
-                                : "border-slate-300 bg-white text-slate-700 hover:border-primary/25 hover:text-primary disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                              isTreatmentReadOnly
+                                ? readOnlyButtonClassName
+                                : isCurrentStatus
+                                ? activeButtonClassName
+                                : `${interactiveButtonClassName} disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400`
                             }`}
                           >
                             {isSubmitting && !isCurrentStatus
@@ -1352,7 +1531,9 @@ const ApplicationDetailPage = () => {
           <ol className="relative space-y-4 before:absolute before:bottom-3 before:left-[0.95rem] before:top-3 before:w-px before:bg-slate-200">
             {timelineEntries.map((entry) => (
               <li key={entry.id} className="relative pl-10">
-                <span className="absolute left-0 top-1.5 flex h-8 w-8 items-center justify-center rounded-full border border-white bg-primary text-white shadow-[0_10px_20px_-14px_rgba(31,77,58,0.7)]">
+                <span
+                  className={`absolute left-0 top-1.5 flex h-8 w-8 items-center justify-center rounded-full border border-white text-white ${entry.markerClassName}`}
+                >
                   <span className="h-2.5 w-2.5 rounded-full bg-white" />
                 </span>
                 <article className="rounded-[26px] border border-slate-200/90 bg-slate-50/80 p-5">
@@ -1381,6 +1562,48 @@ const ApplicationDetailPage = () => {
           </ol>
         </SectionCard>
       </div>
+
+      {isUnlockDecisionModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-4 py-6 backdrop-blur-sm">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="unlock-decision-title"
+            className="w-full max-w-lg rounded-[28px] border border-white/80 bg-white p-6 shadow-[0_24px_70px_-24px_rgba(15,23,42,0.45)]"
+          >
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-secondaryDark">
+              Modification exceptionnelle
+            </p>
+            <h2
+              id="unlock-decision-title"
+              className="mt-2 text-2xl font-semibold text-slate-900"
+            >
+              Autoriser la modification après envoi ?
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              L'email de décision a déjà été envoyé au parent. Cette action
+              réactive temporairement les contrôles de traitement et les décisions
+              individuelles pour corriger le dossier.
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={handleCloseExceptionalEditModal}
+                className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-primary/25 hover:text-primary"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmExceptionalEdit}
+                className="inline-flex items-center justify-center rounded-full bg-secondary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-secondaryDark"
+              >
+                Autoriser la modification
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 };

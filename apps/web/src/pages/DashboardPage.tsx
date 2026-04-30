@@ -4,9 +4,10 @@ import {
   useMemo,
   useState,
   type CSSProperties,
-  type JSX
+  type JSX,
+  type KeyboardEvent
 } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import PageSectionHeader from "../components/layout/PageSectionHeader";
 import Breadcrumb from "../components/ui/Breadcrumb";
@@ -21,6 +22,7 @@ import { getLevelVisualStyle } from "../lib/levelVisuals";
 import type { SchoolYearSummary } from "../types/application";
 import type {
   DashboardApplicationStatus,
+  DashboardLevelStat,
   DashboardPriorityApplication,
   DashboardStats
 } from "../types/dashboard";
@@ -49,11 +51,27 @@ type MetricCardProps = {
   label: string;
   motionDelay?: number;
   surfaceClassName: string;
+  status: DashboardApplicationStatus;
   value: number;
   valueClassName?: string;
 };
 
+type LevelBreakdownItem = DashboardLevelStat & {
+  chartEnd: number;
+  chartMidAngle: number;
+  chartStart: number;
+  share: number;
+  tooltipX: number;
+  tooltipY: number;
+  width: number;
+  visual: ReturnType<typeof getLevelVisualStyle>;
+};
+
 const PRIORITY_DISPLAY_LIMIT = 3;
+const LEVEL_CHART_CENTER = 112;
+const LEVEL_CHART_INNER_RADIUS = 64;
+const LEVEL_CHART_OUTER_RADIUS = 112;
+const LEVEL_CHART_TOOLTIP_RADIUS = 80;
 
 const dashboardHeaderEyebrow = "Administration ECE";
 const dashboardHeaderTitle = "Bienvenue dans l'espace d'administration ECE";
@@ -72,6 +90,41 @@ const getEnterStyle = (delay: number): CSSProperties => {
   return {
     "--ui-enter-delay": `${delay}ms`
   } as CSSProperties;
+};
+
+const getPointOnCircle = (
+  center: number,
+  radius: number,
+  angleInDegrees: number
+): { x: number; y: number } => {
+  const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180;
+
+  return {
+    x: center + radius * Math.cos(angleInRadians),
+    y: center + radius * Math.sin(angleInRadians)
+  };
+};
+
+const getDonutSegmentPath = (
+  startAngle: number,
+  endAngle: number,
+  outerRadius = LEVEL_CHART_OUTER_RADIUS,
+  innerRadius = LEVEL_CHART_INNER_RADIUS
+): string => {
+  const safeEndAngle = endAngle - startAngle >= 360 ? startAngle + 359.999 : endAngle;
+  const outerStart = getPointOnCircle(LEVEL_CHART_CENTER, outerRadius, safeEndAngle);
+  const outerEnd = getPointOnCircle(LEVEL_CHART_CENTER, outerRadius, startAngle);
+  const innerStart = getPointOnCircle(LEVEL_CHART_CENTER, innerRadius, startAngle);
+  const innerEnd = getPointOnCircle(LEVEL_CHART_CENTER, innerRadius, safeEndAngle);
+  const largeArcFlag = safeEndAngle - startAngle > 180 ? 1 : 0;
+
+  return [
+    `M ${outerStart.x} ${outerStart.y}`,
+    `A ${outerRadius} ${outerRadius} 0 ${largeArcFlag} 0 ${outerEnd.x} ${outerEnd.y}`,
+    `L ${innerStart.x} ${innerStart.y}`,
+    `A ${innerRadius} ${innerRadius} 0 ${largeArcFlag} 1 ${innerEnd.x} ${innerEnd.y}`,
+    "Z"
+  ].join(" ");
 };
 
 const MailMetricIcon = ({ className = "h-5 w-5" }: IconProps) => {
@@ -134,6 +187,23 @@ const WaitlistedMetricIcon = ({ className = "h-5 w-5" }: IconProps) => {
   );
 };
 
+const ChevronRightIcon = ({ className = "h-4 w-4" }: IconProps) => {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="m6.25 3.25 4.5 4.75-4.5 4.75" />
+    </svg>
+  );
+};
+
 const PartialMetricIcon = ({ className = "h-5 w-5" }: IconProps) => {
   return (
     <svg
@@ -154,7 +224,7 @@ const statusCards: StatusCardConfig[] = [
   {
     status: "RECEIVED",
     label: "Reçues",
-    description: "Demandes nouvellement importées ou enregistrées.",
+    description: "Demandes nouvellement importées.",
     valueClassName: "text-slate-900",
     surfaceClassName: "bg-slate-50/90",
     iconClassName: "bg-slate-900 text-white",
@@ -163,7 +233,7 @@ const statusCards: StatusCardConfig[] = [
   {
     status: "IN_REVIEW",
     label: "En revue",
-    description: "Demandes en cours d'analyse par l'administration.",
+    description: "Demandes en cours d'analyse.",
     valueClassName: "text-info",
     surfaceClassName: "bg-info/10",
     iconClassName: "bg-info text-white",
@@ -172,7 +242,7 @@ const statusCards: StatusCardConfig[] = [
   {
     status: "ACCEPTED",
     label: "Acceptées",
-    description: "Décisions favorables déjà prises.",
+    description: "Demandes entièrement acceptées.",
     valueClassName: "text-success",
     surfaceClassName: "bg-success/10",
     iconClassName: "bg-success text-white",
@@ -181,7 +251,7 @@ const statusCards: StatusCardConfig[] = [
   {
     status: "PARTIALLY_ACCEPTED",
     label: "Partielles",
-    description: "Dossiers avec des décisions différentes selon les élèves.",
+    description: "Demandes avec acceptation partielle.",
     valueClassName: "text-secondaryDark",
     surfaceClassName: "bg-secondary/10",
     iconClassName: "bg-secondary text-white",
@@ -190,7 +260,7 @@ const statusCards: StatusCardConfig[] = [
   {
     status: "WAITLISTED",
     label: "Liste d'attente",
-    description: "Élèves placés en attente d'une place disponible.",
+    description: "Demandes entièrement en attente de place.",
     getValue: (dashboardData) => dashboardData.waitlistedStudents,
     valueClassName: "text-primary",
     surfaceClassName: "bg-primary/10",
@@ -256,6 +326,26 @@ const getPriorityLevels = (
   return Array.from(uniqueLevels.values());
 };
 
+const StatusOverviewIcon = ({ className = "h-5 w-5" }: IconProps) => {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <rect x="3.5" y="4" width="13" height="12" rx="2.4" />
+      <path d="M6.5 8h7" />
+      <path d="M6.5 11h4.2" />
+      <path d="M13.2 11.2 15 13l3-3" />
+    </svg>
+  );
+};
+
 const MetricCard = ({
   label,
   value,
@@ -264,15 +354,18 @@ const MetricCard = ({
   iconClassName,
   motionDelay = 0,
   surfaceClassName,
+  status,
   valueClassName = "text-primary"
 }: MetricCardProps) => {
   return (
-    <article
-      className={`ui-animate-in ui-surface-hover rounded-[28px] border border-white/80 p-5 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.32)] ${surfaceClassName}`}
+    <Link
+      to={`/applications?status=${encodeURIComponent(status)}`}
+      aria-label={`Voir les demandes avec le statut ${label}`}
+      className={`ui-animate-in ui-surface-hover block rounded-[28px] border border-primary/10 p-5 shadow-[0_18px_40px_-30px_rgba(31,77,58,0.34)] outline-none transition hover:border-secondary/35 focus-visible:ring-4 focus-visible:ring-secondary/20 ${surfaceClassName}`}
       style={getEnterStyle(motionDelay)}
     >
       <div className="flex items-start justify-between gap-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
           {label}
         </p>
         <span
@@ -284,23 +377,19 @@ const MetricCard = ({
       <p className={`mt-6 text-4xl font-semibold tracking-tight ${valueClassName}`}>
         {value}
       </p>
-      <p className="mt-2 text-sm font-medium text-slate-700">{label}</p>
-      <p className="mt-3 text-sm leading-6 text-slate-500">{description}</p>
-    </article>
+      <p className="mt-2 text-sm font-semibold text-slate-800">{label}</p>
+      <p className="mt-3 text-sm leading-6 text-slate-600">{description}</p>
+    </Link>
   );
 };
 
-const isWideLevelCard = (levelCode: string): boolean => {
-  const normalizedCode = levelCode.trim().toUpperCase();
-
-  return normalizedCode === "CM1" || normalizedCode === "CM2";
-};
-
 const DashboardPage = () => {
+  const navigate = useNavigate();
   const [data, setData] = useState<DashboardStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPriorityPage, setCurrentPriorityPage] = useState(1);
+  const [hoveredLevelKey, setHoveredLevelKey] = useState<string | null>(null);
   const [activeSchoolYear, setActiveSchoolYear] = useState<SchoolYearSummary | null>(
     null
   );
@@ -393,9 +482,65 @@ const DashboardPage = () => {
       priorityStartIndex + PRIORITY_DISPLAY_LIMIT
     );
 
+    const maxLevelCount = Math.max(...data.byLevel.map((level) => level.count), 0);
+    const totalStudents = data.byLevel.reduce((sum, level) => sum + level.count, 0);
+    let chartCursor = 0;
+    const levelBreakdown: LevelBreakdownItem[] = data.byLevel.map((level, index) => {
+      const share =
+        totalStudents === 0 ? 0 : Math.round((level.count / totalStudents) * 100);
+      const rawShare = totalStudents === 0 ? 0 : (level.count / totalStudents) * 100;
+      const width =
+        maxLevelCount === 0 || level.count === 0
+          ? 0
+          : Math.max((level.count / maxLevelCount) * 100, 6);
+      const chartStart = chartCursor;
+      chartCursor += rawShare;
+      const chartEnd = chartCursor;
+      const chartMidAngle = ((chartStart + chartEnd) / 2) * 3.6;
+      const tooltipPoint = getPointOnCircle(
+        LEVEL_CHART_CENTER,
+        LEVEL_CHART_TOOLTIP_RADIUS,
+        chartMidAngle
+      );
+
+      return {
+        ...level,
+        chartStart,
+        chartEnd,
+        chartMidAngle,
+        share,
+        tooltipX: (tooltipPoint.x / (LEVEL_CHART_CENTER * 2)) * 100,
+        tooltipY: (tooltipPoint.y / (LEVEL_CHART_CENTER * 2)) * 100,
+        width,
+        visual: getLevelVisualStyle(level.code, level.label, index)
+      };
+    });
+    const levelChartGradient =
+      totalStudents === 0
+        ? "#e2e8f0 0deg 360deg"
+        : levelBreakdown
+            .map((level) => {
+              return `${level.visual.barColor} ${level.chartStart * 3.6}deg ${
+                level.chartEnd * 3.6
+              }deg`;
+            })
+            .join(", ");
+    const topLevel = levelBreakdown.reduce<LevelBreakdownItem | null>(
+      (currentTopLevel, level) => {
+        if (!currentTopLevel || level.count > currentTopLevel.count) {
+          return level;
+        }
+
+        return currentTopLevel;
+      },
+      null
+    );
+
     return {
-      maxLevelCount: Math.max(...data.byLevel.map((level) => level.count), 0),
-      totalStudents: data.byLevel.reduce((sum, level) => sum + level.count, 0),
+      levelBreakdown,
+      levelChartGradient,
+      topLevel,
+      totalStudents,
       totalPriorityPages,
       visiblePriorityApplications,
       visiblePriorityStart:
@@ -416,6 +561,25 @@ const DashboardPage = () => {
       Math.min(dashboardView?.totalPriorityPages ?? 1, page + 1)
     );
   }, [dashboardView?.totalPriorityPages]);
+
+  const openApplicationDetail = useCallback(
+    (applicationId: string): void => {
+      navigate(`/applications/${applicationId}`);
+    },
+    [navigate]
+  );
+
+  const handlePriorityCardKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLElement>, applicationId: string): void => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+
+      event.preventDefault();
+      openApplicationDetail(applicationId);
+    },
+    [openApplicationDetail]
+  );
 
   const pageTopBar = (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -504,54 +668,65 @@ const DashboardPage = () => {
       {pageHeader}
 
       <section
-        className="ui-animate-in ui-surface-hover ui-surface-hover--soft ui-surface-hover--no-accent overflow-hidden rounded-[32px] border border-white/80 bg-white/92 shadow-[0_24px_50px_-34px_rgba(15,23,42,0.3)]"
+        className="ui-animate-in ui-surface-hover ui-surface-hover--soft ui-surface-hover--no-accent overflow-hidden rounded-[32px] border border-primary/20 bg-[#fffdf8] shadow-[0_30px_66px_-38px_rgba(31,77,58,0.42)]"
         style={getEnterStyle(190)}
       >
-        <div className="p-6 sm:p-8">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primaryLight">
-                Suivi des demandes
-              </p>
-              <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
-                Demandes par statut
-              </h2>
-              <p className="mt-3 max-w-4xl text-[1.02rem] leading-8 text-slate-600">
-                Visualisez la répartition des dossiers selon leur état de
-                traitement pour prioriser les prochaines actions.
-              </p>
+        <div className="border-b border-secondary/30 bg-primary px-6 py-6 text-white sm:px-8">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-start gap-4">
+              <span className="mt-1 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-secondary shadow-[0_16px_30px_-22px_rgba(0,0,0,0.55)]">
+                <StatusOverviewIcon />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-secondary">
+                  Suivi des demandes
+                </p>
+                <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white">
+                  Demandes par statut
+                </h2>
+                <p className="mt-3 max-w-4xl text-[1.02rem] leading-8 text-white/80">
+                  Visualisez la répartition des dossiers selon leur état de
+                  traitement pour prioriser les prochaines actions.
+                </p>
+              </div>
             </div>
 
-            <div
-              className="ui-animate-in inline-flex w-fit shrink-0 flex-col rounded-[28px] border border-primary/15 bg-primary/5 px-7 py-5 text-center shadow-[0_14px_26px_-22px_rgba(31,77,58,0.28)] lg:ml-6"
-              style={getEnterStyle(240)}
-            >
-              <p className="text-[0.74rem] font-semibold uppercase tracking-[0.22em] text-primaryDark">
-                Total
-              </p>
-              <p className="mt-3 text-4xl font-semibold tracking-tight text-slate-900">
-                {data.totalApplications}
-              </p>
-              <p className="mt-1 text-sm text-slate-500">demandes suivies</p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:ml-6 lg:justify-end">
+              <div
+                className="ui-animate-in inline-flex w-fit shrink-0 flex-col rounded-[28px] border border-secondary/40 bg-secondary/20 px-7 py-5 text-center text-white shadow-[0_18px_34px_-24px_rgba(0,0,0,0.5)]"
+                style={getEnterStyle(240)}
+              >
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-secondary">
+                  Total
+                </p>
+                <p className="mt-2 text-4xl font-semibold tracking-tight">
+                  {data.totalApplications}
+                </p>
+                <p className="mt-1 text-sm font-medium text-white/80">
+                  demandes suivies
+                </p>
+              </div>
             </div>
           </div>
+        </div>
 
-          <div className="mt-6 flex flex-wrap gap-3">
-            <span
-              className="ui-animate-in inline-flex items-center rounded-full border border-secondary/20 bg-secondary/10 px-4 py-2 text-sm font-medium text-secondaryDark"
-              style={getEnterStyle(300)}
-            >
+        <div className="bg-[#fffaf2] p-6 sm:p-8">
+          <div className="mb-6 flex flex-wrap items-center gap-2 border-b border-secondary/25 pb-4">
+            <span className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-primaryLight">
+              Vue active
+            </span>
+            <span className="inline-flex items-center rounded-full border border-primary/15 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
+              {data.totalApplications} demandes
+            </span>
+            <span className="inline-flex items-center rounded-full border border-secondary/30 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
               {data.priorityApplications.length} prioritaires
             </span>
-            <span
-              className="ui-animate-in inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700"
-              style={getEnterStyle(360)}
-            >
-              {data.byLevel.length} niveaux suivis
+            <span className="inline-flex items-center rounded-full border border-secondary/30 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
+              {data.byLevel.length} niveaux
             </span>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             {statusCards.map((card, index) => (
               <MetricCard
                 key={card.status}
@@ -562,6 +737,7 @@ const DashboardPage = () => {
                 iconClassName={card.iconClassName}
                 motionDelay={360 + index * 70}
                 surfaceClassName={card.surfaceClassName}
+                status={card.status}
                 valueClassName={card.valueClassName}
               />
             ))}
@@ -603,76 +779,217 @@ const DashboardPage = () => {
             </div>
           </div>
 
-          <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-12">
-            {data.byLevel.length === 0 ? (
-              <p className="rounded-2xl border border-dashed border-border bg-background/70 px-4 py-6 text-sm text-slate-500">
-                Aucun niveau disponible.
-              </p>
-            ) : (
-              data.byLevel.map((level, index) => {
-                const share =
-                  dashboardView.totalStudents === 0
-                    ? 0
-                    : Math.round((level.count / dashboardView.totalStudents) * 100);
-                const width =
-                  dashboardView.maxLevelCount === 0 || level.count === 0
-                    ? 0
-                    : Math.max((level.count / dashboardView.maxLevelCount) * 100, 6);
-                const visual = getLevelVisualStyle(level.code, level.label, index);
-                const levelCardClassName = isWideLevelCard(level.code)
-                  ? "xl:col-span-6"
-                  : "xl:col-span-4";
+          {data.byLevel.length === 0 ? (
+            <p className="mt-8 rounded-2xl border border-dashed border-border bg-background/70 px-4 py-6 text-sm text-slate-500">
+              Aucun niveau disponible.
+            </p>
+          ) : (
+            <div className="mt-8 grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+              <div className="rounded-[28px] border border-slate-200/90 bg-slate-50/75 p-5 shadow-[0_18px_34px_-30px_rgba(15,23,42,0.25)]">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Vue globale
+                    </p>
+                    <h3 className="mt-1 text-xl font-semibold text-slate-900">
+                      Répartition
+                    </h3>
+                  </div>
+                  {dashboardView.topLevel ? (
+                    <LevelBadge
+                      code={dashboardView.topLevel.code}
+                      label={dashboardView.topLevel.label}
+                      size="md"
+                    />
+                  ) : null}
+                </div>
 
-                return (
+                <div className="mt-6 flex justify-center">
                   <div
-                    key={level.code}
-                    className={`ui-animate-in ui-surface-hover ui-surface-hover--soft rounded-[28px] border p-5 shadow-[0_16px_28px_-26px_rgba(15,23,42,0.16)] ${levelCardClassName}`}
-                    style={{
-                      ...getEnterStyle(560 + index * 70),
-                      backgroundColor: visual.cardBackground,
-                      borderColor: visual.borderColor
-                    }}
+                    className="relative grid h-56 w-56 place-items-center rounded-full shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08),0_24px_42px_-34px_rgba(15,23,42,0.5)]"
+                    aria-label={`Répartition de ${dashboardView.totalStudents} élèves par niveau`}
+                    role="img"
                   >
-                    <div className="flex items-start justify-between gap-4">
+                    <svg
+                      viewBox="0 0 224 224"
+                      className="absolute inset-0 h-full w-full overflow-visible rounded-full"
+                      aria-hidden="true"
+                    >
+                      {dashboardView.levelBreakdown.map((level) => {
+                        const levelKey = `${level.code}-${level.label}`;
+                        const isHovered = hoveredLevelKey === levelKey;
+
+                        return (
+                          <path
+                            key={levelKey}
+                            d={getDonutSegmentPath(
+                              level.chartStart * 3.6,
+                              level.chartEnd * 3.6
+                            )}
+                            fill={level.visual.barColor}
+                            className="outline-none transition duration-200 hover:brightness-110 focus-visible:brightness-110"
+                            style={{
+                              filter: isHovered
+                                ? "drop-shadow(0 12px 16px rgba(15, 23, 42, 0.18))"
+                                : undefined,
+                              transform: isHovered ? "scale(1.015)" : undefined,
+                              transformBox: "fill-box",
+                              transformOrigin: "center"
+                            }}
+                            tabIndex={0}
+                            onMouseEnter={() => setHoveredLevelKey(levelKey)}
+                            onMouseLeave={() => setHoveredLevelKey(null)}
+                            onFocus={() => setHoveredLevelKey(levelKey)}
+                            onBlur={() => setHoveredLevelKey(null)}
+                          />
+                        );
+                      })}
+                    </svg>
+
+                    {dashboardView.levelBreakdown.map((level) => {
+                      const levelKey = `${level.code}-${level.label}`;
+                      const isHovered = hoveredLevelKey === levelKey;
+
+                      return (
+                        <div
+                          key={`${levelKey}-tooltip`}
+                          className={`pointer-events-none absolute z-20 min-w-[150px] rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 text-left shadow-[0_18px_34px_-22px_rgba(15,23,42,0.35)] backdrop-blur transition duration-150 ${
+                            isHovered
+                              ? "translate-y-0 scale-100 opacity-100"
+                              : "translate-y-1 scale-95 opacity-0"
+                          }`}
+                          style={{
+                            left: `${level.tooltipX}%`,
+                            top: `${level.tooltipY}%`,
+                            transform: `translate(-50%, -118%) ${
+                              isHovered ? "scale(1)" : "scale(0.95)"
+                            }`
+                          }}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="h-2.5 w-2.5 shrink-0 rounded-full"
+                              style={{ backgroundColor: level.visual.barColor }}
+                            />
+                            <p className="truncate text-sm font-semibold text-slate-900">
+                              {level.label}
+                            </p>
+                          </div>
+                          <p className="mt-1 text-xs font-medium text-slate-500">
+                            {level.count} demande{level.count > 1 ? "s" : ""}
+                          </p>
+                        </div>
+                      );
+                    })}
+
+                    <div className="relative z-10 grid h-32 w-32 place-items-center rounded-full border border-white/90 bg-white text-center shadow-[0_16px_30px_-28px_rgba(15,23,42,0.5)]">
                       <div>
-                        <p className="text-2xl font-semibold tracking-tight text-slate-900">
-                          {level.label}
+                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Total
                         </p>
-                        <LevelBadge
-                          code={level.code}
-                          label={level.label}
-                          size="md"
-                          className="ui-surface-hover__chip mt-3"
+                        <p className="mt-1 text-4xl font-semibold tracking-tight text-slate-900">
+                          {dashboardView.totalStudents}
+                        </p>
+                        <p className="mt-1 text-xs font-medium text-slate-500">
+                          élèves
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {dashboardView.topLevel ? (
+                  <div className="mt-6 rounded-[22px] border border-white bg-white/80 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Niveau le plus demandé
+                    </p>
+                    <div className="mt-2 flex items-end justify-between gap-4">
+                      <p className="text-lg font-semibold text-slate-900">
+                        {dashboardView.topLevel.label}
+                      </p>
+                      <p className="text-2xl font-semibold tracking-tight text-slate-900">
+                        {dashboardView.topLevel.count}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="rounded-[28px] border border-slate-200/90 bg-white/70 p-5 shadow-[0_18px_34px_-30px_rgba(15,23,42,0.18)]">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Détail par niveau
+                    </p>
+                    <h3 className="mt-1 text-xl font-semibold text-slate-900">
+                      Volumes et proportions
+                    </h3>
+                  </div>
+                  <p className="text-sm font-medium text-slate-500">
+                    Curseurs calibrés sur le niveau le plus demandé.
+                  </p>
+                </div>
+
+                <div className="mt-5 space-y-3">
+                  {dashboardView.levelBreakdown.map((level) => (
+                    <Link
+                      key={`${level.code}-summary`}
+                      to={`/students?level=${encodeURIComponent(level.code)}`}
+                      title="Voir les élèves ayant demandé ce niveau"
+                      aria-label={`Voir les élèves ayant demandé ce niveau: ${level.label}`}
+                      className="group grid gap-3 rounded-[22px] border border-slate-200/80 bg-slate-50/70 px-4 py-3 text-left transition hover:border-primary/20 hover:bg-white hover:shadow-[0_16px_30px_-28px_rgba(15,23,42,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 sm:grid-cols-[150px_minmax(0,1fr)_112px] sm:items-center"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span
+                          className="h-3 w-3 shrink-0 rounded-full"
+                          style={{ backgroundColor: level.visual.barColor }}
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-900">
+                            {level.label}
+                          </p>
+                          <p className="mt-0.5 text-xs font-medium text-slate-500">
+                            {level.code.toUpperCase()}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div
+                        className="overflow-hidden rounded-full p-1"
+                        style={{ backgroundColor: level.visual.trackColor }}
+                      >
+                        <div
+                          className="h-3 rounded-full shadow-[0_10px_18px_-14px_rgba(15,23,42,0.5)]"
+                          style={{
+                            width: `${level.width}%`,
+                            backgroundColor: level.visual.barColor
+                          }}
                         />
                       </div>
 
-                      <div className="shrink-0 text-right">
-                        <p className="text-3xl font-semibold tracking-tight text-slate-900">
-                          {level.count}
-                        </p>
-                        <p className="mt-2 text-sm text-slate-500">
-                          {share}% des élèves
-                        </p>
+                      <div className="flex items-center justify-between gap-3 sm:justify-end">
+                        <div className="flex items-baseline gap-3">
+                          <p className="text-lg font-semibold text-slate-900">
+                            {level.count}
+                          </p>
+                          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                            {level.share}%
+                          </p>
+                        </div>
+                        <span
+                          aria-hidden="true"
+                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 transition group-hover:border-primary/20 group-hover:text-primary"
+                        >
+                          <ChevronRightIcon />
+                        </span>
                       </div>
-                    </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
-                    <div
-                      className="mt-6 overflow-hidden rounded-full p-1"
-                      style={{ backgroundColor: visual.trackColor }}
-                    >
-                      <div
-                        className="ui-surface-hover__bar h-3.5 rounded-full shadow-[0_10px_18px_-14px_rgba(15,23,42,0.55)]"
-                        style={{
-                          width: `${width}%`,
-                          backgroundColor: visual.barColor
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
         </article>
 
         <article
@@ -711,7 +1028,12 @@ const DashboardPage = () => {
                 return (
                   <article
                     key={application.id}
-                    className="ui-animate-in ui-surface-hover ui-surface-hover--soft rounded-[28px] border border-slate-200/90 bg-slate-50/80 p-5 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.18)]"
+                    role="link"
+                    tabIndex={0}
+                    aria-label={`Ouvrir la demande de la famille ${getFamilyDisplayName(application)}`}
+                    onClick={() => openApplicationDetail(application.id)}
+                    onKeyDown={(event) => handlePriorityCardKeyDown(event, application.id)}
+                    className="ui-animate-in ui-surface-hover ui-surface-hover--soft cursor-pointer rounded-[28px] border border-slate-200/90 bg-slate-50/80 p-5 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.18)] outline-none transition focus-visible:ring-4 focus-visible:ring-primary/20"
                     style={getEnterStyle(760 + index * 80)}
                   >
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -731,6 +1053,7 @@ const DashboardPage = () => {
                         <StatusBadge status={application.status} />
                         <Link
                           to={`/applications/${application.id}`}
+                          onClick={(event) => event.stopPropagation()}
                           className="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-primary/30 hover:text-primary"
                         >
                           Voir la demande
@@ -776,6 +1099,7 @@ const DashboardPage = () => {
                           {application.family.contactEmail ? (
                             <a
                               href={`mailto:${application.family.contactEmail}`}
+                              onClick={(event) => event.stopPropagation()}
                               className="break-all text-primary hover:text-primaryDark"
                             >
                               {application.family.contactEmail}
@@ -825,13 +1149,8 @@ const DashboardPage = () => {
           </div>
 
           {data.priorityApplications.length > 0 ? (
-            <div className="mt-6 flex flex-col gap-4 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm text-slate-500">
-                Affichage de {dashboardView.visiblePriorityStart} à {dashboardView.visiblePriorityEnd} sur{" "}
-                {data.priorityApplications.length} demande
-                {data.priorityApplications.length > 1 ? "s" : ""}.
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
+            <div className="mt-6 flex justify-center border-t border-slate-200 pt-5">
+              <div className="flex flex-wrap items-center justify-center gap-2">
                 <button
                   type="button"
                   onClick={handlePreviousPriorityPage}
@@ -856,12 +1175,13 @@ const DashboardPage = () => {
           ) : null}
 
           {data.priorityApplications.length > 0 ? (
-            <div className="mt-4">
+            <div className="mt-4 flex justify-center">
               <Link
-                to="/applications"
-                className="inline-flex items-center rounded-full text-sm font-semibold text-primary transition hover:text-primaryDark"
+                to="/applications?isPriority=true"
+                className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-primary transition hover:border-primary/25 hover:text-primaryDark"
               >
-                Ouvrir toutes les demandes
+                <span>Ouvrir toutes les demandes prioritaires</span>
+                <ChevronRightIcon />
               </Link>
             </div>
           ) : null}

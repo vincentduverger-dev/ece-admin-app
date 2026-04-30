@@ -6,8 +6,10 @@ import {
   type CSSProperties,
   type ReactNode
 } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
+import FeedbackEmptyState from "../components/feedback/EmptyState";
+import SuccessFeedback from "../components/feedback/SuccessFeedback";
 import PageSectionHeader from "../components/layout/PageSectionHeader";
 import Breadcrumb from "../components/ui/Breadcrumb";
 import ErrorState from "../components/ui/ErrorState";
@@ -32,8 +34,10 @@ import {
   applicationEmailTypeOptions,
   applicationEmailTypeStyles,
   getApplicationEmailActionErrorMessage,
+  getApplicationDecisionChangeEmailTemplate,
   getApplicationDecisionEmailContext,
-  getApplicationDecisionEmailTemplate
+  getApplicationDecisionEmailTemplate,
+  getLatestSentDecisionEmailLog
 } from "../lib/applicationEmail";
 import type {
   ApplicationDetail,
@@ -255,6 +259,7 @@ const SectionCard = ({
 
 const ApplicationEmailPage = () => {
   const { id: applicationId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { showError, showSuccess } = useToast();
   const [application, setApplication] = useState<ApplicationDetail | null>(null);
   const [emailLogs, setEmailLogs] = useState<ApplicationEmailLog[]>([]);
@@ -272,12 +277,33 @@ const ApplicationEmailPage = () => {
   const [isEmailBodyDirty, setIsEmailBodyDirty] = useState(false);
   const [isEmailSubmitting, setIsEmailSubmitting] = useState(false);
   const [isSendConfirmationOpen, setIsSendConfirmationOpen] = useState(false);
+  const [hasEmailSendSuccess, setHasEmailSendSuccess] = useState(false);
 
-  const resetEmailForm = useCallback((nextApplication?: ApplicationDetail): void => {
+  const resetEmailForm = useCallback((
+    nextApplication?: ApplicationDetail,
+    nextEmailLogs: ApplicationEmailLog[] = []
+  ): void => {
     if (!nextApplication) {
       setSelectedEmailType("ACCEPTANCE");
       setEmailSubject(applicationEmailTemplates.ACCEPTANCE.subject);
       setEmailBody(applicationEmailTemplates.ACCEPTANCE.body);
+      setIsEmailSubjectDirty(false);
+      setIsEmailBodyDirty(false);
+      return;
+    }
+
+    const latestSentDecisionEmailLog =
+      getLatestSentDecisionEmailLog(nextEmailLogs);
+
+    if (latestSentDecisionEmailLog) {
+      const decisionChangeTemplate = getApplicationDecisionChangeEmailTemplate(
+        nextApplication,
+        latestSentDecisionEmailLog
+      );
+
+      setSelectedEmailType("CUSTOM");
+      setEmailSubject(decisionChangeTemplate.subject);
+      setEmailBody(decisionChangeTemplate.body);
       setIsEmailSubjectDirty(false);
       setIsEmailBodyDirty(false);
       return;
@@ -334,7 +360,7 @@ const ApplicationEmailPage = () => {
 
         setApplication(applicationData);
         setEmailLogs(emailLogsData);
-        resetEmailForm(applicationData);
+        resetEmailForm(applicationData, emailLogsData);
       } catch (loadError) {
         if (isAbortError(loadError) || controller.signal.aborted) {
           return;
@@ -366,7 +392,13 @@ const ApplicationEmailPage = () => {
       return;
     }
 
-    const template = getApplicationDecisionEmailTemplate(application, selectedEmailType);
+    const latestSentDecisionEmailLog = getLatestSentDecisionEmailLog(emailLogs);
+    const template = latestSentDecisionEmailLog && selectedEmailType === "CUSTOM"
+      ? getApplicationDecisionChangeEmailTemplate(
+          application,
+          latestSentDecisionEmailLog
+        )
+      : getApplicationDecisionEmailTemplate(application, selectedEmailType);
 
     if (!template) {
       return;
@@ -379,7 +411,13 @@ const ApplicationEmailPage = () => {
     if (!isEmailBodyDirty) {
       setEmailBody(template.body);
     }
-  }, [application, selectedEmailType, isEmailSubjectDirty, isEmailBodyDirty]);
+  }, [
+    application,
+    emailLogs,
+    selectedEmailType,
+    isEmailSubjectDirty,
+    isEmailBodyDirty
+  ]);
 
   const getValidatedEmailPayload =
     useCallback((): ApplicationEmailSendPayload | null => {
@@ -400,12 +438,24 @@ const ApplicationEmailPage = () => {
         return null;
       }
 
+      const shouldSyncDecisionAt =
+        selectedEmailType === "CUSTOM" &&
+        Boolean(getLatestSentDecisionEmailLog(emailLogs));
+
       return {
         emailType: selectedEmailType,
         subject: normalizedSubject,
-        body: normalizedBody
+        body: normalizedBody,
+        syncDecisionAt: shouldSyncDecisionAt
       };
-    }, [application, emailBody, emailSubject, selectedEmailType, showError]);
+    }, [
+      application,
+      emailBody,
+      emailLogs,
+      emailSubject,
+      selectedEmailType,
+      showError
+    ]);
 
   const sendValidatedEmail = useCallback(
     async (payload: ApplicationEmailSendPayload): Promise<void> => {
@@ -414,21 +464,29 @@ const ApplicationEmailPage = () => {
       }
 
       setIsEmailSubmitting(true);
+      setHasEmailSendSuccess(false);
 
       try {
         const createdEmailLog = await sendApplicationEmail(application.id, payload);
+        const refreshedEmailLogs = await getApplicationEmailLogs(application.id);
 
-        setEmailLogs((currentEmailLogs) => [createdEmailLog, ...currentEmailLogs]);
-        resetEmailForm(application);
+        setEmailLogs(
+          refreshedEmailLogs.some((emailLog) => emailLog.id === createdEmailLog.id)
+            ? refreshedEmailLogs
+            : [createdEmailLog, ...refreshedEmailLogs]
+        );
+        resetEmailForm(application, refreshedEmailLogs);
         setIsSendConfirmationOpen(false);
+        setHasEmailSendSuccess(true);
         showSuccess("L'email a été envoyé et enregistré dans l'historique.");
+        navigate(`/applications/${application.id}`, { replace: true });
       } catch (sendError) {
         showError(getApplicationEmailActionErrorMessage(sendError));
       } finally {
         setIsEmailSubmitting(false);
       }
     },
-    [application, resetEmailForm, showError, showSuccess]
+    [application, navigate, resetEmailForm, showError, showSuccess]
   );
 
   const handleEmailSubmit = useCallback(
@@ -445,21 +503,12 @@ const ApplicationEmailPage = () => {
         return;
       }
 
-      const recommendedEmailType =
-        getApplicationDecisionEmailContext(application).recommendedEmailType;
-      const requiresSendConfirmation = getRequiresSendConfirmation(
-        selectedEmailType,
-        recommendedEmailType
-      );
-
-      if (requiresSendConfirmation) {
-        setIsSendConfirmationOpen(true);
-        return;
-      }
-
-      await sendValidatedEmail(payload);
+      setIsSendConfirmationOpen(true);
     },
-    [application, getValidatedEmailPayload, selectedEmailType, sendValidatedEmail]
+    [
+      application,
+      getValidatedEmailPayload,
+    ]
   );
 
   const handleConfirmSend = useCallback(async (): Promise<void> => {
@@ -499,17 +548,34 @@ const ApplicationEmailPage = () => {
   }, [selectedEmailType, emailSubject, emailBody]);
 
   const detailPath = applicationId ? `/applications/${applicationId}` : "/applications";
-  const latestEmailLogs = useMemo(() => emailLogs.slice(0, 4), [emailLogs]);
   const decisionEmailContext = useMemo(() => {
     return application ? getApplicationDecisionEmailContext(application) : null;
   }, [application]);
+  const latestSentDecisionEmailLog = useMemo(() => {
+    return getLatestSentDecisionEmailLog(emailLogs);
+  }, [emailLogs]);
+  const decisionChangeTemplate = useMemo(() => {
+    if (!application || !latestSentDecisionEmailLog) {
+      return null;
+    }
+
+    return getApplicationDecisionChangeEmailTemplate(
+      application,
+      latestSentDecisionEmailLog
+    );
+  }, [application, latestSentDecisionEmailLog]);
   const recommendedEmailType =
-    decisionEmailContext?.recommendedEmailType ?? selectedEmailType;
+    latestSentDecisionEmailLog
+      ? "CUSTOM"
+      : decisionEmailContext?.recommendedEmailType ?? selectedEmailType;
   const applicationFamilyTitle = useMemo(
     () => getApplicationFamilyTitle(application),
     [application]
   );
   const isCustomEmail = selectedEmailType === "CUSTOM";
+  const isDecisionChangeEmail = Boolean(
+    latestSentDecisionEmailLog && selectedEmailType === "CUSTOM"
+  );
   const isEmailTypeMismatch = selectedEmailType !== recommendedEmailType;
   const requiresSendConfirmation = getRequiresSendConfirmation(
     selectedEmailType,
@@ -647,6 +713,34 @@ const ApplicationEmailPage = () => {
               </div>
             ) : null}
 
+            {isDecisionChangeEmail ? (
+              <div className="rounded-[22px] border border-info/25 bg-info/10 px-4 py-3 text-sm leading-6 text-slate-800">
+                <p className="font-semibold text-slate-900">
+                  Email de mise à jour préparé automatiquement.
+                </p>
+                <p className="mt-1">
+                  Un premier email de décision a déjà été envoyé. Le message
+                  explique le changement et reprend le récapitulatif actuel du
+                  dossier pour éviter toute confusion.
+                </p>
+                {decisionChangeTemplate ? (
+                  <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-info">
+                    {decisionChangeTemplate.changedStudentsCount > 0
+                      ? `${decisionChangeTemplate.changedStudentsCount} changement${
+                          decisionChangeTemplate.changedStudentsCount > 1
+                            ? "s"
+                            : ""
+                        } détecté${
+                          decisionChangeTemplate.changedStudentsCount > 1
+                            ? "s"
+                            : ""
+                        }`
+                      : "Récapitulatif complet généré"}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
             <div className="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
               <label className="block">
                 <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -668,11 +762,11 @@ const ApplicationEmailPage = () => {
                 </select>
                 <span className="mt-2 block text-xs font-medium text-slate-500">
                   Recommandé :{" "}
-                  {
-                    applicationEmailTypeLabels[
-                      decisionEmailContext.recommendedEmailType
-                    ]
-                  }
+                  {isDecisionChangeEmail
+                    ? "Email de mise à jour"
+                    : applicationEmailTypeLabels[
+                        decisionEmailContext.recommendedEmailType
+                      ]}
                 </span>
               </label>
 
@@ -695,7 +789,7 @@ const ApplicationEmailPage = () => {
               </label>
             </div>
 
-            {isCustomEmail ? (
+            {isCustomEmail && !isDecisionChangeEmail ? (
               <div className="rounded-[22px] border border-secondary/30 bg-secondary/10 px-4 py-3 text-sm leading-6 text-slate-800">
                 <p className="font-semibold text-slate-900">
                   Vous envoyez un email personnalisé.
@@ -837,18 +931,19 @@ const ApplicationEmailPage = () => {
         </SectionCard>
 
         <SectionCard
-          title="Historique récent"
-          subtitle="Derniers emails enregistrés pour cette demande."
+          title="Historique des emails"
+          subtitle="Emails enregistrés pour cette demande."
           className="xl:col-span-2"
           motionDelay={300}
         >
-          {latestEmailLogs.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-border bg-background/70 px-4 py-6 text-sm text-slate-500">
-              Aucun email n'a encore été enregistré pour cette demande.
-            </p>
+          {emailLogs.length === 0 ? (
+            <FeedbackEmptyState
+              title="Aucun email enregistré"
+              description="Les emails envoyés depuis cette page apparaîtront ici dès leur historisation."
+            />
           ) : (
             <div className="space-y-3">
-              {latestEmailLogs.map((emailLog) => (
+              {emailLogs.map((emailLog) => (
                 <article
                   key={emailLog.id}
                   className="rounded-[24px] border border-slate-200/90 bg-slate-50/80 p-4"
@@ -878,6 +973,15 @@ const ApplicationEmailPage = () => {
         </SectionCard>
       </div>
 
+      {hasEmailSendSuccess ? (
+        <div className="mt-6">
+          <SuccessFeedback
+            title="Email envoyé"
+            description="Le message est envoyé à la famille et enregistré dans l'historique de la demande."
+          />
+        </div>
+      ) : null}
+
       {isSendConfirmationOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-4 py-6 backdrop-blur-sm">
           <div
@@ -890,15 +994,23 @@ const ApplicationEmailPage = () => {
               id="email-send-confirmation-title"
               className="text-xl font-semibold text-slate-900"
             >
-              Confirmer l'envoi d'un email non recommandé
+              {isDecisionChangeEmail
+                ? "Confirmer l'envoi de la mise à jour"
+                : requiresSendConfirmation
+                  ? "Confirmer l'envoi d'un email non recommandé"
+                  : "Confirmer l'envoi de l'email"}
             </h2>
             <p className="mt-3 text-sm leading-6 text-slate-600">
-              {isCustomEmail
-                ? "Vous envoyez un email personnalisé. Vérifiez attentivement le contenu avant l'envoi."
-                : "Le type d'email sélectionné ne correspond pas à la décision actuelle du dossier. Cet envoi peut transmettre une information incorrecte à la famille."}
+              {isDecisionChangeEmail
+                ? "Ce message informe la famille qu'une décision déjà communiquée a été modifiée. Vérifiez le récapitulatif avant l'envoi."
+                : requiresSendConfirmation
+                  ? isCustomEmail
+                    ? "Vous envoyez un email personnalisé. Vérifiez attentivement le contenu avant l'envoi."
+                    : "Le type d'email sélectionné ne correspond pas à la décision actuelle du dossier. Cet envoi peut transmettre une information incorrecte à la famille."
+                  : "Cette action va envoyer l'email à la famille et l'enregistrer dans l'historique du dossier."}
             </p>
 
-            {requiresSendConfirmation ? (
+            {requiresSendConfirmation && !isDecisionChangeEmail ? (
               <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">
                 <p>
                   Type recommandé :{" "}
@@ -930,7 +1042,13 @@ const ApplicationEmailPage = () => {
                 disabled={isEmailSubmitting}
                 className="inline-flex items-center justify-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-not-allowed disabled:bg-slate-300"
               >
-                {isEmailSubmitting ? "Envoi en cours..." : "Envoyer quand même"}
+                {isEmailSubmitting
+                  ? "Envoi en cours..."
+                  : isDecisionChangeEmail
+                    ? "Envoyer la mise à jour"
+                    : requiresSendConfirmation
+                      ? "Envoyer quand même"
+                      : "Confirmer l'envoi"}
               </button>
             </div>
           </div>

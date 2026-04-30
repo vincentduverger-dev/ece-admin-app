@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 
+import LoginSchoolIllustration from "../components/illustrations/LoginSchoolIllustration";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../hooks/useAuth";
 
@@ -9,19 +10,32 @@ const serifFontStyle = {
   fontFamily: 'Georgia, "Times New Roman", serif'
 } as const;
 
+const brandTextureStyle = {
+  backgroundColor: "#1F4D3A",
+  backgroundImage: [
+    "linear-gradient(180deg, rgba(22,56,42,0.96), rgba(31,77,58,0.98))",
+    "radial-gradient(circle at 18% 18%, rgba(255,255,255,0.08), transparent 24%)",
+    "radial-gradient(circle at 82% 4%, rgba(255,255,255,0.06), transparent 28%)",
+    "repeating-linear-gradient(135deg, rgba(255,255,255,0.025) 0, rgba(255,255,255,0.025) 2px, transparent 2px, transparent 8px)"
+  ].join(", ")
+} as const;
+
 const BrandHeader = () => {
   return (
-    <header className="relative overflow-hidden bg-primary shadow-[inset_0_-2px_0_rgba(212,162,76,0.95)]">
+    <header
+      className="relative overflow-hidden border-b-4 border-secondary shadow-[0_20px_55px_-35px_rgba(15,23,42,0.65)]"
+      style={brandTextureStyle}
+    >
       <div className="mx-auto flex w-full max-w-[1280px] items-center justify-center gap-4 px-6 py-6 sm:gap-5 sm:px-10 sm:py-7 lg:gap-6 lg:px-14 lg:py-8">
         <img
           src="/logo_ece.png"
           alt="Logo de l'École de la Culture et de l'Éducation"
-          className="h-[82px] w-[82px] rounded-full object-cover shadow-[0_12px_24px_rgba(0,0,0,0.16)] sm:h-[96px] sm:w-[96px] lg:h-[112px] lg:w-[112px]"
+          className="h-[82px] w-[82px] rounded-full border border-white/70 bg-white/40 object-cover p-0.5 shadow-[0_10px_30px_-18px_rgba(15,23,42,0.75)] sm:h-[96px] sm:w-[96px] lg:h-[112px] lg:w-[112px]"
         />
         <div className="min-w-0 text-white">
           <p
             style={serifFontStyle}
-            className="text-[2rem] leading-none tracking-[-0.03em] sm:text-[2.6rem] lg:text-[3.1rem]"
+            className="text-[2rem] leading-none tracking-tight sm:text-[2.6rem] lg:text-[3.1rem]"
           >
             ECE
           </p>
@@ -31,9 +45,11 @@ const BrandHeader = () => {
           >
             École de la Culture et de l&apos;Éducation
           </p>
+          <p className="mt-2 text-sm text-white/75">
+            Interface d&apos;administration des demandes d&apos;inscription
+          </p>
         </div>
       </div>
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.14),transparent_48%)]" />
     </header>
   );
 };
@@ -121,174 +137,6 @@ const StatusSpinner = ({ className = "" }: { className?: string }) => {
   );
 };
 
-const LoginIllustration = () => {
-  return (
-    <div className="relative mt-8 w-full max-w-[560px] lg:mt-12">
-      <div className="login-illustration__halo absolute -bottom-6 -left-10 h-[282px] w-[320px] rounded-[46%] bg-slate-200/30 blur-[2px]" />
-      <svg
-        viewBox="0 0 560 340"
-        aria-hidden="true"
-        className="relative w-full text-[#b8c2b7]"
-        fill="none"
-      >
-        <path
-          d="M28 300h496"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          className="login-illustration__line login-illustration__line--1"
-          pathLength={1}
-        />
-        <path
-          d="M84 300V132c0-8.8 7.2-16 16-16h166c8.8 0 16 7.2 16 16v168"
-          stroke="currentColor"
-          strokeWidth="3.2"
-          strokeLinecap="round"
-          className="login-illustration__line login-illustration__line--2"
-          pathLength={1}
-        />
-        <path
-          d="M124 116c0-20.4 16.6-37 37-37s37 16.6 37 37"
-          stroke="currentColor"
-          strokeWidth="3.2"
-          strokeLinecap="round"
-          className="login-illustration__line login-illustration__line--2"
-          pathLength={1}
-        />
-        <path
-          d="M110 122h102"
-          stroke="currentColor"
-          strokeWidth="3.2"
-          strokeLinecap="round"
-          className="login-illustration__line login-illustration__line--2"
-          pathLength={1}
-        />
-        <circle
-          cx="161"
-          cy="96"
-          r="4.5"
-          fill="currentColor"
-          className="login-illustration__dot"
-        />
-        <path
-          d="M122 174h24v24h-24zm0 55h24v24h-24zm0 55h24v24h-24z"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeLinejoin="round"
-          className="login-illustration__line login-illustration__line--3"
-          pathLength={1}
-        />
-        <path
-          d="m126 184 8 9 18-19m-26 65 8 9 18-19m-26 65 8 9 18-19"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="login-illustration__check login-illustration__check--1"
-        />
-        <path
-          d="M170 186h70m-70 55h70m-70 55h56"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeLinecap="round"
-          className="login-illustration__line login-illustration__line--4"
-          pathLength={1}
-        />
-        <path
-          d="M320 299V152l88-66 88 66v147"
-          stroke="currentColor"
-          strokeWidth="3.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="login-illustration__line login-illustration__line--3"
-          pathLength={1}
-        />
-        <path
-          d="M382 86V40l48 18-12 26"
-          stroke="currentColor"
-          strokeWidth="3.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="login-illustration__line login-illustration__line--2"
-          pathLength={1}
-        />
-        <circle
-          cx="408"
-          cy="140"
-          r="16"
-          stroke="currentColor"
-          strokeWidth="3.2"
-          className="login-illustration__line login-illustration__line--4"
-          pathLength={1}
-        />
-        <path
-          d="M350 176h26v38h-26zm90 0h26v38h-26zm0 68h26v38h-26zm-90 68h118"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeLinejoin="round"
-          className="login-illustration__line login-illustration__line--5"
-          pathLength={1}
-        />
-        <path
-          d="M388 214h40v86h-40z"
-          stroke="currentColor"
-          strokeWidth="3.2"
-          strokeLinejoin="round"
-          className="login-illustration__line login-illustration__line--5"
-          pathLength={1}
-        />
-        <path
-          d="M408 214v86m-30 0h60m-78 15h96"
-          stroke="currentColor"
-          strokeWidth="3.2"
-          strokeLinecap="round"
-          className="login-illustration__line login-illustration__line--5"
-          pathLength={1}
-        />
-        <path
-          d="M190 248h72"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeLinecap="round"
-          className="login-illustration__line login-illustration__line--4"
-          pathLength={1}
-        />
-        <path
-          d="M214 216 250 244 208 295 172 267Z"
-          stroke="currentColor"
-          strokeWidth="3.2"
-          strokeLinejoin="round"
-          className="login-illustration__pen"
-        />
-        <path
-          d="M250 244 269 225c8-8 8-20.8 0-28.8l-7.2-7.2c-8-8-20.8-8-28.8 0L214 216"
-          stroke="currentColor"
-          strokeWidth="3.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="login-illustration__pen"
-        />
-        <path
-          d="M204 296c20-8 43-8 63 0"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeLinecap="round"
-          className="login-illustration__line login-illustration__line--6"
-          pathLength={1}
-        />
-        <path
-          d="M496 300v-44c0-26 21.4-47 47.4-47M520 300v-25m0-25a16 16 0 1 0 0 32"
-          stroke="currentColor"
-          strokeWidth="3.2"
-          strokeLinecap="round"
-          className="login-illustration__line login-illustration__line--6"
-          pathLength={1}
-        />
-      </svg>
-    </div>
-  );
-};
-
 type LoginCardStateProps = {
   title: string;
   description: string;
@@ -351,12 +199,12 @@ const LoginPage = () => {
   const isCardBusy = isLoadingAuth || isSubmitting || isAuthenticated;
 
   return (
-    <main className="min-h-screen bg-[#faf7f1] text-slate-900">
+    <main className="app-background-texture min-h-screen text-slate-900">
       <div className="flex min-h-screen flex-col">
         <BrandHeader />
 
         <section className="relative flex flex-1 items-center overflow-hidden">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_34%,rgba(255,255,255,0.95),transparent_32%),radial-gradient(circle_at_72%_26%,rgba(255,255,255,0.8),transparent_28%),radial-gradient(circle_at_50%_78%,rgba(212,162,76,0.08),transparent_24%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_34%,rgba(255,255,255,0.86),transparent_32%),radial-gradient(circle_at_72%_26%,rgba(255,255,255,0.68),transparent_28%)]" />
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-[linear-gradient(to_top,rgba(255,255,255,0.78),transparent)]" />
 
           <div className="relative mx-auto grid w-full max-w-[1280px] grid-cols-1 items-center gap-10 px-6 py-8 sm:px-10 sm:py-10 lg:grid-cols-[minmax(0,1.08fr)_minmax(470px,540px)] lg:gap-16 lg:px-14 lg:py-12">
@@ -375,7 +223,7 @@ const LoginPage = () => {
                 </p>
               </div>
 
-              <LoginIllustration />
+              <LoginSchoolIllustration />
             </aside>
 
             <section className="order-1 lg:order-2 lg:justify-self-end">

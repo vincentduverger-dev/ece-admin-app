@@ -32,6 +32,10 @@ const getQueryParam = (value: unknown): string | undefined => {
   return undefined;
 };
 
+const getBooleanPayloadParam = (value: unknown): boolean => {
+  return value === true || value === "true";
+};
+
 const isApplicationStatus = (value: string): value is ApplicationStatus => {
   return Object.values(ApplicationStatus).includes(value as ApplicationStatus);
 };
@@ -101,6 +105,24 @@ const getEmailTypeMismatchMessage = (
   }
 
   return "Le type d'email Décision partielle est autorisé uniquement pour une demande en décision partielle.";
+};
+
+const getDecisionStatusFromEmailType = (
+  emailType: ApplicationEmailType
+): ApplicationStatus | null => {
+  if (emailType === "ACCEPTANCE") {
+    return ApplicationStatus.ACCEPTED;
+  }
+
+  if (emailType === "WAITLIST") {
+    return ApplicationStatus.WAITLISTED;
+  }
+
+  if (emailType === "PARTIAL_DECISION") {
+    return ApplicationStatus.PARTIALLY_ACCEPTED;
+  }
+
+  return null;
 };
 
 const getRecalculatedApplicationStatus = (
@@ -327,7 +349,11 @@ export const updateApplicationStatus = async (req: Request, res: Response): Prom
 
   const existingApplication = await prisma.application.findUnique({
     where: { id: applicationId },
-    select: { id: true }
+    select: {
+      id: true,
+      status: true,
+      decisionAt: true
+    }
   });
 
   if (!existingApplication) {
@@ -378,7 +404,11 @@ export const updateApplicationDecision = async (req: Request, res: Response): Pr
 
   const existingApplication = await prisma.application.findUnique({
     where: { id: applicationId },
-    select: { id: true }
+    select: {
+      id: true,
+      status: true,
+      decisionAt: true
+    }
   });
 
   if (!existingApplication) {
@@ -388,14 +418,15 @@ export const updateApplicationDecision = async (req: Request, res: Response): Pr
   const updatedApplication = await prisma.$transaction(async (transaction) => {
     await transaction.student.updateMany({
       where: { applicationId },
-    data: { admissionStatus: status }
+      data: { admissionStatus: status }
     });
 
     return transaction.application.update({
       where: { id: applicationId },
       data: {
         status,
-        decisionAt: new Date(),
+        decisionAt:
+          existingApplication.status === status ? existingApplication.decisionAt : null,
         decisionNote
       }
     });
@@ -473,6 +504,7 @@ export const sendApplicationEmail = async (req: Request, res: Response): Promise
   const subject = getQueryParam(req.body?.subject);
   const body = getQueryParam(req.body?.body);
   const payloadRecipientEmail = getQueryParam(req.body?.recipientEmail);
+  const shouldSyncDecisionAt = getBooleanPayloadParam(req.body?.syncDecisionAt);
 
   if (!emailType || !isApplicationEmailType(emailType)) {
     throw badRequest("Invalid email type");
@@ -551,16 +583,47 @@ export const sendApplicationEmail = async (req: Request, res: Response): Promise
     return;
   }
 
-  const emailLog = await prisma.applicationEmailLog.create({
-    data: {
-      applicationId: application.id,
-      emailType,
-      recipientEmail,
-      subject,
-      bodySnapshot: body,
-      sentAt: new Date(),
-      sendStatus: EmailSendStatus.SENT
+  const sentAt = new Date();
+  const decisionStatus = getDecisionStatusFromEmailType(emailType);
+  const shouldRefreshDecisionAt =
+    shouldSyncDecisionAt &&
+    !decisionStatus &&
+    (application.status === ApplicationStatus.ACCEPTED ||
+      application.status === ApplicationStatus.WAITLISTED ||
+      application.status === ApplicationStatus.REFUSED ||
+      application.status === ApplicationStatus.PARTIALLY_ACCEPTED);
+
+  const emailLog = await prisma.$transaction(async (transaction) => {
+    const createdEmailLog = await transaction.applicationEmailLog.create({
+      data: {
+        applicationId: application.id,
+        emailType,
+        recipientEmail,
+        subject,
+        bodySnapshot: body,
+        sentAt,
+        sendStatus: EmailSendStatus.SENT
+      }
+    });
+
+    if (decisionStatus) {
+      await transaction.application.update({
+        where: { id: application.id },
+        data: {
+          status: decisionStatus,
+          decisionAt: sentAt
+        }
+      });
+    } else if (shouldRefreshDecisionAt) {
+      await transaction.application.update({
+        where: { id: application.id },
+        data: {
+          decisionAt: sentAt
+        }
+      });
     }
+
+    return createdEmailLog;
   });
 
   res.status(201).json({

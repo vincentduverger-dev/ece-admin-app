@@ -279,7 +279,7 @@ const SchoolYearsPage = () => {
 
   const pageHeaderAside = (
     <div className="grid gap-3 sm:grid-cols-2">
-      <div className="rounded-[24px] border border-primary/10 bg-white/82 px-4 py-4 text-sm text-primaryDark shadow-[0_14px_28px_-24px_rgba(15,23,42,0.22)]">
+      <div className="rounded-[24px] border border-primary/10 bg-white/82 px-4 py-4 text-center text-sm text-primaryDark shadow-[0_14px_28px_-24px_rgba(15,23,42,0.22)]">
         <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-primaryLight">
           Campagnes créées
         </p>
@@ -287,7 +287,7 @@ const SchoolYearsPage = () => {
           {isLoading ? "..." : schoolYears.length}
         </p>
       </div>
-      <div className="rounded-[24px] border border-primary/10 bg-white/82 px-4 py-4 text-sm text-primaryDark shadow-[0_14px_28px_-24px_rgba(15,23,42,0.22)]">
+      <div className="rounded-[24px] border border-primary/10 bg-white/82 px-4 py-4 text-center text-sm text-primaryDark shadow-[0_14px_28px_-24px_rgba(15,23,42,0.22)]">
         <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-primaryLight">
           Année active
         </p>

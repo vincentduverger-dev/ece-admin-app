@@ -10,7 +10,7 @@ type IconProps = {
 };
 
 type NavigationItem = {
-  key: "dashboard" | "applications" | "imports" | "schoolYears";
+  key: "dashboard" | "applications" | "students" | "imports" | "schoolYears";
   label: string;
   to?: string;
   end?: boolean;
@@ -59,6 +59,17 @@ const FolderIcon = ({ className = "h-5 w-5" }: IconProps) => {
   );
 };
 
+const StudentsIcon = ({ className = "h-5 w-5" }: IconProps) => {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
+      <path d="M8.5 11.5a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" />
+      <path d="M15.8 10.5a2.6 2.6 0 1 0 0-5.2 2.6 2.6 0 0 0 0 5.2Z" />
+      <path d="M3.8 19.2a4.8 4.8 0 0 1 9.4 0" strokeLinecap="round" />
+      <path d="M13.8 18.5a4 4 0 0 1 6.4.7" strokeLinecap="round" />
+    </svg>
+  );
+};
+
 const UploadIcon = ({ className = "h-5 w-5" }: IconProps) => {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
@@ -87,14 +98,6 @@ const LogoutIcon = ({ className = "h-5 w-5" }: IconProps) => {
   );
 };
 
-const ChevronDownIcon = ({ className = "h-4 w-4" }: IconProps) => {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
-      <path d="m5.5 7.5 4.5 4.5 4.5-4.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-};
-
 const navigationItems: NavigationItem[] = [
   {
     key: "dashboard",
@@ -108,6 +111,12 @@ const navigationItems: NavigationItem[] = [
     label: "Demandes",
     to: "/applications",
     icon: FolderIcon
+  },
+  {
+    key: "students",
+    label: "Élèves",
+    to: "/students",
+    icon: StudentsIcon
   },
   {
     key: "imports",
@@ -160,7 +169,7 @@ const SidebarLink = ({ item }: { item: NavigationItem }) => {
 };
 
 const AppLayout = () => {
-  const { logout, user } = useAuth();
+  const { logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = (): void => {
@@ -169,19 +178,19 @@ const AppLayout = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background text-slate-900">
+    <div className="app-background-texture min-h-screen text-slate-900">
       <FirstRunOnboarding />
 
       <header
         className="fixed inset-x-0 top-0 z-40 border-b-4 border-secondary shadow-[0_20px_55px_-35px_rgba(15,23,42,0.65)]"
         style={brandTextureStyle}
       >
-        <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-6 py-6 sm:gap-5 sm:px-10 sm:py-7 lg:gap-6 lg:px-14 lg:py-8">
           <div className="flex min-w-0 items-center gap-4">
             <img
               src="/logo_ece.png"
               alt="Logo ECE"
-              className="h-16 w-16 rounded-full border border-white/80 bg-white/95 p-1 shadow-[0_10px_30px_-18px_rgba(15,23,42,0.75)] sm:h-20 sm:w-20"
+              className="h-[82px] w-[82px] rounded-full border border-white/70 bg-white/40 object-cover p-0.5 shadow-[0_10px_30px_-18px_rgba(15,23,42,0.75)] sm:h-[96px] sm:w-[96px] lg:h-[112px] lg:w-[112px]"
             />
             <div className="min-w-0 text-white">
               <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
@@ -200,18 +209,22 @@ const AppLayout = () => {
 
           <div className="hidden items-center gap-3 rounded-full border border-white/15 bg-white/8 px-4 py-2 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] sm:flex">
             <span className="flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-white/15 text-lg font-semibold">
-              {user?.role === "admin" ? "A" : "?"}
+              <img
+                src="/icons/Profil.svg"
+                alt=""
+                aria-hidden="true"
+                className="h-10 w-10"
+              />
             </span>
             <span className="text-lg font-medium">Admin</span>
-            <ChevronDownIcon className="h-4 w-4 text-white/80" />
           </div>
         </div>
       </header>
 
-      <div className="mx-auto max-w-[1600px] px-4 pb-6 pt-[108px] sm:px-6 sm:pt-[124px] lg:px-8 lg:pt-[136px]">
+      <div className="mx-auto max-w-[1600px] px-4 pb-6 pt-[134px] sm:px-6 sm:pt-[156px] lg:px-8 lg:pt-[192px]">
         <div className="lg:pl-[272px]">
           <aside
-            className="mb-4 overflow-hidden rounded-[30px] border border-primaryDark/10 text-white shadow-[0_24px_58px_-38px_rgba(15,23,42,0.78)] lg:fixed lg:top-[136px] lg:z-30 lg:mb-0 lg:max-h-[calc(100vh-160px)] lg:w-[248px] lg:overflow-y-auto"
+            className="mb-4 overflow-hidden rounded-[30px] border border-primaryDark/10 text-white shadow-[0_24px_58px_-38px_rgba(15,23,42,0.78)] lg:fixed lg:top-[192px] lg:z-30 lg:mb-0 lg:max-h-[calc(100vh-216px)] lg:w-[248px] lg:overflow-y-auto"
             style={{
               ...brandTextureStyle,
               ...desktopSidebarPositionStyle
@@ -244,7 +257,7 @@ const AppLayout = () => {
             </main>
 
             <footer className="py-2 text-center text-sm text-slate-500">
-              © ECE - École de la Culture et de l&apos;Éducation
+              ECE - École de la Culture et de l&apos;Éducation
             </footer>
           </div>
         </div>

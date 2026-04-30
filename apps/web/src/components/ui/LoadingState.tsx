@@ -1,3 +1,5 @@
+import AppLoader from "../feedback/AppLoader";
+
 type LoadingStateProps = {
   variant?: "page" | "card";
 };
@@ -24,9 +26,9 @@ const LoadingState = ({ variant = "page" }: LoadingStateProps) => {
             <div className={`${pulseClassName} h-3 w-3/4 max-w-sm`} />
           </div>
         </div>
-        <p className="mt-4 text-sm leading-6 text-slate-600">
-          Chargement des données...
-        </p>
+        <div className="mt-4">
+          <AppLoader size="sm" />
+        </div>
       </section>
     );
   }
@@ -45,9 +47,9 @@ const LoadingState = ({ variant = "page" }: LoadingStateProps) => {
           <div className={`${pulseClassName} h-4 w-full max-w-3xl`} />
           <div className={`${pulseClassName} h-4 w-4/5 max-w-2xl`} />
         </div>
-        <p className="mt-6 text-sm leading-6 text-slate-600">
-          Chargement des données...
-        </p>
+        <div className="mt-6">
+          <AppLoader />
+        </div>
       </article>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

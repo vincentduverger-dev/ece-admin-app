@@ -1,5 +1,6 @@
 import type {
   ApplicationDetail,
+  ApplicationEmailLog,
   ApplicationEmailSendStatus,
   ApplicationEmailType,
   StudentAdmissionStatus
@@ -98,6 +99,118 @@ const formatStudentLine = (
   student: ApplicationDetail["students"][number]
 ): string => {
   return `- ${student.firstName} ${student.lastName} — ${student.level.label}`;
+};
+
+const applicationStatusLabels = {
+  ACCEPTED: "Acceptée",
+  PARTIALLY_ACCEPTED: "Décision partielle",
+  WAITLISTED: "Liste d'attente",
+  REFUSED: "Liste d'attente",
+  IN_REVIEW: "En revue",
+  RECEIVED: "Reçue"
+} satisfies Record<ApplicationDetail["status"], string>;
+
+const decisionStatusPhraseLabels: Record<StudentAdmissionStatus, string> = {
+  ACCEPTED: "accepté(e)",
+  REFUSED: "en liste d'attente",
+  WAITLISTED: "en liste d'attente",
+  PENDING: "en attente"
+};
+
+const decisionEmailTypes = new Set<ApplicationEmailType>([
+  "ACCEPTANCE",
+  "REFUSAL",
+  "WAITLIST",
+  "PARTIAL_DECISION"
+]);
+
+const normalizeDecisionStudentName = (value: string): string => {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/gu, "")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .toLowerCase();
+};
+
+const getStudentFullName = (
+  student: ApplicationDetail["students"][number]
+): string => {
+  return `${student.firstName} ${student.lastName}`.trim();
+};
+
+const getStudentDecisionStatus = (
+  student: ApplicationDetail["students"][number]
+): StudentAdmissionStatus => {
+  return student.admissionStatus ?? "PENDING";
+};
+
+const isSentDecisionEmailLog = (emailLog: ApplicationEmailLog): boolean => {
+  return (
+    emailLog.sendStatus === "SENT" &&
+    decisionEmailTypes.has(emailLog.emailType)
+  );
+};
+
+const getEmailLogDateValue = (emailLog: ApplicationEmailLog): number => {
+  return new Date(emailLog.sentAt ?? emailLog.createdAt).getTime();
+};
+
+const parseDecisionEmailSnapshot = (
+  bodySnapshot: string
+): Map<string, StudentAdmissionStatus> => {
+  const studentStatuses = new Map<string, StudentAdmissionStatus>();
+  let currentStatus: StudentAdmissionStatus | null = null;
+
+  bodySnapshot.split(/\r?\n/u).forEach((rawLine) => {
+    const line = rawLine.trim();
+    const lowerLine = line.toLowerCase();
+
+    if (lowerLine.includes("enfant") && lowerLine.includes("accept")) {
+      currentStatus = "ACCEPTED";
+      return;
+    }
+
+    if (lowerLine.includes("enfant") && lowerLine.includes("liste d'attente")) {
+      currentStatus = "WAITLISTED";
+      return;
+    }
+
+    if (lowerLine.includes("enfant") && lowerLine.includes("attente de décision")) {
+      currentStatus = "PENDING";
+      return;
+    }
+
+    if (!currentStatus || !line.startsWith("-")) {
+      return;
+    }
+
+    const studentName = line
+      .replace(/^-\s*/u, "")
+      .split(/\s+[—-]\s+/u)[0]
+      .trim();
+
+    if (studentName.length > 0) {
+      studentStatuses.set(normalizeDecisionStudentName(studentName), currentStatus);
+    }
+  });
+
+  return studentStatuses;
+};
+
+export const getLatestSentDecisionEmailLog = (
+  emailLogs: ApplicationEmailLog[]
+): ApplicationEmailLog | null => {
+  const sentDecisionEmailLogs = emailLogs.filter(isSentDecisionEmailLog);
+
+  if (sentDecisionEmailLogs.length === 0) {
+    return null;
+  }
+
+  return [...sentDecisionEmailLogs].sort(
+    (leftEmailLog, rightEmailLog) =>
+      getEmailLogDateValue(rightEmailLog) - getEmailLogDateValue(leftEmailLog)
+  )[0];
 };
 
 const formatStudentSection = (
@@ -269,6 +382,81 @@ export const getApplicationDecisionEmailTemplate = (
       "Nous vous informons de la décision concernant votre demande d'inscription.",
       "",
       sections.join("\n\n"),
+      "",
+      "Cordialement,",
+      "L'administration de l'École de la Culture et de l'Éducation"
+    ].join("\n")
+  };
+};
+
+export const getApplicationDecisionChangeEmailTemplate = (
+  application: ApplicationDetail,
+  previousDecisionEmailLog: ApplicationEmailLog
+): {
+  subject: string;
+  body: string;
+  changedStudentsCount: number;
+} => {
+  const previousStudentStatuses = parseDecisionEmailSnapshot(
+    previousDecisionEmailLog.bodySnapshot
+  );
+  const changedStudents = application.students
+    .map((student) => {
+      const studentName = getStudentFullName(student);
+      const previousStatus = previousStudentStatuses.get(
+        normalizeDecisionStudentName(studentName)
+      );
+      const currentStatus = getStudentDecisionStatus(student);
+
+      if (!previousStatus || previousStatus === currentStatus) {
+        return null;
+      }
+
+      return `- ${studentName}, qui était ${decisionStatusPhraseLabels[previousStatus]}, est finalement ${decisionStatusPhraseLabels[currentStatus]}.`;
+    })
+    .filter((line): line is string => line !== null);
+  const currentDecisionSections = ([
+    "ACCEPTED",
+    "WAITLISTED",
+    "PENDING"
+  ] as const)
+    .map((status) => {
+      const title = studentDecisionSectionLabels[status];
+
+      if (!title) {
+        return null;
+      }
+
+      return formatStudentSection(
+        title,
+        application.students.filter(
+          (student) =>
+            status === "WAITLISTED"
+              ? getStudentDecisionStatus(student) === "WAITLISTED" ||
+                getStudentDecisionStatus(student) === "REFUSED"
+              : getStudentDecisionStatus(student) === status
+        )
+      );
+    })
+    .filter((section): section is string => section !== null);
+
+  return {
+    subject: "ECE - mise à jour de votre demande d'inscription",
+    changedStudentsCount: changedStudents.length,
+    body: [
+      "Bonjour,",
+      "",
+      "Le traitement de votre demande d'inscription a été modifié depuis notre précédent email.",
+      "",
+      changedStudents.length > 0
+        ? ["Changement(s) effectué(s) :", ...changedStudents].join("\n")
+        : "La décision de votre demande a été mise à jour. Vous trouverez le récapitulatif actuel ci-dessous.",
+      "",
+      "Récapitulatif actuel de la demande :",
+      `Année scolaire : ${application.schoolYear.label}`,
+      `Statut du dossier : ${applicationStatusLabels[application.status]}`,
+      "",
+      currentDecisionSections.join("\n\n"),
       "",
       "Cordialement,",
       "L'administration de l'École de la Culture et de l'Éducation"

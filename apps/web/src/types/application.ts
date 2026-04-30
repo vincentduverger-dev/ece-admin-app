@@ -18,6 +18,12 @@ export type ApplicationLevel = {
   label: string;
 };
 
+export type LevelSummary = ApplicationLevel & {
+  id: string;
+  sortOrder: number;
+  availablePlaces: number;
+};
+
 export type ApplicationGender = "BOY" | "GIRL" | "UNKNOWN";
 export type ApplicationEmailType =
   | "ACCEPTANCE"
@@ -99,6 +105,7 @@ export type ApplicationEmailSendPayload = {
   emailType: ApplicationEmailType;
   subject: string;
   body: string;
+  syncDecisionAt?: boolean;
 };
 
 export type ApplicationStatusUpdateResult = {

@@ -6,6 +6,7 @@ import type {
   ApplicationFilterParams,
   ApplicationEmailLog,
   ApplicationListItem,
+  LevelSummary,
   ApplicationPriorityUpdateResult,
   ApplicationStatus,
   ApplicationStatusUpdateResult,
@@ -123,6 +124,10 @@ export const getApplications = async (
   });
 
   return fetchJson<ApplicationListItem[]>(`/api/applications${queryString}`, init);
+};
+
+export const getLevels = async (init?: RequestInit): Promise<LevelSummary[]> => {
+  return fetchJson<LevelSummary[]>("/api/levels", init);
 };
 
 export const getApplicationById = async (
