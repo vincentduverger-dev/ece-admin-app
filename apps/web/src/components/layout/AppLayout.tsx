@@ -4,6 +4,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../../hooks/useAuth";
 import FirstRunOnboarding from "./FirstRunOnboarding";
+import SiteFooter from "./SiteFooter";
 
 type IconProps = {
   className?: string;
@@ -256,9 +257,7 @@ const AppLayout = () => {
               <Outlet />
             </main>
 
-            <footer className="py-2 text-center text-sm text-slate-500">
-              ECE - École de la Culture et de l&apos;Éducation
-            </footer>
+            <SiteFooter />
           </div>
         </div>
       </div>
