@@ -527,85 +527,26 @@ const ParentAvatar = ({
   variant: "father" | "mother";
 }) => {
   const isFather = variant === "father";
+  const imageSource = isFather
+    ? "/profil/Profil_Dad.png"
+    : "/profil/Profil_mother.png";
 
   return (
     <span
       role="img"
       aria-label={label}
-      className={`inline-flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl ring-1 ${
+      className={`inline-flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ${
         isFather
           ? "bg-primary/10 ring-primary/15"
           : "bg-secondary/15 ring-secondary/25"
       }`}
     >
-      <svg viewBox="0 0 72 72" className="h-full w-full" aria-hidden="true">
-        <rect width="72" height="72" rx="18" fill="currentColor" className="text-white/55" />
-        {isFather ? (
-          <>
-            <path
-              d="M20 67c2.5-14 8.5-21 16-21s13.5 7 16 21H20Z"
-              fill="#1F4D3A"
-            />
-            <path d="M33 47h6l-3 7-3-7Z" fill="#F8F6F2" />
-            <path d="M34 53h4l2 14h-8l2-14Z" fill="#D4A24C" />
-            <circle cx="36" cy="32" r="13" fill="#E8BE98" />
-            <path
-              d="M22.5 29.4c.8-10 6.3-16 15.1-15.1 7 .8 11.3 5.7 11 14-4.4-2.6-8.4-3.8-12.8-3.8-5.1 0-9.1 1.5-13.3 4.9Z"
-              fill="#26364A"
-            />
-            <path
-              d="M27.5 38.7c4.9 3.5 12.1 3.5 17 0"
-              fill="none"
-              stroke="#26364A"
-              strokeLinecap="round"
-              strokeWidth="1.8"
-            />
-            <path
-              d="M26.5 31.5h7.5M38 31.5h7.5"
-              stroke="#26364A"
-              strokeLinecap="round"
-              strokeWidth="1.8"
-            />
-            <path
-              d="M33.8 35.4c1.3.8 3.1.8 4.4 0"
-              stroke="#26364A"
-              strokeLinecap="round"
-              strokeWidth="1.6"
-            />
-          </>
-        ) : (
-          <>
-            <path
-              d="M17.5 67c2.7-13.3 9.5-20 18.5-20s15.8 6.7 18.5 20h-37Z"
-              fill="#D4A24C"
-            />
-            <path
-              d="M23 33c0-13.4 5.2-21.2 13-21.2S49 19.6 49 33v18H23V33Z"
-              fill="#4A332E"
-            />
-            <circle cx="36" cy="32" r="12.5" fill="#E8BE98" />
-            <path
-              d="M25.4 29.5c4.2-1.2 7.7-3.8 10.4-7.8 3.6 4.1 7.1 6.5 10.8 7.3-1.1-7.1-5.1-11.3-10.6-11.3-5.8 0-9.6 4.4-10.6 11.8Z"
-              fill="#4A332E"
-            />
-            <path
-              d="M29.5 39c4 3 9 3 13 0"
-              fill="none"
-              stroke="#26364A"
-              strokeLinecap="round"
-              strokeWidth="1.8"
-            />
-            <circle cx="31.5" cy="32.6" r="1.5" fill="#26364A" />
-            <circle cx="40.5" cy="32.6" r="1.5" fill="#26364A" />
-            <path
-              d="M31 50.5c2.8 2.2 7.2 2.2 10 0"
-              stroke="#F8F6F2"
-              strokeLinecap="round"
-              strokeWidth="2"
-            />
-          </>
-        )}
-      </svg>
+      <img
+        src={imageSource}
+        alt=""
+        className="h-[88%] w-[88%] object-contain object-bottom"
+        draggable={false}
+      />
     </span>
   );
 };

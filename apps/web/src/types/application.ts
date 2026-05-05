@@ -37,12 +37,12 @@ export type ApplicationStudent = {
   id: string;
   firstName: string;
   lastName: string;
+  gender: ApplicationGender;
   admissionStatus: StudentAdmissionStatus;
   level: ApplicationLevel;
 };
 
 export type ApplicationDetailStudent = ApplicationStudent & {
-  gender: ApplicationGender;
   birthDate: string;
   rankInForm: number | null;
 };

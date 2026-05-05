@@ -36,7 +36,7 @@ type FilterState = {
 
 type SortOption = "createdAtDesc" | "createdAtAsc" | "priorityDesc";
 
-type PageSize = 6 | 8 | 10 | 12;
+type PageSize = 4 | 6 | 8 | 10 | 12;
 
 type StatusOption = {
   value: "" | ApplicationStatus;
@@ -66,7 +66,7 @@ type PaginationControlsProps = {
   onPageChange: (page: number) => void;
 };
 
-const pageSizeOptions: PageSize[] = [6, 8, 10, 12];
+const pageSizeOptions: PageSize[] = [4, 6, 8, 10, 12];
 
 const statusOptions: StatusOption[] = [
   { value: "", label: "Tous les statuts" },
@@ -405,7 +405,7 @@ const ApplicationsPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSchoolYearsLoading, setIsSchoolYearsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState<PageSize>(8);
+  const [pageSize, setPageSize] = useState<PageSize>(4);
   const deferredSearch = useDeferredValue(filters.search);
   const applicationQueryParams = useMemo<ApplicationFilterParams>(() => {
     const params: ApplicationFilterParams = {};
