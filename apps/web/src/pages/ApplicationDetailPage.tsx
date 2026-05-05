@@ -1424,7 +1424,7 @@ const ApplicationDetailPage = () => {
               Aucun élève n'est rattaché à cette demande.
             </p>
           ) : (
-            <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-4">
               {application.students.map((student) => (
                 <article
                   key={student.id}
