@@ -14,10 +14,14 @@ import EmptyState from "../components/ui/EmptyState";
 import ErrorState from "../components/ui/ErrorState";
 import LevelBadge from "../components/ui/LevelBadge";
 import LoadingState from "../components/ui/LoadingState";
+import PersonAvatar, {
+  type PersonAvatarVariant
+} from "../components/ui/PersonAvatar";
 import PriorityBadge from "../components/ui/PriorityBadge";
 import StatusBadge from "../components/ui/StatusBadge";
 import { getActiveSchoolYear, getApplications, getLevels } from "../lib/api";
 import type {
+  ApplicationGender,
   ApplicationListItem,
   ApplicationStudent,
   LevelSummary,
@@ -29,7 +33,7 @@ type StudentListItem = {
   student: ApplicationStudent;
 };
 
-type PageSize = 6 | 8 | 10 | 12;
+type PageSize = 4 | 6 | 8 | 10 | 12;
 
 type IconProps = {
   className?: string;
@@ -43,7 +47,7 @@ type PaginationControlsProps = {
   onPageChange: (page: number) => void;
 };
 
-const pageSizeOptions: PageSize[] = [6, 8, 10, 12];
+const pageSizeOptions: PageSize[] = [4, 6, 8, 10, 12];
 
 const getEnterStyle = (delay: number): CSSProperties => {
   return {
@@ -57,6 +61,20 @@ const formatSchoolYearLabel = (label: string): string => {
 
 const normalizeLevelCode = (value: string): string => {
   return value.trim().toUpperCase();
+};
+
+const getStudentAvatarVariant = (
+  gender: ApplicationGender
+): PersonAvatarVariant => {
+  if (gender === "BOY") {
+    return "boy";
+  }
+
+  if (gender === "GIRL") {
+    return "girl";
+  }
+
+  return "neutral";
 };
 
 const getPaginationItems = (
@@ -288,7 +306,7 @@ const StudentsPage = () => {
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState<PageSize>(8);
+  const [pageSize, setPageSize] = useState<PageSize>(4);
   const [search, setSearch] = useState("");
 
   const selectedLevel = useMemo(() => {
@@ -696,12 +714,14 @@ const StudentsPage = () => {
             <div className="px-4 py-4 sm:px-6">
               <div className="space-y-3">
                 {currentPageStudentRows.map(({ application, student }, index) => (
-                  <article
+                  <Link
                     key={`${application.id}-${student.id}`}
-                    className="group ui-animate-in ui-surface-hover ui-surface-hover--soft rounded-[28px] border border-slate-200/90 bg-slate-50/80 p-4 shadow-[0_14px_30px_-24px_rgba(15,23,42,0.16)] sm:p-5"
+                    to={`/applications/${application.id}`}
+                    aria-label={`Ouvrir la demande associée à ${student.firstName} ${student.lastName}`}
+                    className="group ui-animate-in ui-surface-hover ui-surface-hover--soft block rounded-[28px] border border-slate-200/90 bg-slate-50/80 p-4 shadow-[0_14px_30px_-24px_rgba(15,23,42,0.16)] outline-none transition focus-visible:ring-4 focus-visible:ring-primary/20 sm:p-5"
                     style={getEnterStyle(310 + index * 45)}
                   >
-                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1.4fr)_170px_180px_108px] xl:items-center">
+                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_76px_minmax(0,1.4fr)_170px_180px_108px] xl:items-center">
                       <div className="min-w-0">
                         <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
                           Élève
@@ -716,6 +736,14 @@ const StudentsPage = () => {
                             size="sm"
                           />
                         </div>
+                      </div>
+
+                      <div className="flex xl:justify-center">
+                        <PersonAvatar
+                          label={`${student.firstName} ${student.lastName}`}
+                          size="md"
+                          variant={getStudentAvatarVariant(student.gender)}
+                        />
                       </div>
 
                       <div className="min-w-0">
@@ -750,16 +778,15 @@ const StudentsPage = () => {
                       </div>
 
                       <div className="xl:justify-self-end">
-                        <Link
-                          to={`/applications/${application.id}`}
+                        <span
                           className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition group-hover:border-primary/25 group-hover:text-primary hover:border-primary/25 hover:text-primary"
                         >
                           <span>Voir</span>
                           <ChevronRightIcon />
-                        </Link>
+                        </span>
                       </div>
                     </div>
-                  </article>
+                  </Link>
                 ))}
               </div>
 
