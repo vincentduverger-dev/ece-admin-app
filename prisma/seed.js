@@ -1,5 +1,6 @@
 require("dotenv/config");
 
+const { randomBytes, scryptSync } = require("node:crypto");
 const { PrismaPg } = require("@prisma/adapter-pg");
 const {
   ApplicationStatus,
@@ -27,6 +28,15 @@ const prisma = new PrismaClient({
 
 const createUtcDate = (year, month, day, hour = 9, minute = 0) =>
   new Date(Date.UTC(year, month - 1, day, hour, minute, 0));
+
+const normalizeAdminEmail = (email) => email.trim().toLowerCase();
+
+const hashPassword = (password) => {
+  const salt = randomBytes(16).toString("base64url");
+  const derivedKey = scryptSync(password, salt, 64);
+
+  return `scrypt:${salt}:${derivedKey.toString("base64url")}`;
+};
 
 const LEVELS = [
   { code: "PS", label: "Petite Section", sortOrder: 1, availablePlaces: 18 },
@@ -462,15 +472,34 @@ const ensureApplicationBundle = async (levelIdsByCode, schoolYearId, seedRecord)
   });
 };
 
+const ensureAdminAccount = async () => {
+  const email = process.env.ADMIN_EMAIL?.trim();
+  const password = process.env.ADMIN_PASSWORD?.trim();
+
+  if (!email || !password) {
+    return null;
+  }
+
+  return prisma.adminAccount.upsert({
+    where: { email: normalizeAdminEmail(email) },
+    update: {},
+    create: {
+      email: normalizeAdminEmail(email),
+      passwordHash: hashPassword(password)
+    }
+  });
+};
+
 const main = async () => {
   const levelIdsByCode = await ensureLevels();
   const schoolYear = await ensureActiveSchoolYear();
+  await ensureAdminAccount();
 
   for (const seedRecord of APPLICATION_SEEDS) {
     await ensureApplicationBundle(levelIdsByCode, schoolYear.id, seedRecord);
   }
 
-  const [levelCount, activeYearCount, familyCount, applicationCount, studentCount, emailLogCount] =
+  const [levelCount, activeYearCount, familyCount, applicationCount, studentCount, emailLogCount, adminCount] =
     await Promise.all([
       prisma.level.count({ where: { code: { in: LEVELS.map((level) => level.code) } } }),
       prisma.schoolYear.count({ where: { label: ACTIVE_SCHOOL_YEAR.label, isActive: true } }),
@@ -505,11 +534,12 @@ const main = async () => {
             }
           }
         }
-      })
+      }),
+      prisma.adminAccount.count()
     ]);
 
   console.log(
-    `Seed completed: ${levelCount} levels, ${activeYearCount} active school year, ${familyCount} families, ${applicationCount} applications, ${studentCount} students, ${emailLogCount} email logs.`
+    `Seed completed: ${levelCount} levels, ${activeYearCount} active school year, ${familyCount} families, ${applicationCount} applications, ${studentCount} students, ${emailLogCount} email logs, ${adminCount} admin accounts.`
   );
 };
 

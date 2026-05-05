@@ -29,6 +29,18 @@ export const sendApplicationMail = async ({
   subject,
   body
 }: SendApplicationMailInput): Promise<void> => {
+  await sendPlainTextMail({
+    to,
+    subject,
+    body
+  });
+};
+
+export const sendPlainTextMail = async ({
+  to,
+  subject,
+  body
+}: SendApplicationMailInput): Promise<void> => {
   const smtpConfig = getSmtpConfig();
   const transporter = nodemailer.createTransport({
     host: smtpConfig.host,
@@ -42,5 +54,29 @@ export const sendApplicationMail = async ({
     to,
     subject,
     text: body
+  });
+};
+
+export const sendPasswordResetMail = async (
+  to: string,
+  resetLink: string
+): Promise<void> => {
+  await sendPlainTextMail({
+    to,
+    subject: "ECE - Réinitialisation de votre mot de passe",
+    body: `Bonjour,
+
+Une demande de réinitialisation de mot de passe a été effectuée pour votre compte administrateur.
+
+Cliquez sur le lien ci-dessous pour définir un nouveau mot de passe :
+
+${resetLink}
+
+Ce lien est valable 30 minutes.
+
+Si vous n’êtes pas à l’origine de cette demande, vous pouvez ignorer cet email.
+
+Cordialement,
+L’administration de l’École de la Culture et de l’Éducation`
   });
 };

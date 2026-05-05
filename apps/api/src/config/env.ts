@@ -111,10 +111,17 @@ const readOptionalBoolean = (name: string, defaultValue: boolean): boolean => {
 
 // Centralized backend environment access. Keep application code on `config`
 // instead of reading `process.env` directly.
+const nodeEnv = readNodeEnv();
+
 export const config = {
   app: {
-    nodeEnv: readNodeEnv(),
+    nodeEnv,
     port: readPort("PORT", 3000)
+  },
+  frontend: {
+    url: readOptionalString("FRONTEND_URL", {
+      defaultValue: nodeEnv === "production" ? undefined : "http://localhost:5173"
+    })
   },
   database: {
     url: readRequiredString("DATABASE_URL")

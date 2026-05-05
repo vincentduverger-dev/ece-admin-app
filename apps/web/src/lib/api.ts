@@ -29,6 +29,10 @@ export type LoginAdminResponse = {
   user: AuthUser;
 };
 
+export type MessageResponse = {
+  message: string;
+};
+
 type DeleteSchoolYearResult = {
   id: string;
   activatedSchoolYearId: string | null;
@@ -107,6 +111,42 @@ export const loginAdmin = async (
     },
     body: JSON.stringify({
       email,
+      password
+    })
+  });
+};
+
+export const requestPasswordReset = async (
+  email: string,
+  init?: RequestInit
+): Promise<MessageResponse> => {
+  return fetchJson<MessageResponse>("/api/auth/forgot-password", {
+    ...init,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...init?.headers
+    },
+    body: JSON.stringify({
+      email
+    })
+  });
+};
+
+export const resetPassword = async (
+  token: string,
+  password: string,
+  init?: RequestInit
+): Promise<MessageResponse> => {
+  return fetchJson<MessageResponse>("/api/auth/reset-password", {
+    ...init,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...init?.headers
+    },
+    body: JSON.stringify({
+      token,
       password
     })
   });

@@ -1,95 +1,18 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
+import {
+  AuthFooter,
+  BrandHeader,
+  EmailIcon,
+  LockIcon,
+  SerifHeading,
+  StatusSpinner
+} from "../components/auth/AuthPageUi";
 import LoginSchoolIllustration from "../components/illustrations/LoginSchoolIllustration";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../hooks/useAuth";
-
-const serifFontStyle = {
-  fontFamily: 'Georgia, "Times New Roman", serif'
-} as const;
-
-const brandTextureStyle = {
-  backgroundColor: "#1F4D3A",
-  backgroundImage: [
-    "linear-gradient(180deg, rgba(22,56,42,0.96), rgba(31,77,58,0.98))",
-    "radial-gradient(circle at 18% 18%, rgba(255,255,255,0.08), transparent 24%)",
-    "radial-gradient(circle at 82% 4%, rgba(255,255,255,0.06), transparent 28%)",
-    "repeating-linear-gradient(135deg, rgba(255,255,255,0.025) 0, rgba(255,255,255,0.025) 2px, transparent 2px, transparent 8px)"
-  ].join(", ")
-} as const;
-
-const BrandHeader = () => {
-  return (
-    <header
-      className="relative overflow-hidden border-b-4 border-secondary shadow-[0_20px_55px_-35px_rgba(15,23,42,0.65)]"
-      style={brandTextureStyle}
-    >
-      <div className="mx-auto flex w-full max-w-[1280px] items-center justify-center gap-4 px-6 py-6 sm:gap-5 sm:px-10 sm:py-7 lg:gap-6 lg:px-14 lg:py-8">
-        <img
-          src="/logo_ece.png"
-          alt="Logo de l'École de la Culture et de l'Éducation"
-          className="h-[82px] w-[82px] rounded-full border border-white/70 bg-white/40 object-cover p-0.5 shadow-[0_10px_30px_-18px_rgba(15,23,42,0.75)] sm:h-[96px] sm:w-[96px] lg:h-[112px] lg:w-[112px]"
-        />
-        <div className="min-w-0 text-white">
-          <p
-            style={serifFontStyle}
-            className="text-[2rem] leading-none tracking-tight sm:text-[2.6rem] lg:text-[3.1rem]"
-          >
-            ECE
-          </p>
-          <p
-            style={serifFontStyle}
-            className="mt-1 text-sm leading-tight text-white/95 sm:text-[1.35rem] lg:text-[2rem]"
-          >
-            École de la Culture et de l&apos;Éducation
-          </p>
-          <p className="mt-2 text-sm text-white/75">
-            Interface d&apos;administration des demandes d&apos;inscription
-          </p>
-        </div>
-      </div>
-    </header>
-  );
-};
-
-const EmailIcon = () => {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-      className="h-5 w-5 text-[#48564b]"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M3.75 7.5a2.25 2.25 0 0 1 2.25-2.25h12a2.25 2.25 0 0 1 2.25 2.25v9A2.25 2.25 0 0 1 18 18.75H6A2.25 2.25 0 0 1 3.75 16.5v-9Z" />
-      <path d="m4.5 8.25 6.66 5.1a1.5 1.5 0 0 0 1.82 0l6.52-5.1" />
-    </svg>
-  );
-};
-
-const LockIcon = () => {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-      className="h-5 w-5 text-[#48564b]"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M8.25 10.5V8.25a3.75 3.75 0 0 1 7.5 0v2.25" />
-      <rect x="4.5" y="10.5" width="15" height="9" rx="2.25" />
-      <path d="M12 13.5v3" />
-    </svg>
-  );
-};
 
 const EyeIcon = () => {
   return (
@@ -126,14 +49,6 @@ const EyeOffIcon = () => {
       <path d="M14.79 14.8A3 3 0 0 1 9.2 9.2" />
       <path d="M6.07 8.02A18.1 18.1 0 0 0 2.25 12s3.75 6 9.75 6c1.2 0 2.32-.24 3.35-.66" />
     </svg>
-  );
-};
-
-const StatusSpinner = ({ className = "" }: { className?: string }) => {
-  return (
-    <span
-      className={`inline-block h-5 w-5 animate-spin rounded-full border-2 border-primary/20 border-t-primary ${className}`.trim()}
-    />
   );
 };
 
@@ -210,12 +125,11 @@ const LoginPage = () => {
           <div className="relative mx-auto grid w-full max-w-[1280px] grid-cols-1 items-center gap-10 px-6 py-8 sm:px-10 sm:py-10 lg:grid-cols-[minmax(0,1.08fr)_minmax(470px,540px)] lg:gap-16 lg:px-14 lg:py-12">
             <aside className="order-2 flex flex-col justify-center self-center lg:order-1 lg:pr-4">
               <div className="max-w-[650px]">
-                <h1
-                  style={serifFontStyle}
+                <SerifHeading
                   className="text-[2.45rem] leading-[1.05] tracking-[-0.04em] text-primary sm:text-[2.8rem] lg:text-[3.15rem]"
                 >
                   Connexion administrateur
-                </h1>
+                </SerifHeading>
                 <p className="mt-7 max-w-[540px] text-[1.18rem] leading-[2.05rem] text-slate-600 sm:text-[1.34rem] sm:leading-[2.35rem]">
                   Accédez à votre espace de gestion des demandes d&apos;inscription
                   des élèves en tant qu&apos;administrateur de l&apos;École de la
@@ -231,12 +145,12 @@ const LoginPage = () => {
                 aria-busy={isCardBusy}
                 className="w-full max-w-[540px] rounded-[28px] border border-[#ede7de] bg-white/95 px-6 py-8 shadow-[0_22px_50px_-32px_rgba(15,23,42,0.3)] backdrop-blur sm:px-9 sm:py-10 lg:px-11 lg:py-11"
               >
-                <h2
-                  style={serifFontStyle}
+                <SerifHeading
+                  level={2}
                   className="text-[2.55rem] leading-none tracking-[-0.04em] text-primary sm:text-[3.05rem]"
                 >
                   Connexion
-                </h2>
+                </SerifHeading>
 
                 {isLoadingAuth ? (
                   <LoginCardState
@@ -326,8 +240,13 @@ const LoginPage = () => {
                       </div>
                     </div>
 
-                    <p className="mt-4 text-[1.05rem] text-slate-600">
-                      Mot de passe oublié ?
+                    <p className="mt-4">
+                      <Link
+                        to="/forgot-password"
+                        className="text-[1.05rem] font-medium text-primary transition hover:text-secondaryDark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                      >
+                        Mot de passe oublié ?
+                      </Link>
                     </p>
 
                     {errorMessage ? (
@@ -357,9 +276,7 @@ const LoginPage = () => {
           </div>
         </section>
 
-        <footer className="flex min-h-[84px] items-center justify-center border-t border-white/60 px-6 py-4 text-center text-[1.05rem] text-slate-600 sm:text-[1.12rem]">
-          ECE – École de la Culture et de l&apos;Éducation
-        </footer>
+        <AuthFooter />
       </div>
     </main>
   );

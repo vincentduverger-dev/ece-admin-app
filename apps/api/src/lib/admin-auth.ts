@@ -1,11 +1,14 @@
+import type { AdminAccount } from "@prisma/client";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 import { config } from "../config/env";
+import { prisma } from "../prisma/client";
 import { AppError } from "./errors";
+import { hashPassword, verifyPassword } from "./password-hash";
 
 const ADMIN_ROLE = "admin" as const;
 
-const normalizeEmail = (email: string): string => {
+export const normalizeAdminEmail = (email: string): string => {
   return email.trim().toLowerCase();
 };
 
@@ -28,27 +31,82 @@ const getConfiguredAdminCredentials = (): { email: string; password: string } =>
   }
 
   return {
-    email: normalizeEmail(email),
+    email: normalizeAdminEmail(email),
     password
   };
 };
 
-export const isValidAdminLogin = (input: {
-  email: string;
-  password: string;
-}): boolean => {
+const createConfiguredAdminAccount = async (): Promise<AdminAccount> => {
   const adminCredentials = getConfiguredAdminCredentials();
 
+  return prisma.adminAccount.upsert({
+    where: { email: adminCredentials.email },
+    update: {},
+    create: {
+      email: adminCredentials.email,
+      passwordHash: await hashPassword(adminCredentials.password)
+    }
+  });
+};
+
+export const findAdminAccountByEmail = async (
+  email: string
+): Promise<AdminAccount | null> => {
+  const normalizedEmail = normalizeAdminEmail(email);
+  const existingAdminAccount = await prisma.adminAccount.findUnique({
+    where: { email: normalizedEmail }
+  });
+
+  if (existingAdminAccount) {
+    return existingAdminAccount;
+  }
+
+  const configuredAdmin = getConfiguredAdminCredentials();
+
+  if (!safeCompare(normalizedEmail, configuredAdmin.email)) {
+    return null;
+  }
+
+  return createConfiguredAdminAccount();
+};
+
+export const isValidAdminLogin = async (input: {
+  email: string;
+  password: string;
+}): Promise<boolean> => {
+  const adminAccount = await findAdminAccountByEmail(input.email);
+
+  if (!adminAccount) {
+    return false;
+  }
+
   return (
-    safeCompare(normalizeEmail(input.email), adminCredentials.email) &&
-    safeCompare(input.password, adminCredentials.password)
+    safeCompare(normalizeAdminEmail(input.email), adminAccount.email) &&
+    (await verifyPassword(input.password, adminAccount.passwordHash))
   );
 };
 
-export const createAdminToken = (): string => {
-  const adminCredentials = getConfiguredAdminCredentials();
+export const updateAdminPassword = async (
+  adminAccountId: string,
+  password: string
+): Promise<void> => {
+  await prisma.adminAccount.update({
+    where: { id: adminAccountId },
+    data: {
+      passwordHash: await hashPassword(password)
+    }
+  });
+};
+
+export const createAdminToken = async (email: string): Promise<string> => {
+  const adminAccount = await findAdminAccountByEmail(email);
+
+  if (!adminAccount) {
+    throw new AppError("Admin credentials are not configured", 500);
+  }
+
   const payload = {
-    email: adminCredentials.email,
+    email: adminAccount.email,
     role: ADMIN_ROLE,
     iat: Date.now(),
     nonce: randomBytes(16).toString("hex")
@@ -56,7 +114,7 @@ export const createAdminToken = (): string => {
   const encodedPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const signature = createHmac(
     "sha256",
-    `${adminCredentials.email}:${adminCredentials.password}`
+    `${adminAccount.email}:${adminAccount.passwordHash}`
   )
     .update(encodedPayload)
     .digest("base64url");

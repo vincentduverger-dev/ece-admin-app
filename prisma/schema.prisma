@@ -184,3 +184,27 @@ model CsvImportLog {
   @@index([createdAt])
   @@index([status])
 }
+
+model AdminAccount {
+  id           String               @id @default(cuid())
+  email        String               @unique
+  passwordHash String
+  resetTokens  PasswordResetToken[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PasswordResetToken {
+  id             String    @id @default(cuid())
+  adminAccountId String
+  tokenHash      String    @unique
+  expiresAt      DateTime
+  usedAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  adminAccount AdminAccount @relation(fields: [adminAccountId], references: [id], onDelete: Cascade)
+
+  @@index([adminAccountId])
+  @@index([expiresAt])
+}
