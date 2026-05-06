@@ -10,7 +10,7 @@ import {
   SerifHeading,
   StatusSpinner
 } from "../components/auth/AuthPageUi";
-import LoginSchoolIllustration from "../components/illustrations/LoginSchoolIllustration";
+import { SchoolLoginIllustration } from "../components/animations";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../hooks/useAuth";
 
@@ -137,7 +137,9 @@ const LoginPage = () => {
                 </p>
               </div>
 
-              <LoginSchoolIllustration />
+              <div className="relative mt-8 w-full max-w-[560px] lg:mt-10">
+                <SchoolLoginIllustration className="mx-auto h-auto max-w-[500px]" />
+              </div>
             </aside>
 
             <section className="order-1 lg:order-2 lg:justify-self-end">

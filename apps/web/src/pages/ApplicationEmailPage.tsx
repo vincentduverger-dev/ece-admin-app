@@ -8,6 +8,7 @@ import {
 } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
+import { EmailSentAnimation } from "../components/animations";
 import FeedbackEmptyState from "../components/feedback/EmptyState";
 import SuccessFeedback from "../components/feedback/SuccessFeedback";
 import PageSectionHeader from "../components/layout/PageSectionHeader";
@@ -974,7 +975,10 @@ const ApplicationEmailPage = () => {
       </div>
 
       {hasEmailSendSuccess ? (
-        <div className="mt-6">
+        <div className="mt-6 grid gap-4 lg:grid-cols-[150px_minmax(0,1fr)] lg:items-center">
+          <div className="mx-auto w-full max-w-[150px] lg:mx-0">
+            <EmailSentAnimation className="h-auto" />
+          </div>
           <SuccessFeedback
             title="Email envoyé"
             description="Le message est envoyé à la famille et enregistré dans l'historique de la demande."

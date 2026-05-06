@@ -7,6 +7,7 @@ import type {
   MouseEvent
 } from "react";
 
+import { CsvImportSuccessAnimation } from "../components/animations";
 import AppLoader from "../components/feedback/AppLoader";
 import FeedbackEmptyState from "../components/feedback/EmptyState";
 import SuccessFeedback from "../components/feedback/SuccessFeedback";
@@ -980,7 +981,10 @@ const ImportCsvPage = () => {
         ) : null}
 
         {hasCompletedImportForActiveSchoolYear ? (
-          <div className="mt-5">
+          <div className="mt-5 grid gap-4 lg:grid-cols-[150px_minmax(0,1fr)] lg:items-center">
+            <div className="mx-auto w-full max-w-[150px] lg:mx-0">
+              <CsvImportSuccessAnimation className="h-auto" />
+            </div>
             <SuccessFeedback
               title="Import terminé"
               description={
