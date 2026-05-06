@@ -475,17 +475,20 @@ const ensureApplicationBundle = async (levelIdsByCode, schoolYearId, seedRecord)
 const ensureAdminAccount = async () => {
   const email = process.env.ADMIN_EMAIL?.trim();
   const password = process.env.ADMIN_PASSWORD?.trim();
+  const shouldSyncPassword = process.env.SYNC_ADMIN_PASSWORD_ON_SEED === "true";
 
   if (!email || !password) {
     return null;
   }
 
+  const passwordHash = hashPassword(password);
+
   return prisma.adminAccount.upsert({
     where: { email: normalizeAdminEmail(email) },
-    update: {},
+    update: shouldSyncPassword ? { passwordHash } : {},
     create: {
       email: normalizeAdminEmail(email),
-      passwordHash: hashPassword(password)
+      passwordHash
     }
   });
 };
