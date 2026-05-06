@@ -24,7 +24,6 @@ import {
   getApplicationById,
   getApplicationEmailLogs,
   updateApplicationPriority,
-  updateApplicationStatus,
   updateStudentAdmissionStatus
 } from "../lib/api";
 import {
@@ -79,17 +78,6 @@ const genderLabels: Record<ApplicationGender, string> = {
   UNKNOWN: "Non renseigné"
 };
 
-const statusOptions: Array<{
-  value: ApplicationStatus;
-  label: string;
-}> = [
-  { value: "RECEIVED", label: "Reçue" },
-  { value: "IN_REVIEW", label: "En revue" },
-  { value: "ACCEPTED", label: "Acceptée" },
-  { value: "WAITLISTED", label: "Liste d'attente" },
-  { value: "PARTIALLY_ACCEPTED", label: "Décision partielle" }
-];
-
 const studentAdmissionStatusOptions: Array<{
   value: StudentAdmissionStatus;
   label: string;
@@ -140,10 +128,6 @@ const isDecisionStatus = (
     status === "REFUSED" ||
     status === "PARTIALLY_ACCEPTED"
   );
-};
-
-const getStatusSelection = (status: ApplicationStatus): ApplicationStatus => {
-  return status === "REFUSED" ? "WAITLISTED" : status;
 };
 
 const formatSchoolYearLabel = (label: string): string => {
@@ -492,25 +476,6 @@ const MailSendAnimation = () => {
   );
 };
 
-const SaveIcon = ({ className = "h-4 w-4" }: IconProps) => {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.6"
-      className={className}
-    >
-      <path d="M3.25 2.75h7.6l1.9 1.9v8.6h-9.5V2.75Z" />
-      <path d="M5.25 2.75v3h5.5" />
-      <path d="M5.5 11.25h5" />
-    </svg>
-  );
-};
-
 const StarIcon = ({ className = "h-4 w-4" }: IconProps) => {
   return (
     <svg aria-hidden="true" viewBox="0 0 16 16" fill="currentColor" className={className}>
@@ -648,7 +613,7 @@ const buildTimelineEntries = (
   const entries: TimelineEntry[] = [
     {
       id: `${application.id}-created`,
-      type: "Demande reçue",
+      type: "Demande importée",
       date: formatOptionalDateTime(application.createdAt),
       markerClassName: "bg-primary shadow-[0_10px_20px_-14px_rgba(31,77,58,0.75)]",
       sortDate: createdAt.getTime(),
@@ -708,8 +673,6 @@ const ApplicationDetailPage = () => {
   const [emailLogs, setEmailLogs] = useState<ApplicationEmailLog[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedStatus, setSelectedStatus] = useState<ApplicationStatus>("RECEIVED");
-  const [isStatusSubmitting, setIsStatusSubmitting] = useState(false);
   const [isPrioritySubmitting, setIsPrioritySubmitting] = useState(false);
   const [updatingStudentAdmissionId, setUpdatingStudentAdmissionId] =
     useState<string | null>(null);
@@ -775,60 +738,9 @@ const ApplicationDetailPage = () => {
   }, [applicationId]);
 
   useEffect(() => {
-    if (application) {
-      setSelectedStatus(getStatusSelection(application.status));
-    }
-  }, [application]);
-
-  useEffect(() => {
     setIsExceptionalEditEnabled(false);
     setIsUnlockDecisionModalOpen(false);
   }, [application?.id, application?.decisionAt]);
-
-  const handleStatusSubmit = useCallback(
-    async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
-      event.preventDefault();
-
-      if (!application || selectedStatus === application.status) {
-        return;
-      }
-
-      if (isTreatmentReadOnly) {
-        showError(
-          "La décision est verrouillée depuis l'envoi de l'email au parent."
-        );
-        return;
-      }
-
-      setIsStatusSubmitting(true);
-
-      try {
-        const updatedApplication = await updateApplicationStatus(
-          application.id,
-          selectedStatus
-        );
-
-        setApplication((currentApplication) => {
-          if (!currentApplication || currentApplication.id !== updatedApplication.id) {
-            return currentApplication;
-          }
-
-          return {
-            ...currentApplication,
-            status: updatedApplication.status
-          };
-        });
-        showSuccess("Le statut a bien été mis à jour.");
-      } catch (updateError) {
-        showError(
-          getActionErrorMessage("Impossible de mettre à jour le statut.", updateError)
-        );
-      } finally {
-        setIsStatusSubmitting(false);
-      }
-    },
-    [application, isTreatmentReadOnly, selectedStatus, showError, showSuccess]
-  );
 
   const handlePriorityToggle = useCallback(async (): Promise<void> => {
     if (!application) {
@@ -984,13 +896,6 @@ const ApplicationDetailPage = () => {
   const studentAdmissionSummary = useMemo(() => {
     return application ? getStudentAdmissionSummary(application.students) : "";
   }, [application]);
-
-  const handleSelectedStatusChange = useCallback(
-    (event: React.ChangeEvent<HTMLSelectElement>): void => {
-      setSelectedStatus(event.target.value as ApplicationStatus);
-    },
-    []
-  );
 
   const pageTopBar = (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -1212,53 +1117,17 @@ const ApplicationDetailPage = () => {
                   : "Décision verrouillée : l'email de décision a déjà été envoyé au parent."}
               </div>
             ) : null}
-            <form className="shrink-0" onSubmit={handleStatusSubmit}>
-              <div
-                className={`rounded-[22px] border border-slate-200/90 bg-slate-50/80 p-4 transition ${
-                  isTreatmentReadOnly ? "opacity-55 saturate-50" : ""
-                }`}
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Statut actuel
-                    </p>
-                    <div className="mt-1.5">
-                      <StatusBadge status={application.status} />
-                    </div>
-                  </div>
-                  <select
-                    id="application-status"
-                    aria-label="Nouveau statut"
-                    value={selectedStatus}
-                    onChange={handleSelectedStatusChange}
-                    disabled={isTreatmentReadOnly || isStatusSubmitting}
-                    className="min-w-[170px] rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
-                  >
-                    {statusOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={
-                    isTreatmentReadOnly ||
-                    isStatusSubmitting ||
-                    selectedStatus === application.status
-                  }
-                  className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-not-allowed disabled:bg-slate-300"
-                >
-                  <SaveIcon />
-                  <span>
-                    {isStatusSubmitting ? "Mise à jour..." : "Mettre à jour"}
-                  </span>
-                </button>
+            <div className="shrink-0 rounded-[22px] border border-slate-200/90 bg-slate-50/80 p-4">
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Statut actuel
+              </p>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                <StatusBadge status={application.status} />
+                <span className="text-xs font-medium leading-5 text-slate-500">
+                  Mis à jour automatiquement depuis les décisions élèves.
+                </span>
               </div>
-            </form>
+            </div>
 
             <div
               className={`shrink-0 rounded-[22px] border border-slate-200/90 bg-slate-50/80 p-4 transition ${

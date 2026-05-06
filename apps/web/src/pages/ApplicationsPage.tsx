@@ -70,7 +70,6 @@ const pageSizeOptions: PageSize[] = [4, 6, 8, 10, 12];
 
 const statusOptions: StatusOption[] = [
   { value: "", label: "Tous les statuts" },
-  { value: "RECEIVED", label: "Reçues" },
   { value: "IN_REVIEW", label: "En revue" },
   { value: "ACCEPTED", label: "Acceptées" },
   { value: "WAITLISTED", label: "Liste d'attente" },
@@ -85,6 +84,10 @@ const getRequestedStatusFilter = (
   searchParams: URLSearchParams
 ): "" | ApplicationStatus => {
   const requestedStatus = searchParams.get("status")?.trim() ?? "";
+
+  if (requestedStatus === "RECEIVED") {
+    return "IN_REVIEW";
+  }
 
   return isApplicationStatus(requestedStatus) ? requestedStatus : "";
 };
