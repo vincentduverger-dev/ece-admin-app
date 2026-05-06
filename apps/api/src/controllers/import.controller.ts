@@ -13,6 +13,7 @@ const csvImportLogSelect = {
   importedStudents: true,
   skippedRows: true,
   duplicateRows: true,
+  duplicateFamilies: true,
   invalidRows: true,
   totalRows: true,
   status: true,
@@ -28,6 +29,11 @@ const csvImportLogSelect = {
 type CsvImportLogResponse = Prisma.CsvImportLogGetPayload<{
   select: typeof csvImportLogSelect;
 }>;
+
+type CsvImportDuplicateRow = {
+  rowNumber: number;
+  reason: string;
+};
 
 const ACCEPTED_CSV_MIME_TYPES = new Set([
   "application/csv",
@@ -174,6 +180,111 @@ const buildLevelLookupMap = (
   return levelLookup;
 };
 
+const parseMergeDuplicateFamiliesFlag = (value: unknown): boolean => {
+  if (typeof value !== "string") {
+    return true;
+  }
+
+  return value !== "false";
+};
+
+const getUploadedCsvFile = (file: Express.Multer.File | undefined): Express.Multer.File => {
+  if (!file) {
+    throw badRequest("CSV file is required");
+  }
+
+  if (!isCsvUpload(file)) {
+    throw badRequest("Invalid CSV file format");
+  }
+
+  return file;
+};
+
+const getActiveImportSchoolYear = async (): Promise<{ id: string; label: string }> => {
+  const activeSchoolYear = await prisma.schoolYear.findFirst({
+    where: { isActive: true },
+    select: {
+      id: true,
+      label: true
+    },
+    orderBy: {
+      startYear: "desc"
+    }
+  });
+
+  if (!activeSchoolYear) {
+    throw notFound("Active school year not found");
+  }
+
+  return activeSchoolYear;
+};
+
+const ensureNoSuccessfulImportForSchoolYear = async (schoolYearId: string): Promise<void> => {
+  const existingSuccessfulImport = await prisma.csvImportLog.findFirst({
+    where: {
+      schoolYearId,
+      status: "SUCCESS"
+    },
+    select: {
+      id: true
+    }
+  });
+
+  if (existingSuccessfulImport) {
+    throw badRequest("CSV import already completed for active school year");
+  }
+};
+
+const getDuplicateRowWarnings = async (
+  schoolYearId: string,
+  rows: ReturnType<typeof parseCsvImportFile>["rows"]
+): Promise<CsvImportDuplicateRow[]> => {
+  const rowHashes = rows.map((row) => ({
+    rowNumber: row.rowNumber,
+    hash: buildApplicationImportHash(schoolYearId, row)
+  }));
+  const existingHashSet = new Set(
+    (
+      await prisma.application.findMany({
+        where: {
+          rawCsvRowHash: {
+            in: rowHashes.map((rowHash) => rowHash.hash)
+          }
+        },
+        select: {
+          rawCsvRowHash: true
+        }
+      })
+    )
+      .map((application) => application.rawCsvRowHash)
+      .filter((hash): hash is string => typeof hash === "string")
+  );
+  const seenHashes = new Set<string>();
+  const duplicateRows: CsvImportDuplicateRow[] = [];
+
+  for (const rowHash of rowHashes) {
+    if (existingHashSet.has(rowHash.hash)) {
+      duplicateRows.push({
+        rowNumber: rowHash.rowNumber,
+        reason: "Ligne déjà importée"
+      });
+      continue;
+    }
+
+    if (seenHashes.has(rowHash.hash)) {
+      duplicateRows.push({
+        rowNumber: rowHash.rowNumber,
+        reason: "Ligne identique déjà présente dans ce fichier"
+      });
+      continue;
+    }
+
+    seenHashes.add(rowHash.hash);
+  }
+
+  return duplicateRows;
+};
+
 const buildFamilyCreateData = (
   family: {
     fatherLastName: string | null;
@@ -275,6 +386,9 @@ const mapCsvImportLog = (log: CsvImportLogResponse) => {
     importedStudents: log.importedStudents,
     skippedRows: log.skippedRows,
     duplicateRows: log.duplicateRows,
+    duplicateRowsCount: log.duplicateRows,
+    duplicateFamilies: log.duplicateFamilies,
+    duplicateFamiliesCount: log.duplicateFamilies,
     invalidRows: log.invalidRows,
     totalRows: log.totalRows,
     status: log.status,
@@ -296,47 +410,35 @@ export const getCsvImportHistory = async (_req: Request, res: Response): Promise
   res.status(200).json(importLogs.map(mapCsvImportLog));
 };
 
+export const previewCsvImport = async (req: Request, res: Response): Promise<void> => {
+  const file = getUploadedCsvFile(req.file);
+  const parsedImport = parseCsvImportFile(file.buffer);
+  const activeSchoolYear = await getActiveImportSchoolYear();
+
+  await ensureNoSuccessfulImportForSchoolYear(activeSchoolYear.id);
+
+  const duplicateRows = await getDuplicateRowWarnings(activeSchoolYear.id, parsedImport.rows);
+
+  res.status(200).json({
+    totalRows: parsedImport.totalRows,
+    invalidRows: parsedImport.invalidRows.length,
+    duplicateRows,
+    duplicateRowsCount: duplicateRows.length,
+    duplicateFamilies: parsedImport.duplicateFamilies,
+    duplicateFamiliesCount: parsedImport.duplicateFamiliesCount,
+    activeSchoolYear: activeSchoolYear.label,
+    delimiter: parsedImport.detectedDelimiter
+  });
+};
+
 export const importCsv = async (req: Request, res: Response): Promise<void> => {
-  const file = req.file;
-
-  if (!file) {
-    throw badRequest("CSV file is required");
-  }
-
-  if (!isCsvUpload(file)) {
-    throw badRequest("Invalid CSV file format");
-  }
-
+  const file = getUploadedCsvFile(req.file);
   const parsedImport = parseCsvImportFile(file.buffer);
   const normalizedFileName = normalizeUploadedFileName(file.originalname);
-  const activeSchoolYear = await prisma.schoolYear.findFirst({
-    where: { isActive: true },
-    select: {
-      id: true,
-      label: true
-    },
-    orderBy: {
-      startYear: "desc"
-    }
-  });
+  const mergeDuplicateFamilies = parseMergeDuplicateFamiliesFlag(req.body?.mergeDuplicateFamilies);
+  const activeSchoolYear = await getActiveImportSchoolYear();
 
-  if (!activeSchoolYear) {
-    throw notFound("Active school year not found");
-  }
-
-  const existingSuccessfulImport = await prisma.csvImportLog.findFirst({
-    where: {
-      schoolYearId: activeSchoolYear.id,
-      status: "SUCCESS"
-    },
-    select: {
-      id: true
-    }
-  });
-
-  if (existingSuccessfulImport) {
-    throw badRequest("CSV import already completed for active school year");
-  }
+  await ensureNoSuccessfulImportForSchoolYear(activeSchoolYear.id);
 
   const levels = await prisma.level.findMany({
     select: {
@@ -372,9 +474,23 @@ export const importCsv = async (req: Request, res: Response): Promise<void> => {
   let importedApplications = 0;
   let importedStudents = 0;
   let duplicateRows = 0;
+  const duplicateFamilies = parsedImport.duplicateFamilies;
+  const duplicateFamiliesCount = parsedImport.duplicateFamiliesCount;
+  const duplicateFamilyRows = new Set(duplicateFamilies.flatMap((family) => family.rows));
+  const duplicateFamilyRowsToMerge = new Set(
+    mergeDuplicateFamilies
+      ? duplicateFamilies.flatMap((family) => family.rows.slice(1))
+      : []
+  );
+  let mergedDuplicateFamilyRows = 0;
   let invalidRows = parsedImport.invalidRows.length;
 
   for (const row of parsedImport.rows) {
+    if (duplicateFamilyRowsToMerge.has(row.rowNumber)) {
+      mergedDuplicateFamilyRows += 1;
+      continue;
+    }
+
     const resolvedStudents = row.students.map((student) => {
       const levelId = levelLookup.get(student.requestedLevelKey);
 
@@ -394,6 +510,11 @@ export const importCsv = async (req: Request, res: Response): Promise<void> => {
     const applicationHash = buildApplicationImportHash(activeSchoolYear.id, row);
 
     const importResult = await prisma.$transaction(async (tx) => {
+      // Existing "duplicateRows" semantics:
+      // this counter only covers exact imported applications whose rawCsvRowHash
+      // already exists for the school year. Potential duplicate families are
+      // reported separately; when the admin confirms a merge, only the first
+      // request of each duplicate family group is imported.
       // MVP dedupe rule:
       // - Family is matched by contact email (case-insensitive)
       // - Application is matched by a hash built from school year + contact email
@@ -417,17 +538,20 @@ export const importCsv = async (req: Request, res: Response): Promise<void> => {
         };
       }
 
-      const existingFamily = await tx.family.findFirst({
-        where: {
-          contactEmail: {
-            equals: row.family.contactEmail,
-            mode: "insensitive"
+      const shouldMergeFamily = mergeDuplicateFamilies || !duplicateFamilyRows.has(row.rowNumber);
+      const existingFamily = shouldMergeFamily
+        ? await tx.family.findFirst({
+          where: {
+            contactEmail: {
+              equals: row.family.contactEmail,
+              mode: "insensitive"
+            }
+          },
+          select: {
+            id: true
           }
-        },
-        select: {
-          id: true
-        }
-      });
+        })
+        : null;
 
       let familyId = existingFamily?.id;
 
@@ -503,6 +627,7 @@ export const importCsv = async (req: Request, res: Response): Promise<void> => {
   }
 
   importedFamilies = importedFamilyIds.size;
+  const skippedRows = invalidRows + duplicateRows + mergedDuplicateFamilyRows;
 
   const createdImportLog = await prisma.csvImportLog.create({
     data: {
@@ -511,8 +636,9 @@ export const importCsv = async (req: Request, res: Response): Promise<void> => {
       importedFamilies,
       importedApplications,
       importedStudents,
-      skippedRows: invalidRows + duplicateRows,
+      skippedRows,
       duplicateRows,
+      duplicateFamilies: duplicateFamiliesCount,
       invalidRows,
       totalRows: parsedImport.totalRows
     },
@@ -523,8 +649,13 @@ export const importCsv = async (req: Request, res: Response): Promise<void> => {
     importedFamilies,
     importedApplications,
     importedStudents,
-    skippedRows: invalidRows + duplicateRows,
+    skippedRows,
     duplicateRows,
+    duplicateRowsCount: duplicateRows,
+    duplicateFamilies,
+    duplicateFamiliesCount,
+    mergedDuplicateFamilyRows,
+    mergeDuplicateFamilies,
     invalidRows,
     totalRows: parsedImport.totalRows,
     activeSchoolYear: activeSchoolYear.label,

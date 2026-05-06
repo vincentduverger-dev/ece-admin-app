@@ -17,10 +17,11 @@ import {
   createSchoolYear,
   getActiveSchoolYear,
   getCsvImportHistory,
+  previewCsvImport,
   uploadCsvImport
 } from "../lib/api";
 import type { SchoolYearSummary } from "../types/application";
-import type { CsvImportHistoryItem, CsvImportSummary } from "../types/import";
+import type { CsvImportHistoryItem, CsvImportPreview, CsvImportSummary } from "../types/import";
 
 type IconProps = {
   className?: string;
@@ -81,6 +82,18 @@ const getImportedFamiliesCount = (
   return item.importedApplications;
 };
 
+const getDuplicateRowsCount = (
+  item: Pick<CsvImportHistoryItem, "duplicateRows" | "duplicateRowsCount">
+): number => {
+  return item.duplicateRowsCount ?? item.duplicateRows ?? 0;
+};
+
+const getDuplicateFamiliesCount = (
+  item: Pick<CsvImportHistoryItem, "duplicateFamilies" | "duplicateFamiliesCount">
+): number => {
+  return item.duplicateFamiliesCount ?? item.duplicateFamilies ?? 0;
+};
+
 const getImportHistoryResult = (item: CsvImportHistoryItem): string => {
   return [
     pluralize(getImportedFamiliesCount(item), "famille", "familles"),
@@ -92,6 +105,10 @@ const getImportHistoryResult = (item: CsvImportHistoryItem): string => {
 
 const getImportSuccessMessage = (summary: CsvImportSummary): string => {
   return `Import terminé : ${pluralize(summary.importedApplications, "demande", "demandes")} et ${pluralize(summary.importedStudents, "élève", "élèves")} traités.`;
+};
+
+const getDuplicatePreviewCount = (preview: CsvImportPreview): number => {
+  return preview.duplicateRowsCount + preview.duplicateFamiliesCount;
 };
 
 const getActiveSchoolYearErrorMessage = (error: unknown): string => {
@@ -280,6 +297,152 @@ const SummaryMetric = ({
   );
 };
 
+const DuplicateImportModal = ({
+  preview,
+  isSubmitting,
+  onCancel,
+  onConfirm
+}: {
+  preview: CsvImportPreview;
+  isSubmitting: boolean;
+  onCancel: () => void;
+  onConfirm: (mergeDuplicateFamilies: boolean) => void;
+}) => {
+  const duplicateCount = getDuplicatePreviewCount(preview);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="duplicate-import-title"
+    >
+      <section className="max-h-[88vh] w-full max-w-4xl overflow-y-auto rounded-[28px] border border-[#e8dccf] bg-white p-5 shadow-[0_30px_80px_-35px_rgba(15,23,42,0.55)] sm:p-6">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-secondaryDark">
+              Vérification avant import
+            </p>
+            <h2 id="duplicate-import-title" className="mt-2 font-serif text-[2rem] text-slate-900">
+              Doublons détectés
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+              {pluralize(duplicateCount, "doublon a été détecté", "doublons ont été détectés")}
+              . Choisissez si les familles signalées doivent être fusionnées avant
+              l&apos;import définitif du fichier CSV.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-center sm:min-w-72">
+            <div className="rounded-2xl border border-[#eee3d7] px-3 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Doublons exacts
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-primary">
+                {numberFormatter.format(preview.duplicateRowsCount)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-[#eee3d7] px-3 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Familles
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-primary">
+                {numberFormatter.format(preview.duplicateFamiliesCount)}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {preview.duplicateRows.length > 0 ? (
+          <section className="mt-5">
+            <h3 className="text-sm font-semibold text-slate-900">Doublons exacts</h3>
+            <div className="mt-3 grid gap-2">
+              {preview.duplicateRows.map((duplicateRow) => (
+                <div
+                  key={`${duplicateRow.rowNumber}-${duplicateRow.reason}`}
+                  className="rounded-2xl border border-[#eee3d7] bg-[#fffdf8] px-4 py-3 text-sm text-slate-700"
+                >
+                  Ligne CSV {duplicateRow.rowNumber} · {duplicateRow.reason}
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {preview.duplicateFamilies.length > 0 ? (
+          <section className="mt-5">
+            <h3 className="text-sm font-semibold text-slate-900">
+              Familles potentiellement en double
+            </h3>
+            <div className="mt-3 grid gap-3">
+              {preview.duplicateFamilies.map((duplicateFamily) => (
+                <article
+                  key={duplicateFamily.key}
+                  className="rounded-2xl border border-[#eee3d7] bg-[#fffdf8] px-4 py-3 text-sm text-slate-700"
+                >
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="font-semibold text-slate-900">
+                        {duplicateFamily.reason}
+                      </p>
+                      <p className="mt-1">
+                        Lignes CSV {duplicateFamily.rows.join(", ")}
+                      </p>
+                    </div>
+                    <p className="break-all text-slate-600">
+                      {duplicateFamily.familyPreview.contactEmail}
+                    </p>
+                  </div>
+                  <p className="mt-2 text-slate-600">
+                    Père : {duplicateFamily.familyPreview.fatherFullName ?? "Non renseigné"}
+                    {" · "}
+                    Mère : {duplicateFamily.familyPreview.motherFullName ?? "Non renseignée"}
+                    {" · "}
+                    Téléphone : {duplicateFamily.familyPreview.contactPhone ?? "Non renseigné"}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <p className="mt-5 rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3 text-sm leading-6 text-slate-700">
+          Fusionner conserve une seule demande pour chaque famille signalée et
+          ignore les autres lignes du groupe. Importer sans fusion crée des
+          fiches familles séparées pour ces demandes. Les doublons exacts restent
+          ignorés dans les deux cas.
+        </p>
+
+        <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isSubmitting}
+            className="inline-flex items-center justify-center rounded-2xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={() => onConfirm(false)}
+            disabled={isSubmitting}
+            className="inline-flex items-center justify-center rounded-2xl border border-secondary/50 px-5 py-3 text-sm font-semibold text-secondaryDark transition hover:bg-secondary/10 disabled:cursor-wait disabled:opacity-60"
+          >
+            Importer sans fusion
+          </button>
+          <button
+            type="button"
+            onClick={() => onConfirm(true)}
+            disabled={isSubmitting}
+            className="inline-flex items-center justify-center rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-wait disabled:bg-slate-300"
+          >
+            {isSubmitting ? "Import en cours..." : "Fusionner et importer"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+};
+
 const ImportCsvPage = () => {
   const { showError, showSuccess } = useToast();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -296,6 +459,8 @@ const ImportCsvPage = () => {
   const [inlineMessage, setInlineMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [lastImportSummary, setLastImportSummary] = useState<CsvImportSummary | null>(null);
+  const [pendingImportPreview, setPendingImportPreview] = useState<CsvImportPreview | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -394,6 +559,7 @@ const ImportCsvPage = () => {
     isLoadingActiveSchoolYear || isCreatingSchoolYear || isSubmitting;
   const schoolYearDraftPlaceholder = getSchoolYearDraftPlaceholder(activeSchoolYear);
   const hasCompletedImportForActiveSchoolYear = activeSchoolYearImport !== null;
+  const lastDuplicateFamilies = lastImportSummary?.duplicateFamilies ?? [];
   const isUploadLocked =
     isLoadingActiveSchoolYear ||
     isLoadingHistory ||
@@ -415,6 +581,7 @@ const ImportCsvPage = () => {
 
   const clearSelectedFile = useCallback((): void => {
     setSelectedFile(null);
+    setPendingImportPreview(null);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -440,6 +607,7 @@ const ImportCsvPage = () => {
 
     setSelectedFile(nextFile);
     setInlineMessage(null);
+    setPendingImportPreview(null);
   }, [isUploadLocked, showError]);
 
   const handleFileInputChange = useCallback((event: ChangeEvent<HTMLInputElement>): void => {
@@ -458,6 +626,44 @@ const ImportCsvPage = () => {
     event.stopPropagation();
     openFilePicker();
   }, [openFilePicker]);
+
+  const finalizeCsvImport = async (mergeDuplicateFamilies: boolean): Promise<void> => {
+    if (!selectedFile) {
+      const message = "Sélectionnez un fichier CSV avant de lancer l'import.";
+
+      setInlineMessage(message);
+      setPendingImportPreview(null);
+      showError(message);
+      return;
+    }
+
+    setIsSubmitting(true);
+    setInlineMessage(null);
+
+    try {
+      const summary = await uploadCsvImport(selectedFile, { mergeDuplicateFamilies });
+
+      setLastImportSummary(summary);
+      setPendingImportPreview(null);
+
+      if (summary.historyEntry) {
+        setHistory((currentHistory) => [
+          summary.historyEntry as CsvImportHistoryItem,
+          ...currentHistory.filter((item) => item.id !== summary.historyEntry?.id)
+        ]);
+      }
+
+      clearSelectedFile();
+      showSuccess(getImportSuccessMessage(summary));
+    } catch (submitError) {
+      const message = getImportErrorMessage(submitError);
+
+      setInlineMessage(message);
+      showError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleUploadZoneKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>): void => {
     if (isUploadLocked) {
@@ -600,19 +806,17 @@ const ImportCsvPage = () => {
 
     setIsSubmitting(true);
     setInlineMessage(null);
+    setPendingImportPreview(null);
 
     try {
-      const summary = await uploadCsvImport(selectedFile);
+      const preview = await previewCsvImport(selectedFile);
 
-      if (summary.historyEntry) {
-        setHistory((currentHistory) => [
-          summary.historyEntry as CsvImportHistoryItem,
-          ...currentHistory.filter((item) => item.id !== summary.historyEntry?.id)
-        ]);
+      if (getDuplicatePreviewCount(preview) > 0) {
+        setPendingImportPreview(preview);
+        return;
       }
 
-      clearSelectedFile();
-      showSuccess(getImportSuccessMessage(summary));
+      await finalizeCsvImport(true);
     } catch (submitError) {
       const message = getImportErrorMessage(submitError);
 
@@ -645,6 +849,19 @@ const ImportCsvPage = () => {
 
   return (
     <>
+      {pendingImportPreview ? (
+        <DuplicateImportModal
+          preview={pendingImportPreview}
+          isSubmitting={isSubmitting}
+          onCancel={() => {
+            setPendingImportPreview(null);
+          }}
+          onConfirm={(mergeDuplicateFamilies) => {
+            void finalizeCsvImport(mergeDuplicateFamilies);
+          }}
+        />
+      ) : null}
+
       <div className="ui-animate-in ui-animate-in--subtle" style={getEnterStyle(120)}>
         <PageSectionHeader topBar={pageTopBar} title="Import CSV" />
       </div>
@@ -659,7 +876,12 @@ const ImportCsvPage = () => {
         </p>
 
         <ul className="mt-5 space-y-3 pl-5 text-[1.02rem] leading-7 text-slate-700 marker:text-primary">
-          <li>Les doublons sont détectés automatiquement.</li>
+          <li>
+            Les doublons exacts concernent les lignes déjà importées.
+          </li>
+          <li>
+            Les familles multiples concernent les familles ayant soumis plusieurs demandes.
+          </li>
           <li>
             Le fichier importé sera rattaché à l&apos;année scolaire{" "}
             {activeSchoolYear ? activeSchoolYearLabel : "active configurée"}.
@@ -882,6 +1104,77 @@ const ImportCsvPage = () => {
           </div>
         </form>
 
+        {lastDuplicateFamilies.length > 0 ? (
+          <section className="mt-5 rounded-[24px] border border-[#ebdfd2] bg-white/82 px-4 py-4 sm:px-5">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primaryLight">
+                Contrôle métier
+              </p>
+              <h2 className="mt-2 font-serif text-[1.7rem] text-slate-900">
+                Familles potentiellement en double
+              </h2>
+            </div>
+
+            <div className="mt-4 grid gap-3">
+              {lastDuplicateFamilies.map((duplicateFamily) => (
+                <article
+                  key={duplicateFamily.key}
+                  className="rounded-[20px] border border-[#eee3d7] bg-white/88 px-4 py-4"
+                >
+                  <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="font-semibold text-slate-900">
+                        {duplicateFamily.reason}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        Cette famille possède plusieurs demandes dans le fichier.
+                      </p>
+                    </div>
+                    <div className="w-fit rounded-full border border-primary/15 bg-primary/8 px-3 py-1 text-xs font-semibold text-primaryDark">
+                      Lignes CSV {duplicateFamily.rows.join(", ")}
+                    </div>
+                  </div>
+
+                  <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        Père
+                      </dt>
+                      <dd className="mt-1 text-slate-900">
+                        {duplicateFamily.familyPreview.fatherFullName ?? "Non renseigné"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        Mère
+                      </dt>
+                      <dd className="mt-1 text-slate-900">
+                        {duplicateFamily.familyPreview.motherFullName ?? "Non renseigné"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        Email
+                      </dt>
+                      <dd className="mt-1 break-all text-slate-900">
+                        {duplicateFamily.familyPreview.contactEmail}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        Téléphone
+                      </dt>
+                      <dd className="mt-1 text-slate-900">
+                        {duplicateFamily.familyPreview.contactPhone ?? "Non renseigné"}
+                      </dd>
+                    </div>
+                  </dl>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         {latestImport ? (
           <section
             className="ui-animate-in mt-6 rounded-[26px] border border-[#ebdfd3] bg-white/78 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] sm:p-5"
@@ -907,7 +1200,7 @@ const ImportCsvPage = () => {
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
               <SummaryMetric
                 label="Familles"
                 value={getImportedFamiliesCount(latestImport)}
@@ -919,10 +1212,19 @@ const ImportCsvPage = () => {
               <SummaryMetric label="Élèves" value={latestImport.importedStudents} />
               <SummaryMetric label="Ignorées" value={latestImport.skippedRows} />
               <SummaryMetric
-                label="Doublons"
-                value={latestImport.duplicateRows ?? 0}
+                label="Doublons exacts"
+                value={getDuplicateRowsCount(latestImport)}
+              />
+              <SummaryMetric
+                label="Familles en double"
+                value={getDuplicateFamiliesCount(latestImport)}
               />
             </div>
+
+            <p className="mt-4 text-sm leading-6 text-slate-600">
+              Les doublons exacts concernent les lignes déjà importées.
+              Les familles multiples concernent les familles ayant soumis plusieurs demandes.
+            </p>
 
             {typeof latestImport.invalidRows === "number" ? (
               <p className="mt-4 text-sm text-slate-600">
@@ -1007,8 +1309,9 @@ const ImportCsvPage = () => {
                       </div>
                       <div className="mt-1 text-slate-500">
                         {typeof item.duplicateRows === "number"
-                          ? `${pluralize(item.duplicateRows, "doublon", "doublons")} détecté${item.duplicateRows > 1 ? "s" : ""}`
+                          ? `${pluralize(getDuplicateRowsCount(item), "doublon exact", "doublons exacts")} détecté${getDuplicateRowsCount(item) > 1 ? "s" : ""}`
                           : "Aucun doublon signalé"}
+                        {` · ${pluralize(getDuplicateFamiliesCount(item), "famille en double", "familles en double")}`}
                         {typeof item.invalidRows === "number"
                           ? ` · ${pluralize(item.invalidRows, "ligne invalide", "lignes invalides")}`
                           : ""}

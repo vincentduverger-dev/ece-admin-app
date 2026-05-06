@@ -2,6 +2,7 @@ import { Link, Navigate, Route, Routes } from "react-router-dom";
 
 import PrivateRoute from "./components/auth/PrivateRoute";
 import AppLayout from "./components/layout/AppLayout";
+import ScrollToTop from "./components/layout/ScrollToTop";
 import SiteFooter from "./components/layout/SiteFooter";
 import ToastViewport from "./components/ui/ToastViewport";
 import { ToastProvider } from "./context/ToastContext";
@@ -55,6 +56,7 @@ const NotFoundPage = () => {
 function App() {
   return (
     <ToastProvider>
+      <ScrollToTop />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />

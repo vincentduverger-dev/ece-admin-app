@@ -2,7 +2,7 @@ import type { RequestHandler } from "express";
 import { Router } from "express";
 import multer from "multer";
 
-import { getCsvImportHistory, importCsv } from "../controllers/import.controller";
+import { getCsvImportHistory, importCsv, previewCsvImport } from "../controllers/import.controller";
 import { badRequest } from "../lib/errors";
 
 const router = Router();
@@ -26,6 +26,7 @@ const uploadCsvFile: RequestHandler = (req, res, next) => {
 };
 
 router.get("/import/csv/history", getCsvImportHistory);
+router.post("/import/csv/preview", uploadCsvFile, previewCsvImport);
 router.post("/import/csv", uploadCsvFile, importCsv);
 
 export default router;

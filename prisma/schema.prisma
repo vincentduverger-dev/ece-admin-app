@@ -172,6 +172,7 @@ model CsvImportLog {
   importedStudents     Int             @default(0)
   skippedRows          Int             @default(0)
   duplicateRows        Int             @default(0)
+  duplicateFamilies    Int             @default(0)
   invalidRows          Int             @default(0)
   totalRows            Int             @default(0)
   status               CsvImportStatus @default(SUCCESS)
