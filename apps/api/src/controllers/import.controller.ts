@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import { ApplicationStatus, type Prisma } from "@prisma/client";
 import type { Request, Response } from "express";
 
 import { buildApplicationImportHash, normalizeLevelLookupKey, parseCsvImportFile } from "../lib/csv-import";
@@ -584,6 +584,7 @@ export const importCsv = async (req: Request, res: Response): Promise<void> => {
           submittedAt: row.application.submittedAt,
           declaredChildrenCount: row.application.declaredChildrenCount,
           discoverySource: row.application.discoverySource,
+          status: ApplicationStatus.IN_REVIEW,
           rawCsvRowHash: applicationHash
         },
         select: {

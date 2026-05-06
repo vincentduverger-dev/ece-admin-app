@@ -127,21 +127,6 @@ const getDonutSegmentPath = (
   ].join(" ");
 };
 
-const MailMetricIcon = ({ className = "h-5 w-5" }: IconProps) => {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      className={className}
-    >
-      <rect x="3.5" y="4.5" width="13" height="11" rx="2.2" />
-      <path d="M4.5 6 10 10l5.5-4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-};
-
 const ReviewMetricIcon = ({ className = "h-5 w-5" }: IconProps) => {
   return (
     <svg
@@ -222,15 +207,6 @@ const PartialMetricIcon = ({ className = "h-5 w-5" }: IconProps) => {
 
 const statusCards: StatusCardConfig[] = [
   {
-    status: "RECEIVED",
-    label: "Reçues",
-    description: "Demandes nouvellement importées.",
-    valueClassName: "text-slate-900",
-    surfaceClassName: "bg-slate-50/90",
-    iconClassName: "bg-slate-900 text-white",
-    Icon: MailMetricIcon
-  },
-  {
     status: "IN_REVIEW",
     label: "En revue",
     description: "Demandes en cours d'analyse.",
@@ -260,7 +236,7 @@ const statusCards: StatusCardConfig[] = [
   {
     status: "WAITLISTED",
     label: "Liste d'attente",
-    description: "Demandes entièrement en attente de place.",
+    description: "Liste des élèves placés en attente.",
     getValue: (dashboardData) => dashboardData.waitlistedStudents,
     valueClassName: "text-primary",
     surfaceClassName: "bg-primary/10",
@@ -380,6 +356,56 @@ const MetricCard = ({
       <p className="mt-2 text-sm font-semibold text-slate-800">{label}</p>
       <p className="mt-3 text-sm leading-6 text-slate-600">{description}</p>
     </Link>
+  );
+};
+
+const ProcessingMetricCard = ({
+  motionDelay = 0,
+  processedApplications,
+  processedShare,
+  remainingApplications,
+  totalApplications
+}: {
+  motionDelay?: number;
+  processedApplications: number;
+  processedShare: number;
+  remainingApplications: number;
+  totalApplications: number;
+}) => {
+  return (
+    <article
+      className="ui-animate-in ui-surface-hover block rounded-[28px] border border-primary/10 bg-white/90 p-5 shadow-[0_18px_40px_-30px_rgba(31,77,58,0.34)] outline-none transition"
+      style={getEnterStyle(motionDelay)}
+      aria-label={`${processedApplications} demandes traitees sur ${totalApplications}. ${remainingApplications} restantes.`}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primaryLight">
+            Traitement
+          </p>
+          <p className="mt-2 text-sm font-semibold text-slate-800">
+            {remainingApplications} restante
+            {remainingApplications !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <span className="ui-surface-hover__icon inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-success text-white">
+          <AcceptedMetricIcon className="h-5 w-5" />
+        </span>
+      </div>
+
+      <p className="mt-6 text-3xl font-semibold tracking-tight text-primaryDark">
+        {processedApplications} / {totalApplications}
+      </p>
+      <p className="mt-2 text-sm font-semibold text-slate-800">
+        traitée{processedApplications !== 1 ? "s" : ""}
+      </p>
+      <div className="mt-4 overflow-hidden rounded-full bg-primary/10 p-1">
+        <div
+          className="h-3 rounded-full bg-success shadow-[0_10px_18px_-14px_rgba(34,197,94,0.7)] transition-[width] duration-500"
+          style={{ width: `${processedShare}%` }}
+        />
+      </div>
+    </article>
   );
 };
 
@@ -535,10 +561,25 @@ const DashboardPage = () => {
       },
       null
     );
+    const processedApplications =
+      data.byStatus.ACCEPTED +
+      data.byStatus.PARTIALLY_ACCEPTED +
+      data.byStatus.WAITLISTED;
+    const remainingApplications = Math.max(
+      data.totalApplications - processedApplications,
+      0
+    );
+    const processedShare =
+      data.totalApplications === 0
+        ? 0
+        : Math.round((processedApplications / data.totalApplications) * 100);
 
     return {
       levelBreakdown,
       levelChartGradient,
+      processedApplications,
+      processedShare,
+      remainingApplications,
       topLevel,
       totalStudents,
       totalPriorityPages,
@@ -727,6 +768,13 @@ const DashboardPage = () => {
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <ProcessingMetricCard
+              motionDelay={360}
+              processedApplications={dashboardView.processedApplications}
+              processedShare={dashboardView.processedShare}
+              remainingApplications={dashboardView.remainingApplications}
+              totalApplications={data.totalApplications}
+            />
             {statusCards.map((card, index) => (
               <MetricCard
                 key={card.status}
@@ -735,7 +783,7 @@ const DashboardPage = () => {
                 description={card.description}
                 Icon={card.Icon}
                 iconClassName={card.iconClassName}
-                motionDelay={360 + index * 70}
+                motionDelay={430 + index * 70}
                 surfaceClassName={card.surfaceClassName}
                 status={card.status}
                 valueClassName={card.valueClassName}

@@ -161,6 +161,8 @@ export const getDashboardStats = async (_req: Request, res: Response): Promise<v
     const dashboardStatus =
       statusCount.status === ApplicationStatus.REFUSED
         ? ApplicationStatus.WAITLISTED
+        : statusCount.status === ApplicationStatus.RECEIVED
+        ? ApplicationStatus.IN_REVIEW
         : statusCount.status;
 
     byStatus[dashboardStatus] += statusCount._count._all;

@@ -89,7 +89,7 @@ model Application {
   submittedAt           DateTime
   declaredChildrenCount Int?
   discoverySource       String?
-  status                ApplicationStatus @default(RECEIVED)
+  status                ApplicationStatus @default(IN_REVIEW)
   isPriority            Boolean           @default(false)
   decisionAt            DateTime?
   decisionNote          String?
