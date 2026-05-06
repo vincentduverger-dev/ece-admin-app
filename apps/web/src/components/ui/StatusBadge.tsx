@@ -11,24 +11,6 @@ type StatusBadgeConfig = {
   Icon: () => JSX.Element;
 };
 
-const MailIcon = () => {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 16 16"
-      className="h-3.5 w-3.5 flex-none"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="2" y="3.25" width="12" height="9.5" rx="2" />
-      <path d="M3.25 5 8 8.5 12.75 5" />
-    </svg>
-  );
-};
-
 const ReviewIcon = () => {
   return (
     <svg
@@ -104,9 +86,9 @@ const PartialIcon = () => {
 
 const statusBadgeConfig: Record<ApplicationStatus, StatusBadgeConfig> = {
   RECEIVED: {
-    badgeClassName: "bg-slate-100 text-slate-700 ring-slate-200",
-    label: "Reçue",
-    Icon: MailIcon
+    badgeClassName: "bg-info/15 text-info ring-info/20",
+    label: "En revue",
+    Icon: ReviewIcon
   },
   IN_REVIEW: {
     badgeClassName: "bg-info/15 text-info ring-info/20",

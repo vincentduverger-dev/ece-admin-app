@@ -76,7 +76,7 @@ const APPLICATION_SEEDS = [
       submittedAt: createUtcDate(2026, 1, 9, 8, 45),
       declaredChildrenCount: 1,
       discoverySource: "Google Forms",
-      status: ApplicationStatus.RECEIVED,
+      status: ApplicationStatus.IN_REVIEW,
       isPriority: false,
       decisionAt: null,
       decisionNote: null
@@ -308,7 +308,7 @@ const APPLICATION_SEEDS = [
       submittedAt: createUtcDate(2026, 2, 19, 13, 50),
       declaredChildrenCount: 2,
       discoverySource: "Google Forms",
-      status: ApplicationStatus.RECEIVED,
+      status: ApplicationStatus.IN_REVIEW,
       isPriority: false,
       decisionAt: null,
       decisionNote: null

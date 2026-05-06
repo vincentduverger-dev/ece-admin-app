@@ -107,7 +107,7 @@ const applicationStatusLabels = {
   WAITLISTED: "Liste d'attente",
   REFUSED: "Liste d'attente",
   IN_REVIEW: "En revue",
-  RECEIVED: "Reçue"
+  RECEIVED: "En revue"
 } satisfies Record<ApplicationDetail["status"], string>;
 
 const decisionStatusPhraseLabels: Record<StudentAdmissionStatus, string> = {

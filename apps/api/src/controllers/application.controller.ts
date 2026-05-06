@@ -138,8 +138,7 @@ const getRecalculatedApplicationStatus = (
   );
 
   if (allPending) {
-    return currentStatus === ApplicationStatus.RECEIVED ||
-      currentStatus === ApplicationStatus.IN_REVIEW
+    return currentStatus === ApplicationStatus.IN_REVIEW
       ? currentStatus
       : ApplicationStatus.IN_REVIEW;
   }
@@ -200,6 +199,10 @@ export const getApplications = async (req: Request, res: Response): Promise<void
     if (status === ApplicationStatus.WAITLISTED) {
       where.status = {
         in: [ApplicationStatus.WAITLISTED, ApplicationStatus.REFUSED]
+      };
+    } else if (status === ApplicationStatus.IN_REVIEW) {
+      where.status = {
+        in: [ApplicationStatus.IN_REVIEW, ApplicationStatus.RECEIVED]
       };
     } else {
       where.status = status;
