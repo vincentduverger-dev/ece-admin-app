@@ -286,8 +286,8 @@ const SummaryMetric = ({
   value: number;
 }) => {
   return (
-    <article className="rounded-[22px] border border-[#eee3d7] bg-white/85 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+    <article className="flex min-h-32 flex-col items-center justify-center rounded-[22px] border border-[#eee3d7] bg-white/85 px-4 py-4 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+      <p className="max-w-full text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
         {label}
       </p>
       <p className="mt-3 text-3xl font-semibold text-primary">
