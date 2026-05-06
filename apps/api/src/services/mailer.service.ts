@@ -39,6 +39,58 @@ const escapeHtml = (value: string): string => {
     .replace(/"/g, "&quot;");
 };
 
+const textToHtmlParagraphs = (value: string): string => {
+  return value
+    .split(/\r?\n\r?\n/u)
+    .map((paragraph) => {
+      const htmlLines = paragraph
+        .split(/\r?\n/u)
+        .map((line) => escapeHtml(line))
+        .join("<br />");
+
+      return `<p style="margin:0 0 16px;color:#1F2937;font-size:15px;line-height:1.7;">${htmlLines}</p>`;
+    })
+    .join("");
+};
+
+const buildApplicationMailHtml = (subject: string, body: string): string => {
+  const safeSubject = escapeHtml(subject);
+  const htmlBody = textToHtmlParagraphs(body);
+
+  return `<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${safeSubject}</title>
+  </head>
+  <body style="margin:0;background:#F8F6F2;color:#1F2937;font-family:Arial,Helvetica,sans-serif;">
+    <div style="background:#F8F6F2;padding:32px 16px;">
+      <div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E5E7EB;border-radius:16px;padding:32px;box-shadow:0 16px 36px rgba(31,41,55,0.08);">
+        <div style="margin:0 0 18px;">
+          <span style="display:inline-block;border-radius:999px;background:#D4A24C;color:#FFFFFF;font-size:12px;font-weight:700;letter-spacing:0.04em;line-height:1;padding:8px 12px;text-transform:uppercase;">
+            ECE
+          </span>
+        </div>
+        <h1 style="margin:0 0 24px;color:#1F4D3A;font-family:Georgia,'Times New Roman',serif;font-size:28px;line-height:1.2;">
+          ${safeSubject}
+        </h1>
+        <div style="color:#1F2937;font-size:15px;line-height:1.7;">
+          ${htmlBody}
+        </div>
+        <hr style="border:none;border-top:1px solid #E5E7EB;margin:24px 0;" />
+        <p style="margin:0;color:#6B7280;font-size:13px;line-height:1.6;">
+          École de la Culture et de l’Éducation
+        </p>
+        <p style="margin:8px 0 0;color:#9CA3AF;font-size:12px;line-height:1.5;">
+          Cet email concerne le suivi de votre demande d'inscription auprès de l'ECE.
+        </p>
+      </div>
+    </div>
+  </body>
+</html>`;
+};
+
 const sendMail = async ({
   to,
   subject,
@@ -67,10 +119,11 @@ export const sendApplicationMail = async ({
   subject,
   body
 }: SendApplicationMailInput): Promise<void> => {
-  await sendPlainTextMail({
+  await sendMail({
     to,
     subject,
-    body
+    text: body,
+    html: buildApplicationMailHtml(subject, body)
   });
 };
 
