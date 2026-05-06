@@ -535,10 +535,25 @@ const DashboardPage = () => {
       },
       null
     );
+    const processedApplications =
+      data.byStatus.ACCEPTED +
+      data.byStatus.PARTIALLY_ACCEPTED +
+      data.byStatus.WAITLISTED;
+    const remainingApplications = Math.max(
+      data.totalApplications - processedApplications,
+      0
+    );
+    const processedShare =
+      data.totalApplications === 0
+        ? 0
+        : Math.round((processedApplications / data.totalApplications) * 100);
 
     return {
       levelBreakdown,
       levelChartGradient,
+      processedApplications,
+      processedShare,
+      remainingApplications,
       topLevel,
       totalStudents,
       totalPriorityPages,
@@ -711,19 +726,48 @@ const DashboardPage = () => {
         </div>
 
         <div className="bg-[#fffaf2] p-6 sm:p-8">
-          <div className="mb-6 flex flex-wrap items-center gap-2 border-b border-secondary/25 pb-4">
-            <span className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-primaryLight">
-              Vue active
-            </span>
-            <span className="inline-flex items-center rounded-full border border-primary/15 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
-              {data.totalApplications} demandes
-            </span>
-            <span className="inline-flex items-center rounded-full border border-secondary/30 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
-              {data.priorityApplications.length} prioritaires
-            </span>
-            <span className="inline-flex items-center rounded-full border border-secondary/30 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
-              {data.byLevel.length} niveaux
-            </span>
+          <div className="mb-6 flex flex-col gap-4 border-b border-secondary/25 pb-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-primaryLight">
+                Vue active
+              </span>
+              <span className="inline-flex items-center rounded-full border border-primary/15 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
+                {data.totalApplications} demandes
+              </span>
+              <span className="inline-flex items-center rounded-full border border-secondary/30 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
+                {data.priorityApplications.length} prioritaires
+              </span>
+              <span className="inline-flex items-center rounded-full border border-secondary/30 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
+                {data.byLevel.length} niveaux
+              </span>
+            </div>
+
+            <div
+              className="w-full rounded-[22px] border border-primary/10 bg-white/80 px-4 py-3 shadow-[0_14px_26px_-24px_rgba(31,77,58,0.3)] lg:w-[390px]"
+              aria-label={`${dashboardView.processedApplications} demandes traitees sur ${data.totalApplications}. ${dashboardView.remainingApplications} restantes.`}
+            >
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-primaryLight">
+                    Traitement
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-slate-600">
+                    {dashboardView.remainingApplications} restante
+                    {dashboardView.remainingApplications !== 1 ? "s" : ""}
+                  </p>
+                </div>
+                <p className="text-sm font-semibold text-primaryDark">
+                  {dashboardView.processedApplications} / {data.totalApplications} traitée
+                  {dashboardView.processedApplications !== 1 ? "s" : ""}
+                </p>
+              </div>
+              <div className="mt-3 overflow-hidden rounded-full bg-primary/10 p-1">
+                <div
+                  className="h-3 rounded-full bg-success shadow-[0_10px_18px_-14px_rgba(34,197,94,0.7)] transition-[width] duration-500"
+                  style={{ width: `${dashboardView.processedShare}%` }}
+                />
+              </div>
+            </div>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
