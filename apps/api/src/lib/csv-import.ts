@@ -151,11 +151,25 @@ export type CsvImportInvalidRow = {
   reason: string;
 };
 
+export type CsvImportDuplicateFamily = {
+  key: string;
+  reason: string;
+  rows: number[];
+  familyPreview: {
+    fatherFullName: string | null;
+    motherFullName: string | null;
+    contactEmail: string;
+    contactPhone: string | null;
+  };
+};
+
 export type ParseCsvImportResult = {
   rows: ParsedCsvImportRow[];
   invalidRows: CsvImportInvalidRow[];
   totalRows: number;
   detectedDelimiter: string;
+  duplicateFamilies: CsvImportDuplicateFamily[];
+  duplicateFamiliesCount: number;
 };
 
 const normalizeWhitespace = (value: string): string => {
@@ -177,6 +191,26 @@ const normalizeLookupValue = (value: string): string => {
 
 const normalizeCompactLookupValue = (value: string): string => {
   return normalizeLookupValue(value).replace(/\s+/g, "");
+};
+
+const normalizeDuplicateFamilyText = (value: string | null): string | null => {
+  if (value === null) {
+    return null;
+  }
+
+  const normalizedValue = normalizeWhitespace(value).toLowerCase();
+
+  return normalizedValue.length > 0 ? normalizedValue : null;
+};
+
+const normalizeDuplicateFamilyPhone = (value: string | null): string | null => {
+  if (value === null) {
+    return null;
+  }
+
+  const normalizedPhone = value.replace(/[\s.\-()]/gu, "").trim();
+
+  return normalizedPhone.length > 0 ? normalizedPhone : null;
 };
 
 const getCellValue = (cells: string[], index: number | undefined): string | null => {
@@ -664,6 +698,156 @@ export const buildApplicationImportHash = (
     .digest("hex");
 };
 
+const formatFullName = (lastName: string | null, firstName: string | null): string | null => {
+  const fullName = [lastName, firstName]
+    .map((value) => normalizeWhitespace(value ?? ""))
+    .filter((value) => value.length > 0)
+    .join(" ");
+
+  return fullName.length > 0 ? fullName : null;
+};
+
+const buildDuplicateFamilyEntry = (
+  key: string,
+  reason: string,
+  rows: ParsedCsvImportRow[]
+): CsvImportDuplicateFamily => {
+  const previewRow = rows[0];
+
+  return {
+    key,
+    reason,
+    rows: rows.map((row) => row.rowNumber).sort((left, right) => left - right),
+    familyPreview: {
+      fatherFullName: formatFullName(
+        previewRow.family.fatherLastName,
+        previewRow.family.fatherFirstName
+      ),
+      motherFullName: formatFullName(
+        previewRow.family.motherLastName,
+        previewRow.family.motherFirstName
+      ),
+      contactEmail: previewRow.family.contactEmail,
+      contactPhone: previewRow.family.contactPhone
+    }
+  };
+};
+
+const getDuplicateFamilyCompositeKey = (row: ParsedCsvImportRow): string | null => {
+  const fatherLastName = normalizeDuplicateFamilyText(row.family.fatherLastName);
+  const fatherFirstName = normalizeDuplicateFamilyText(row.family.fatherFirstName);
+  const motherLastName = normalizeDuplicateFamilyText(row.family.motherLastName);
+  const motherFirstName = normalizeDuplicateFamilyText(row.family.motherFirstName);
+  const postalAddress = normalizeDuplicateFamilyText(row.family.postalAddress);
+
+  if (
+    !fatherLastName ||
+    !fatherFirstName ||
+    !motherLastName ||
+    !motherFirstName ||
+    !postalAddress
+  ) {
+    return null;
+  }
+
+  return [
+    fatherLastName,
+    fatherFirstName,
+    motherLastName,
+    motherFirstName,
+    postalAddress
+  ].join("|");
+};
+
+const addDuplicateFamilyCandidate = (
+  candidates: Map<string, { reason: string; rows: ParsedCsvImportRow[] }>,
+  key: string | null,
+  reason: string,
+  row: ParsedCsvImportRow
+): void => {
+  if (!key) {
+    return;
+  }
+
+  const currentCandidate = candidates.get(key);
+
+  if (currentCandidate) {
+    currentCandidate.rows.push(row);
+    return;
+  }
+
+  candidates.set(key, {
+    reason,
+    rows: [row]
+  });
+};
+
+export const detectDuplicateFamilies = (
+  rows: ParsedCsvImportRow[]
+): CsvImportDuplicateFamily[] => {
+  const candidates = new Map<string, { reason: string; rows: ParsedCsvImportRow[] }>();
+
+  for (const row of rows) {
+    const normalizedPhone = normalizeDuplicateFamilyPhone(row.family.contactPhone);
+    const compositeKey = getDuplicateFamilyCompositeKey(row);
+
+    addDuplicateFamilyCandidate(
+      candidates,
+      `email:${normalizeDuplicateFamilyText(row.family.contactEmail) ?? ""}`,
+      "Même email de contact",
+      row
+    );
+    addDuplicateFamilyCandidate(
+      candidates,
+      normalizedPhone ? `phone:${normalizedPhone}` : null,
+      "Même téléphone de contact",
+      row
+    );
+    addDuplicateFamilyCandidate(
+      candidates,
+      compositeKey ? `family:${compositeKey}` : null,
+      "Même combinaison parents et adresse",
+      row
+    );
+  }
+
+  const duplicateFamilies: CsvImportDuplicateFamily[] = [];
+  const coveredRows = new Set<number>();
+  const candidatePriority = ["email:", "phone:", "family:"];
+  const sortedCandidates = Array.from(candidates.entries()).sort(([leftKey], [rightKey]) => {
+    const leftPriority = candidatePriority.findIndex((prefix) => leftKey.startsWith(prefix));
+    const rightPriority = candidatePriority.findIndex((prefix) => rightKey.startsWith(prefix));
+
+    return leftPriority - rightPriority || leftKey.localeCompare(rightKey);
+  });
+
+  for (const [key, candidate] of sortedCandidates) {
+    const distinctRows = Array.from(
+      new Map(candidate.rows.map((row) => [row.rowNumber, row])).values()
+    ).sort((left, right) => left.rowNumber - right.rowNumber);
+
+    if (distinctRows.length < 2) {
+      continue;
+    }
+
+    if (new Set(distinctRows.map((row) => row.duplicateFingerprint)).size < 2) {
+      continue;
+    }
+
+    if (distinctRows.some((row) => coveredRows.has(row.rowNumber))) {
+      continue;
+    }
+
+    for (const row of distinctRows) {
+      coveredRows.add(row.rowNumber);
+    }
+
+    duplicateFamilies.push(buildDuplicateFamilyEntry(key, candidate.reason, distinctRows));
+  }
+
+  return duplicateFamilies;
+};
+
 const parseStudentRow = (
   cells: string[],
   childColumns: ChildColumnIndexes,
@@ -862,10 +1046,14 @@ export const parseCsvImportFile = (buffer: Buffer): ParseCsvImportResult => {
     }
   }
 
+  const duplicateFamilies = detectDuplicateFamilies(rows);
+
   return {
     rows,
     invalidRows,
     totalRows: parsedRows.length - 1,
-    detectedDelimiter
+    detectedDelimiter,
+    duplicateFamilies,
+    duplicateFamiliesCount: duplicateFamilies.length
   };
 };

@@ -16,7 +16,7 @@ import type {
   StudentAdmissionStatusUpdateResult
 } from "../types/application";
 import type { DashboardStats } from "../types/dashboard";
-import type { CsvImportHistoryItem, CsvImportSummary } from "../types/import";
+import type { CsvImportHistoryItem, CsvImportPreview, CsvImportSummary } from "../types/import";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
@@ -345,15 +345,20 @@ export const deleteSchoolYear = async (
   );
 };
 
-export const uploadCsvImport = async (
+const postCsvImportFile = async <TResponse>(
   file: File,
+  path: string,
+  fields?: Record<string, string>,
   init?: RequestInit
-): Promise<CsvImportSummary> => {
+): Promise<TResponse> => {
   const formData = new FormData();
 
   formData.set("file", file);
+  for (const [key, value] of Object.entries(fields ?? {})) {
+    formData.set(key, value);
+  }
 
-  const response = await fetch(buildApiUrl("/api/import/csv"), {
+  const response = await fetch(buildApiUrl(path), {
     ...init,
     method: "POST",
     headers: {
@@ -367,7 +372,31 @@ export const uploadCsvImport = async (
     throw new Error(await getErrorMessage(response));
   }
 
-  return (await response.json()) as CsvImportSummary;
+  return (await response.json()) as TResponse;
+};
+
+export const previewCsvImport = async (
+  file: File,
+  init?: RequestInit
+): Promise<CsvImportPreview> => {
+  return postCsvImportFile<CsvImportPreview>(file, "/api/import/csv/preview", undefined, init);
+};
+
+export const uploadCsvImport = async (
+  file: File,
+  options?: {
+    mergeDuplicateFamilies?: boolean;
+  },
+  init?: RequestInit
+): Promise<CsvImportSummary> => {
+  return postCsvImportFile<CsvImportSummary>(
+    file,
+    "/api/import/csv",
+    {
+      mergeDuplicateFamilies: String(options?.mergeDuplicateFamilies ?? true)
+    },
+    init
+  );
 };
 
 export const getCsvImportHistory = async (

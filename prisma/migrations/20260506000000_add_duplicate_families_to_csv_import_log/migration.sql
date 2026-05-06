@@ -1,0 +1,1 @@
+ALTER TABLE "CsvImportLog" ADD COLUMN "duplicateFamilies" INTEGER NOT NULL DEFAULT 0;
