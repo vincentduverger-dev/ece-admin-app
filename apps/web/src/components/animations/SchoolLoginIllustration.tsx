@@ -54,10 +54,13 @@ const SchoolLoginIllustration = ({ className = "" }: SchoolLoginIllustrationProp
           .school-login-svg-animation .school-login-flag-letter {
             animation: school-login-letter-in 280ms ease-out forwards;
             fill: #1F4D3A;
-            font-family: "Avenir Next", "Segoe UI", sans-serif;
-            font-size: 14px;
-            font-weight: 800;
+            font-family: "Avenir Next", "Segoe UI", Arial, sans-serif;
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 0.7px;
             opacity: 0;
+            stroke: none;
+            stroke-width: 0;
             transform-box: fill-box;
             transform-origin: center;
           }
@@ -172,14 +175,14 @@ const SchoolLoginIllustration = ({ className = "" }: SchoolLoginIllustrationProp
         strokeLinecap="round"
         strokeLinejoin="round"
       >
-        <path d="M278 75h48l-10 15 10 15h-48" fill="#FFF7E8" />
-        <text className="school-login-flag-letter school-login-flag-letter--e1" x="283" y="96">
+        <path d="M278 75h62l-10 15 10 15h-62" fill="#FFF7E8" />
+        <text className="school-login-flag-letter school-login-flag-letter--e1" x="288" y="95">
           E
         </text>
-        <text className="school-login-flag-letter school-login-flag-letter--c" x="298" y="96">
+        <text className="school-login-flag-letter school-login-flag-letter--c" x="304" y="95">
           C
         </text>
-        <text className="school-login-flag-letter school-login-flag-letter--e2" x="313" y="96">
+        <text className="school-login-flag-letter school-login-flag-letter--e2" x="320" y="95">
           E
         </text>
       </g>
@@ -211,9 +214,9 @@ const SchoolLoginIllustration = ({ className = "" }: SchoolLoginIllustrationProp
         strokeLinejoin="round"
       >
         <path pathLength={1} d="M164 272 228 178" stroke="#D4A24C" strokeWidth="12" />
-        <path pathLength={1} d="M228 178l15-22 8 25-23-3Z" fill="#FFF7E8" stroke="#1F4D3A" strokeWidth="3" />
+        <path pathLength={1} d="M223 175 238 163 233 183Z" fill="#1F4D3A" />
         <path pathLength={1} d="M156 284 164 272" stroke="#1F4D3A" strokeWidth="12" />
-        <path pathLength={1} d="M182 244 222 185" stroke="#FFFFFF" strokeWidth="2.4" opacity="0.85" />
+        <path pathLength={1} d="M182 244 224 182" stroke="#FFFFFF" strokeWidth="2.4" opacity="0.85" />
       </g>
     </svg>
   );
