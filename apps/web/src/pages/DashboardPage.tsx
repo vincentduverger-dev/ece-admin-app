@@ -81,6 +81,8 @@ const priorityDateFormatter = new Intl.DateTimeFormat("fr-FR", {
   dateStyle: "long"
 });
 
+const numberFormatter = new Intl.NumberFormat("fr-FR");
+
 const formatSchoolYearLabel = (label: string): string => {
   return label.replace(/^(\d{4})-(\d{4})$/u, "$1 - $2");
 };
@@ -89,6 +91,17 @@ const getEnterStyle = (delay: number): CSSProperties => {
   return {
     "--ui-enter-delay": `${delay}ms`
   } as CSSProperties;
+};
+
+const getRemainingPlacesRatio = (
+  remainingPlaces: number,
+  availablePlaces: number
+): number => {
+  if (availablePlaces <= 0) {
+    return 0;
+  }
+
+  return Math.min(Math.max((remainingPlaces / availablePlaces) * 100, 0), 100);
 };
 
 const getPointOnCircle = (
@@ -449,16 +462,20 @@ const DashboardPage = () => {
       studentStats?.totalStudents ?? levelStats.reduce((sum, level) => sum + level.count, 0);
     const acceptedStudents = studentStats?.acceptedStudents ?? data.byStatus.ACCEPTED;
     const waitlistedStudents = studentStats?.waitlistedStudents ?? data.waitlistedStudents;
-    const maxLevelCount = Math.max(...levelStats.map((level) => level.count), 0);
+    const maxLevelCount = Math.max(
+      ...levelStats.map((level) => level.requestedStudentsCount ?? level.count),
+      0
+    );
     let chartCursor = 0;
     const levelBreakdown: LevelBreakdownItem[] = levelStats.map((level, index) => {
+      const requestedStudentsCount = level.requestedStudentsCount ?? level.count;
       const share =
-        totalStudents === 0 ? 0 : Math.round((level.count / totalStudents) * 100);
-      const rawShare = totalStudents === 0 ? 0 : (level.count / totalStudents) * 100;
+        totalStudents === 0 ? 0 : Math.round((requestedStudentsCount / totalStudents) * 100);
+      const rawShare = totalStudents === 0 ? 0 : (requestedStudentsCount / totalStudents) * 100;
       const width =
-        maxLevelCount === 0 || level.count === 0
+        maxLevelCount === 0 || requestedStudentsCount === 0
           ? 0
-          : Math.max((level.count / maxLevelCount) * 100, 6);
+          : Math.max((requestedStudentsCount / maxLevelCount) * 100, 6);
       const chartStart = chartCursor;
       chartCursor += rawShare;
       const chartEnd = chartCursor;
@@ -471,6 +488,8 @@ const DashboardPage = () => {
 
       return {
         ...level,
+        count: requestedStudentsCount,
+        requestedStudentsCount,
         chartStart,
         chartEnd,
         chartMidAngle,
@@ -756,7 +775,7 @@ const DashboardPage = () => {
             </p>
           ) : (
             <div className="mt-8 grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-              <div className="rounded-[28px] border border-slate-200/90 bg-slate-50/75 p-5 shadow-[0_18px_34px_-30px_rgba(15,23,42,0.25)]">
+              <div className="flex h-full flex-col rounded-[28px] border border-slate-200/90 bg-slate-50/75 p-5 shadow-[0_18px_34px_-30px_rgba(15,23,42,0.25)]">
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -884,6 +903,73 @@ const DashboardPage = () => {
                     </div>
                   </div>
                 ) : null}
+
+                <div className="mt-5 flex flex-1 flex-col rounded-[22px] border border-white bg-white/80 px-4 py-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Places restantes
+                      </p>
+                      <h4 className="mt-1 text-base font-semibold text-slate-900">
+                        Capacité disponible par niveau
+                      </h4>
+                    </div>
+                    <span className="rounded-full border border-primary/10 bg-primary/5 px-3 py-1 text-xs font-semibold text-primaryDark">
+                      Restantes
+                    </span>
+                  </div>
+
+                  <div className="mt-4 flex flex-1 flex-col justify-between gap-4">
+                    {dashboardView.levelBreakdown.map((level) => {
+                      const acceptedStudentsCount = level.acceptedStudentsCount ?? 0;
+                      const availablePlaces = level.availablePlaces ?? 0;
+                      const remainingPlaces = level.remainingPlaces ?? availablePlaces - acceptedStudentsCount;
+                      const remainingRatio = getRemainingPlacesRatio(remainingPlaces, availablePlaces);
+                      const isCapacityMissing = availablePlaces === 0;
+
+                      return (
+                        <div key={`${level.code}-remaining-slider`}>
+                          <div className="mb-1.5 flex items-center justify-between gap-3">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span
+                                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                                style={{ backgroundColor: level.visual.barColor }}
+                              />
+                              <span className="truncate text-xs font-semibold text-slate-700">
+                                {level.code.toUpperCase()}
+                              </span>
+                            </div>
+                            <span className="shrink-0 text-xs font-semibold text-slate-600">
+                              {isCapacityMissing
+                                ? "Non renseigné"
+                                : `${numberFormatter.format(remainingPlaces)} / ${numberFormatter.format(availablePlaces)}`}
+                            </span>
+                          </div>
+                          <div
+                            className="relative h-2 rounded-full"
+                            style={{ backgroundColor: level.visual.trackColor }}
+                            aria-label={`${level.label}: ${remainingPlaces} places restantes sur ${availablePlaces}`}
+                          >
+                            <div
+                              className="h-2 rounded-full"
+                              style={{
+                                width: `${remainingRatio}%`,
+                                backgroundColor: level.visual.barColor
+                              }}
+                            />
+                            <span
+                              className="absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_6px_12px_-8px_rgba(15,23,42,0.6)]"
+                              style={{
+                                left: remainingRatio === 0 ? "0" : `calc(${remainingRatio}% - 8px)`,
+                                backgroundColor: isCapacityMissing ? "#94a3b8" : level.visual.barColor
+                              }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
 
               <div className="rounded-[28px] border border-slate-200/90 bg-white/70 p-5 shadow-[0_18px_34px_-30px_rgba(15,23,42,0.18)]">
@@ -893,71 +979,71 @@ const DashboardPage = () => {
                       Détail par niveau
                     </p>
                     <h3 className="mt-1 text-xl font-semibold text-slate-900">
-                      Volumes et proportions
+                      Demandes, décisions et places
                     </h3>
                   </div>
                   <p className="text-sm font-medium text-slate-500">
-                    Curseurs calibrés sur le niveau le plus demandé.
+                    Les places restantes baissent uniquement avec les élèves acceptés.
                   </p>
                 </div>
 
                 <div className="mt-5 space-y-3">
-                  {dashboardView.levelBreakdown.map((level) => (
-                    <Link
-                      key={`${level.code}-summary`}
-                      to={`/students?levelId=${encodeURIComponent(level.id ?? "")}`}
-                      title="Voir les élèves ayant demandé ce niveau"
-                      aria-label={`Voir les élèves ayant demandé ce niveau: ${level.label}`}
-                      className="group grid gap-3 rounded-[22px] border border-slate-200/80 bg-slate-50/70 px-4 py-3 text-left transition hover:border-primary/20 hover:bg-white hover:shadow-[0_16px_30px_-28px_rgba(15,23,42,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 sm:grid-cols-[150px_minmax(0,1fr)_150px] sm:items-center"
-                    >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <span
-                          className="h-3 w-3 shrink-0 rounded-full"
-                          style={{ backgroundColor: level.visual.barColor }}
-                        />
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-slate-900">
-                            {level.label}
-                          </p>
-                          <p className="mt-0.5 text-xs font-medium text-slate-500">
-                            {level.code.toUpperCase()}
-                          </p>
-                        </div>
-                      </div>
+                  {dashboardView.levelBreakdown.map((level) => {
+                    const acceptedStudentsCount = level.acceptedStudentsCount ?? 0;
+                    const availablePlaces = level.availablePlaces ?? 0;
+                    const remainingPlaces = level.remainingPlaces ?? availablePlaces - acceptedStudentsCount;
 
-                      <div
-                        className="overflow-hidden rounded-full p-1"
-                        style={{ backgroundColor: level.visual.trackColor }}
+                    return (
+                      <Link
+                        key={`${level.code}-summary`}
+                        to={`/students?levelId=${encodeURIComponent(level.id ?? "")}`}
+                        title="Voir les élèves ayant demandé ce niveau"
+                        aria-label={`Voir les élèves ayant demandé ce niveau: ${level.label}`}
+                        className="group grid gap-3 rounded-[22px] border border-slate-200/80 bg-slate-50/70 px-4 py-4 text-left transition hover:border-primary/20 hover:bg-white hover:shadow-[0_16px_30px_-28px_rgba(15,23,42,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 xl:grid-cols-[170px_minmax(0,1fr)] xl:items-center"
                       >
-                        <div
-                          className="h-3 rounded-full shadow-[0_10px_18px_-14px_rgba(15,23,42,0.5)]"
-                          style={{
-                            width: `${level.width}%`,
-                            backgroundColor: level.visual.barColor
-                          }}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between gap-3 sm:justify-end">
-                        <div className="flex items-baseline gap-3">
-                          <p className="text-lg font-semibold text-slate-900">{level.count}</p>
-                          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                            {level.share}%
-                          </p>
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span
+                            className="h-3 w-3 shrink-0 rounded-full"
+                            style={{ backgroundColor: level.visual.barColor }}
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-900">
+                              {level.label}
+                            </p>
+                            <p className="mt-0.5 text-xs font-medium text-slate-500">
+                              {level.code.toUpperCase()}
+                            </p>
+                          </div>
                         </div>
-                        <p className="text-xs font-medium text-slate-500">
-                          {level.availablePlaces ?? 0} place
-                          {(level.availablePlaces ?? 0) > 1 ? "s" : ""}
-                        </p>
-                        <span
-                          aria-hidden="true"
-                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 transition group-hover:border-primary/20 group-hover:text-primary"
-                        >
-                          <ChevronRightIcon />
-                        </span>
-                      </div>
-                    </Link>
-                  ))}
+
+                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[repeat(4,minmax(92px,1fr))_40px] lg:items-center">
+                          {[
+                            { label: "Demandes", value: level.requestedStudentsCount ?? level.count },
+                            { label: "Acceptés", value: acceptedStudentsCount },
+                            { label: "Places", value: availablePlaces },
+                            { label: "Restantes", value: remainingPlaces }
+                          ].map((metric) => (
+                            <div key={metric.label} className="min-w-0 rounded-2xl border border-slate-200 bg-white/80 px-2.5 py-2">
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                                {metric.label}
+                              </p>
+                              <p className="mt-1 text-lg font-semibold text-slate-900">
+                                {numberFormatter.format(metric.value)}
+                              </p>
+                            </div>
+                          ))}
+                          <div className="flex items-center justify-end sm:col-span-2 lg:col-span-1">
+                            <span
+                              aria-hidden="true"
+                              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 transition group-hover:border-primary/20 group-hover:text-primary"
+                            >
+                              <ChevronRightIcon />
+                            </span>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
                 </div>
               </div>
             </div>
