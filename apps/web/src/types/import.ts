@@ -33,6 +33,8 @@ export type CsvImportHistoryItem = {
 
 export type CsvImportSummary = {
   importedFamilies: number;
+  createdFamilies?: number;
+  reusedFamilies?: number;
   importedApplications: number;
   importedStudents: number;
   skippedRows: number;

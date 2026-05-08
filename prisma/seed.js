@@ -357,26 +357,30 @@ const ensureLevels = async () => {
 
 const ensureActiveSchoolYear = async () =>
   prisma.$transaction(async (tx) => {
-    await tx.schoolYear.updateMany({
-      where: {
-        isActive: true,
-        NOT: {
-          label: ACTIVE_SCHOOL_YEAR.label
-        }
-      },
-      data: {
-        isActive: false
-      }
+    const existingSchoolYear = await tx.schoolYear.findUnique({
+      where: { label: ACTIVE_SCHOOL_YEAR.label }
     });
 
-    return tx.schoolYear.upsert({
-      where: { label: ACTIVE_SCHOOL_YEAR.label },
-      update: {
-        startYear: ACTIVE_SCHOOL_YEAR.startYear,
-        endYear: ACTIVE_SCHOOL_YEAR.endYear,
-        isActive: ACTIVE_SCHOOL_YEAR.isActive
-      },
-      create: ACTIVE_SCHOOL_YEAR
+    if (existingSchoolYear) {
+      return tx.schoolYear.update({
+        where: { id: existingSchoolYear.id },
+        data: {
+          startYear: ACTIVE_SCHOOL_YEAR.startYear,
+          endYear: ACTIVE_SCHOOL_YEAR.endYear
+        }
+      });
+    }
+
+    const existingActiveSchoolYear = await tx.schoolYear.findFirst({
+      where: { isActive: true },
+      select: { id: true }
+    });
+
+    return tx.schoolYear.create({
+      data: {
+        ...ACTIVE_SCHOOL_YEAR,
+        isActive: existingActiveSchoolYear ? false : ACTIVE_SCHOOL_YEAR.isActive
+      }
     });
   });
 
@@ -386,10 +390,7 @@ const ensureFamily = async (tx, familyData) => {
   });
 
   if (existingFamily) {
-    return tx.family.update({
-      where: { id: existingFamily.id },
-      data: familyData
-    });
+    return existingFamily;
   }
 
   return tx.family.create({
@@ -401,20 +402,17 @@ const ensureApplicationBundle = async (levelIdsByCode, schoolYearId, seedRecord)
   await prisma.$transaction(async (tx) => {
     const family = await ensureFamily(tx, seedRecord.family);
 
-    const application = await tx.application.upsert({
+    const existingApplication = await tx.application.findUnique({
       where: { rawCsvRowHash: seedRecord.application.rawCsvRowHash },
-      update: {
-        familyId: family.id,
-        schoolYearId,
-        submittedAt: seedRecord.application.submittedAt,
-        declaredChildrenCount: seedRecord.application.declaredChildrenCount,
-        discoverySource: seedRecord.application.discoverySource,
-        status: seedRecord.application.status,
-        isPriority: seedRecord.application.isPriority,
-        decisionAt: seedRecord.application.decisionAt,
-        decisionNote: seedRecord.application.decisionNote
-      },
-      create: {
+      select: { id: true }
+    });
+
+    if (existingApplication) {
+      return;
+    }
+
+    const application = await tx.application.create({
+      data: {
         familyId: family.id,
         schoolYearId,
         submittedAt: seedRecord.application.submittedAt,
@@ -426,14 +424,6 @@ const ensureApplicationBundle = async (levelIdsByCode, schoolYearId, seedRecord)
         decisionNote: seedRecord.application.decisionNote,
         rawCsvRowHash: seedRecord.application.rawCsvRowHash
       }
-    });
-
-    await tx.applicationEmailLog.deleteMany({
-      where: { applicationId: application.id }
-    });
-
-    await tx.student.deleteMany({
-      where: { applicationId: application.id }
     });
 
     await tx.student.createMany({

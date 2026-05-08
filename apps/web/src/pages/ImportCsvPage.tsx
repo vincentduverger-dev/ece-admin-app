@@ -7,10 +7,8 @@ import type {
   MouseEvent
 } from "react";
 
-import { CsvImportSuccessAnimation } from "../components/animations";
 import AppLoader from "../components/feedback/AppLoader";
 import FeedbackEmptyState from "../components/feedback/EmptyState";
-import SuccessFeedback from "../components/feedback/SuccessFeedback";
 import PageSectionHeader from "../components/layout/PageSectionHeader";
 import Breadcrumb from "../components/ui/Breadcrumb";
 import { useToast } from "../context/ToastContext";
@@ -104,8 +102,14 @@ const getImportHistoryResult = (item: CsvImportHistoryItem): string => {
   ].join(" · ");
 };
 
-const getImportSuccessMessage = (summary: CsvImportSummary): string => {
-  return `Import terminé : ${pluralize(summary.importedApplications, "demande", "demandes")} et ${pluralize(summary.importedStudents, "élève", "élèves")} traités.`;
+const getImportSuccessMessage = (summary: CsvImportSummary, isComplementaryImport: boolean): string => {
+  const result = `${pluralize(summary.importedApplications, "demande", "demandes")} et ${pluralize(summary.importedStudents, "élève", "élèves")}`;
+
+  if (isComplementaryImport) {
+    return `Ajout terminé : ${result} ajoutés à la campagne en cours.`;
+  }
+
+  return `Import terminé : ${result} traités.`;
 };
 
 const getDuplicatePreviewCount = (preview: CsvImportPreview): number => {
@@ -169,7 +173,7 @@ const getImportErrorMessage = (error: unknown): string => {
     case "Active school year not found":
       return "Aucune année scolaire active n'est configurée pour recevoir l'import.";
     case "CSV import already completed for active school year":
-      return "Cette campagne d'inscription possède déjà un import CSV réussi. Créez une nouvelle année scolaire avant de lancer un nouvel import.";
+      return "Cette campagne d'inscription possède déjà un import CSV réussi. Rechargez la page puis utilisez l'action d'ajout à la campagne en cours.";
     default:
       if (error.message.startsWith("CSV missing ")) {
         return "Le fichier CSV ne correspond pas au format attendu du formulaire.";
@@ -300,11 +304,15 @@ const SummaryMetric = ({
 
 const DuplicateImportModal = ({
   preview,
+  isComplementaryImport,
+  activeSchoolYearLabel,
   isSubmitting,
   onCancel,
   onConfirm
 }: {
   preview: CsvImportPreview;
+  isComplementaryImport: boolean;
+  activeSchoolYearLabel: string;
   isSubmitting: boolean;
   onCancel: () => void;
   onConfirm: (mergeDuplicateFamilies: boolean) => void;
@@ -330,7 +338,9 @@ const DuplicateImportModal = ({
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
               {pluralize(duplicateCount, "doublon a été détecté", "doublons ont été détectés")}
               . Choisissez si les familles signalées doivent être fusionnées avant
-              l&apos;import définitif du fichier CSV.
+              {isComplementaryImport
+                ? ` l'ajout à la campagne ${activeSchoolYearLabel}.`
+                : " l'import définitif du fichier CSV."}
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2 text-center sm:min-w-72">
@@ -411,6 +421,9 @@ const DuplicateImportModal = ({
           ignore les autres lignes du groupe. Importer sans fusion crée des
           fiches familles séparées pour ces demandes. Les doublons exacts restent
           ignorés dans les deux cas.
+          {isComplementaryImport
+            ? " Les données déjà présentes dans la campagne seront conservées."
+            : ""}
         </p>
 
         <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -428,7 +441,7 @@ const DuplicateImportModal = ({
             disabled={isSubmitting}
             className="inline-flex items-center justify-center rounded-2xl border border-secondary/50 px-5 py-3 text-sm font-semibold text-secondaryDark transition hover:bg-secondary/10 disabled:cursor-wait disabled:opacity-60"
           >
-            Importer sans fusion
+            {isComplementaryImport ? "Ajouter sans fusion" : "Importer sans fusion"}
           </button>
           <button
             type="button"
@@ -436,7 +449,67 @@ const DuplicateImportModal = ({
             disabled={isSubmitting}
             className="inline-flex items-center justify-center rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-wait disabled:bg-slate-300"
           >
-            {isSubmitting ? "Import en cours..." : "Fusionner et importer"}
+            {isSubmitting
+              ? "Import en cours..."
+              : isComplementaryImport
+                ? "Fusionner et ajouter"
+                : "Fusionner et importer"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+};
+
+const ComplementaryImportConfirmModal = ({
+  activeSchoolYearLabel,
+  isSubmitting,
+  onCancel,
+  onConfirm
+}: {
+  activeSchoolYearLabel: string;
+  isSubmitting: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) => {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="append-import-title"
+    >
+      <section className="w-full max-w-xl rounded-[28px] border border-[#e8dccf] bg-white p-5 shadow-[0_30px_80px_-35px_rgba(15,23,42,0.55)] sm:p-6">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-secondaryDark">
+          Campagne en cours
+        </p>
+        <h2 id="append-import-title" className="mt-2 font-serif text-[2rem] text-slate-900">
+          Ajouter ces demandes à la campagne en cours ?
+        </h2>
+        <p className="mt-3 text-sm leading-6 text-slate-600">
+          Les demandes déjà présentes seront conservées. Les nouvelles demandes
+          valides seront ajoutées à l&apos;année scolaire active {activeSchoolYearLabel}.
+        </p>
+        <p className="mt-4 rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3 text-sm leading-6 text-slate-700">
+          Les données existantes seront conservées. Seules les nouvelles demandes
+          non déjà importées seront ajoutées.
+        </p>
+        <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isSubmitting}
+            className="inline-flex items-center justify-center rounded-2xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isSubmitting}
+            className="inline-flex items-center justify-center rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-wait disabled:bg-slate-300"
+          >
+            {isSubmitting ? "Ajout en cours..." : "Confirmer l'ajout"}
           </button>
         </div>
       </section>
@@ -462,6 +535,7 @@ const ImportCsvPage = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [lastImportSummary, setLastImportSummary] = useState<CsvImportSummary | null>(null);
   const [pendingImportPreview, setPendingImportPreview] = useState<CsvImportPreview | null>(null);
+  const [isComplementaryConfirmationOpen, setIsComplementaryConfirmationOpen] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -566,8 +640,7 @@ const ImportCsvPage = () => {
     isLoadingHistory ||
     isCreatingSchoolYear ||
     isSubmitting ||
-    activeSchoolYear === null ||
-    hasCompletedImportForActiveSchoolYear;
+    activeSchoolYear === null;
 
   const openFilePicker = useCallback((): void => {
     if (isUploadLocked) {
@@ -583,6 +656,7 @@ const ImportCsvPage = () => {
   const clearSelectedFile = useCallback((): void => {
     setSelectedFile(null);
     setPendingImportPreview(null);
+    setIsComplementaryConfirmationOpen(false);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -609,6 +683,7 @@ const ImportCsvPage = () => {
     setSelectedFile(nextFile);
     setInlineMessage(null);
     setPendingImportPreview(null);
+    setIsComplementaryConfirmationOpen(false);
   }, [isUploadLocked, showError]);
 
   const handleFileInputChange = useCallback((event: ChangeEvent<HTMLInputElement>): void => {
@@ -643,9 +718,11 @@ const ImportCsvPage = () => {
 
     try {
       const summary = await uploadCsvImport(selectedFile, { mergeDuplicateFamilies });
+      const isComplementaryImport = hasCompletedImportForActiveSchoolYear;
 
       setLastImportSummary(summary);
       setPendingImportPreview(null);
+      setIsComplementaryConfirmationOpen(false);
 
       if (summary.historyEntry) {
         setHistory((currentHistory) => [
@@ -655,7 +732,7 @@ const ImportCsvPage = () => {
       }
 
       clearSelectedFile();
-      showSuccess(getImportSuccessMessage(summary));
+      showSuccess(getImportSuccessMessage(summary, isComplementaryImport));
     } catch (submitError) {
       const message = getImportErrorMessage(submitError);
 
@@ -788,15 +865,6 @@ const ImportCsvPage = () => {
       return;
     }
 
-    if (hasCompletedImportForActiveSchoolYear) {
-      const message =
-        "Cette campagne d'inscription possède déjà un import CSV réussi. Créez une nouvelle année scolaire avant de lancer un nouvel import.";
-
-      setInlineMessage(message);
-      showError(message);
-      return;
-    }
-
     if (!selectedFile) {
       const message = "Sélectionnez un fichier CSV avant de lancer l'import.";
 
@@ -814,6 +882,11 @@ const ImportCsvPage = () => {
 
       if (getDuplicatePreviewCount(preview) > 0) {
         setPendingImportPreview(preview);
+        return;
+      }
+
+      if (hasCompletedImportForActiveSchoolYear) {
+        setIsComplementaryConfirmationOpen(true);
         return;
       }
 
@@ -853,12 +926,27 @@ const ImportCsvPage = () => {
       {pendingImportPreview ? (
         <DuplicateImportModal
           preview={pendingImportPreview}
+          isComplementaryImport={hasCompletedImportForActiveSchoolYear}
+          activeSchoolYearLabel={activeSchoolYearLabel}
           isSubmitting={isSubmitting}
           onCancel={() => {
             setPendingImportPreview(null);
           }}
           onConfirm={(mergeDuplicateFamilies) => {
             void finalizeCsvImport(mergeDuplicateFamilies);
+          }}
+        />
+      ) : null}
+
+      {isComplementaryConfirmationOpen ? (
+        <ComplementaryImportConfirmModal
+          activeSchoolYearLabel={activeSchoolYearLabel}
+          isSubmitting={isSubmitting}
+          onCancel={() => {
+            setIsComplementaryConfirmationOpen(false);
+          }}
+          onConfirm={() => {
+            void finalizeCsvImport(true);
           }}
         />
       ) : null}
@@ -980,21 +1068,36 @@ const ImportCsvPage = () => {
           </p>
         ) : null}
 
-        {hasCompletedImportForActiveSchoolYear ? (
-          <div className="mt-5 grid gap-4 lg:grid-cols-[150px_minmax(0,1fr)] lg:items-center">
-            <div className="mx-auto w-full max-w-[150px] lg:mx-0">
-              <CsvImportSuccessAnimation className="h-auto" />
+        <section className="mt-5 rounded-[24px] border border-primary/15 bg-primary/5 px-4 py-4 sm:px-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primaryLight">
+                Campagne en cours
+              </p>
+              <h2 className="mt-2 font-serif text-[1.7rem] text-slate-900">
+                Année scolaire {activeSchoolYearLabel}
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-slate-700">
+                {hasCompletedImportForActiveSchoolYear
+                  ? "Un import a déjà été réalisé pour cette campagne. Vous pouvez ajouter un nouveau fichier CSV contenant uniquement les demandes reçues ultérieurement. Les doublons seront détectés automatiquement."
+                  : "Aucun import réussi n'est encore enregistré pour cette année active. Le prochain fichier lancera l'import initial de la campagne."}
+              </p>
             </div>
-            <SuccessFeedback
-              title="Import terminé"
-              description={
-                activeSchoolYearImport
-                  ? `Un import CSV réussi est déjà enregistré pour l'année scolaire ${activeSchoolYearLabel}. Dernier import : ${dateTimeFormatter.format(new Date(activeSchoolYearImport.createdAt))}.`
-                  : `Un import CSV réussi est déjà enregistré pour l'année scolaire ${activeSchoolYearLabel}.`
-              }
-            />
+            {activeSchoolYearImport ? (
+              <div className="shrink-0 rounded-2xl border border-primary/15 bg-white/80 px-4 py-3 text-sm text-slate-700">
+                <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Dernier import
+                </span>
+                <span className="mt-1 block font-medium text-slate-900">
+                  {dateTimeFormatter.format(new Date(activeSchoolYearImport.createdAt))}
+                </span>
+                <span className="mt-1 block truncate text-slate-500">
+                  {activeSchoolYearImport.fileName ?? "Fichier non renseigné"}
+                </span>
+              </div>
+            ) : null}
           </div>
-        ) : null}
+        </section>
 
         <form
           className="ui-animate-in mt-6"
@@ -1043,7 +1146,7 @@ const ImportCsvPage = () => {
                   >
                     <UploadIcon className="h-5 w-5" />
                     {hasCompletedImportForActiveSchoolYear
-                      ? "Import déjà effectué"
+                      ? "Importer de nouvelles demandes"
                       : "Choisir un fichier"}
                   </button>
                   <p className="text-base text-slate-500">Format accepté : .csv</p>
@@ -1064,7 +1167,9 @@ const ImportCsvPage = () => {
                 <p className="mt-1 text-sm text-slate-500">
                   {selectedFile
                     ? `${formatFileSize(selectedFile.size)} · prêt pour l'import`
-                    : "Ajoutez un CSV exporté depuis le formulaire pour démarrer."}
+                    : hasCompletedImportForActiveSchoolYear
+                      ? "Ajoutez un CSV contenant uniquement les demandes reçues après le premier import."
+                      : "Ajoutez un CSV exporté depuis le formulaire pour démarrer."}
                 </p>
               </div>
 
@@ -1094,7 +1199,7 @@ const ImportCsvPage = () => {
                   {isSubmitting
                     ? "Import en cours..."
                     : hasCompletedImportForActiveSchoolYear
-                      ? "Import déjà terminé"
+                      ? "Ajouter à la campagne"
                       : "Lancer l'import"}
                 </button>
               </div>
@@ -1206,15 +1311,15 @@ const ImportCsvPage = () => {
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
               <SummaryMetric
-                label="Familles"
+                label="Familles traitées"
                 value={getImportedFamiliesCount(latestImport)}
               />
               <SummaryMetric
-                label="Demandes"
+                label="Demandes ajoutées"
                 value={latestImport.importedApplications}
               />
-              <SummaryMetric label="Élèves" value={latestImport.importedStudents} />
-              <SummaryMetric label="Ignorées" value={latestImport.skippedRows} />
+              <SummaryMetric label="Élèves ajoutés" value={latestImport.importedStudents} />
+              <SummaryMetric label="Lignes ignorées" value={latestImport.skippedRows} />
               <SummaryMetric
                 label="Doublons exacts"
                 value={getDuplicateRowsCount(latestImport)}
