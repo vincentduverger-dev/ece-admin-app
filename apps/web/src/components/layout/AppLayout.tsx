@@ -1,8 +1,9 @@
-import type { CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../../hooks/useAuth";
+import { getReadyEmailApplications } from "../../lib/api";
 import FirstRunOnboarding from "./FirstRunOnboarding";
 import SiteFooter from "./SiteFooter";
 
@@ -11,7 +12,13 @@ type IconProps = {
 };
 
 type NavigationItem = {
-  key: "dashboard" | "applications" | "students" | "imports" | "schoolYears";
+  key:
+    | "dashboard"
+    | "applications"
+    | "emails"
+    | "students"
+    | "imports"
+    | "schoolYears";
   label: string;
   to?: string;
   end?: boolean;
@@ -56,6 +63,15 @@ const FolderIcon = ({ className = "h-5 w-5" }: IconProps) => {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
       <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h3l1.6 1.8h6.4A2.5 2.5 0 0 1 20 9.3v7.2A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-9Z" />
       <path d="M7.5 12h9" strokeLinecap="round" />
+    </svg>
+  );
+};
+
+const MailIcon = ({ className = "h-5 w-5" }: IconProps) => {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
+      <rect x="4" y="6" width="16" height="12" rx="2.5" />
+      <path d="m5.5 8 6.5 5 6.5-5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 };
@@ -108,16 +124,22 @@ const navigationItems: NavigationItem[] = [
     icon: DashboardIcon
   },
   {
-    key: "applications",
-    label: "Demandes",
-    to: "/applications",
-    icon: FolderIcon
-  },
-  {
     key: "students",
     label: "Élèves",
     to: "/students",
     icon: StudentsIcon
+  },
+  {
+    key: "applications",
+    label: "Familles",
+    to: "/applications",
+    icon: FolderIcon
+  },
+  {
+    key: "emails",
+    label: "E-mail",
+    to: "/emails",
+    icon: MailIcon
   },
   {
     key: "imports",
@@ -133,11 +155,26 @@ const navigationItems: NavigationItem[] = [
   }
 ];
 
-const SidebarLink = ({ item }: { item: NavigationItem }) => {
+const SidebarLink = ({
+  item,
+  pendingEmailCount
+}: {
+  item: NavigationItem;
+  pendingEmailCount: number;
+}) => {
+  const shouldShowPendingEmailBadge = item.key === "emails" && pendingEmailCount > 0;
   const content = (
     <>
       <item.icon className="h-5 w-5 shrink-0" />
-      <span>{item.label}</span>
+      <span className="min-w-0 flex-1">{item.label}</span>
+      {shouldShowPendingEmailBadge ? (
+        <span
+          aria-label={`${pendingEmailCount} email${pendingEmailCount > 1 ? "s" : ""} en attente d'envoi`}
+          className="ml-auto inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center rounded-full border border-white/30 bg-secondary px-2 text-xs font-bold tabular-nums text-white shadow-[0_10px_22px_-14px_rgba(212,162,76,0.95)]"
+        >
+          {pendingEmailCount > 99 ? "99+" : pendingEmailCount}
+        </span>
+      ) : null}
     </>
   );
 
@@ -171,7 +208,39 @@ const SidebarLink = ({ item }: { item: NavigationItem }) => {
 
 const AppLayout = () => {
   const { logout } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
+  const [pendingEmailCount, setPendingEmailCount] = useState(0);
+  const isStudentDetailPage = /^\/students\/[^/]+$/u.test(location.pathname);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const loadPendingEmailCount = async (): Promise<void> => {
+      try {
+        const readyApplications = await getReadyEmailApplications(
+          {},
+          { signal: controller.signal }
+        );
+
+        setPendingEmailCount(
+          readyApplications.filter((application) => !application.hasSentEmail).length
+        );
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+
+        setPendingEmailCount(0);
+      }
+    };
+
+    void loadPendingEmailCount();
+
+    return () => {
+      controller.abort();
+    };
+  }, [location.pathname]);
 
   const handleLogout = (): void => {
     logout();
@@ -234,7 +303,11 @@ const AppLayout = () => {
             <div className="p-4">
               <nav className="mb-[100px] space-y-3" aria-label="Navigation principale">
                 {navigationItems.map((item) => (
-                  <SidebarLink key={item.key} item={item} />
+                  <SidebarLink
+                    key={item.key}
+                    item={item}
+                    pendingEmailCount={pendingEmailCount}
+                  />
                 ))}
               </nav>
 
@@ -251,13 +324,17 @@ const AppLayout = () => {
 
           <div className="flex min-h-[calc(100vh-164px)] flex-col gap-6">
             <main
-              className="overflow-hidden rounded-[34px] border border-[#e8ddd1] px-5 py-5 shadow-[0_26px_58px_-42px_rgba(15,23,42,0.28)] sm:px-6 lg:flex-1 lg:px-10 lg:py-8"
+              className={`overflow-hidden rounded-[34px] border border-[#e8ddd1] px-5 py-5 shadow-[0_26px_58px_-42px_rgba(15,23,42,0.28)] sm:px-6 lg:px-10 lg:py-8 ${
+                isStudentDetailPage ? "" : "lg:flex-1"
+              }`}
               style={paperTextureStyle}
             >
               <Outlet />
             </main>
 
-            <SiteFooter />
+            <div className="mt-auto">
+              <SiteFooter />
+            </div>
           </div>
         </div>
       </div>

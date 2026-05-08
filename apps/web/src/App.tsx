@@ -10,11 +10,13 @@ import ApplicationDetailPage from "./pages/ApplicationDetailPage";
 import ApplicationEmailPage from "./pages/ApplicationEmailPage";
 import ApplicationsPage from "./pages/ApplicationsPage";
 import DashboardPage from "./pages/DashboardPage";
+import EmailsPage from "./pages/EmailsPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ImportCsvPage from "./pages/ImportCsvPage";
 import LoginPage from "./pages/LoginPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import SchoolYearsPage from "./pages/SchoolYearsPage";
+import StudentDetailPage from "./pages/StudentDetailPage";
 import StudentsPage from "./pages/StudentsPage";
 
 const NotFoundPage = () => {
@@ -43,7 +45,7 @@ const NotFoundPage = () => {
               to="/applications"
               className="inline-flex items-center rounded-full border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
             >
-              Ouvrir les demandes
+              Ouvrir les familles
             </Link>
           </div>
         </div>
@@ -68,7 +70,9 @@ function App() {
             <Route path="applications" element={<ApplicationsPage />} />
             <Route path="applications/:id/email" element={<ApplicationEmailPage />} />
             <Route path="applications/:id" element={<ApplicationDetailPage />} />
+            <Route path="emails" element={<EmailsPage />} />
             <Route path="students" element={<StudentsPage />} />
+            <Route path="students/:id" element={<StudentDetailPage />} />
             <Route path="imports">
               <Route index element={<Navigate to="new" replace />} />
               <Route path="new" element={<ImportCsvPage />} />
