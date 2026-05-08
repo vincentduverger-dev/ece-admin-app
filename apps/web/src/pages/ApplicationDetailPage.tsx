@@ -17,13 +17,11 @@ import PersonAvatar, {
   FamilyAvatar,
   type PersonAvatarVariant
 } from "../components/ui/PersonAvatar";
-import PriorityBadge from "../components/ui/PriorityBadge";
 import StatusBadge from "../components/ui/StatusBadge";
 import { useToast } from "../context/ToastContext";
 import {
   getApplicationById,
   getApplicationEmailLogs,
-  updateApplicationPriority,
   updateStudentAdmissionStatus
 } from "../lib/api";
 import {
@@ -476,14 +474,6 @@ const MailSendAnimation = () => {
   );
 };
 
-const StarIcon = ({ className = "h-4 w-4" }: IconProps) => {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 16 16" fill="currentColor" className={className}>
-      <path d="m8 2.15 1.62 3.28 3.62.52-2.62 2.55.62 3.6L8 10.4l-3.24 1.7.62-3.6L2.76 5.95l3.62-.52L8 2.15Z" />
-    </svg>
-  );
-};
-
 const ParentAvatar = ({
   label,
   variant
@@ -673,7 +663,6 @@ const ApplicationDetailPage = () => {
   const [emailLogs, setEmailLogs] = useState<ApplicationEmailLog[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isPrioritySubmitting, setIsPrioritySubmitting] = useState(false);
   const [updatingStudentAdmissionId, setUpdatingStudentAdmissionId] =
     useState<string | null>(null);
   const [isExceptionalEditEnabled, setIsExceptionalEditEnabled] = useState(false);
@@ -741,55 +730,6 @@ const ApplicationDetailPage = () => {
     setIsExceptionalEditEnabled(false);
     setIsUnlockDecisionModalOpen(false);
   }, [application?.id, application?.decisionAt]);
-
-  const handlePriorityToggle = useCallback(async (): Promise<void> => {
-    if (!application) {
-      return;
-    }
-
-    if (isTreatmentReadOnly) {
-      showError(
-        "La décision est verrouillée depuis l'envoi de l'email au parent."
-      );
-      return;
-    }
-
-    const nextPriorityValue = !application.isPriority;
-
-    setIsPrioritySubmitting(true);
-
-    try {
-      const updatedApplication = await updateApplicationPriority(
-        application.id,
-        nextPriorityValue
-      );
-
-      setApplication((currentApplication) => {
-        if (!currentApplication || currentApplication.id !== updatedApplication.id) {
-          return currentApplication;
-        }
-
-        return {
-          ...currentApplication,
-          isPriority: updatedApplication.isPriority
-        };
-      });
-      showSuccess(
-        nextPriorityValue
-          ? "La demande est maintenant prioritaire."
-          : "La priorité a été retirée."
-      );
-    } catch (updateError) {
-      showError(
-        getActionErrorMessage(
-          "Impossible de mettre à jour la priorité.",
-          updateError
-        )
-      );
-    } finally {
-      setIsPrioritySubmitting(false);
-    }
-  }, [application, isTreatmentReadOnly, showError, showSuccess]);
 
   const handleStudentAdmissionStatusUpdate = useCallback(
     async (
@@ -926,7 +866,6 @@ const ApplicationDetailPage = () => {
 
   const pageHeaderAside = application ? (
     <div className="flex flex-wrap items-center gap-2">
-      <PriorityBadge isPriority={application.isPriority} />
       <StatusBadge status={application.status} />
     </div>
   ) : isLoading ? (
@@ -1028,7 +967,6 @@ const ApplicationDetailPage = () => {
                   </h2>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <StatusBadge status={application.status} />
-                    <PriorityBadge isPriority={application.isPriority} />
                     {applicationLevels.length > 0 ? (
                       applicationLevels.map((level) => (
                         <LevelBadge
@@ -1098,7 +1036,7 @@ const ApplicationDetailPage = () => {
         <div className="space-y-6 xl:col-start-2 xl:row-start-1 xl:row-span-2 xl:min-h-0 xl:self-stretch xl:[contain:size]">
           <SectionCard
             title="Traitement"
-            subtitle="Statut, priorité, décision finale et email."
+            subtitle="Statut global, décisions élèves et email."
             action={treatmentAction}
             bodyClassName="!mt-4 flex flex-1 flex-col gap-3 xl:min-h-0"
             className="!p-5 sm:!p-6 xl:flex xl:h-full xl:min-h-0 xl:flex-col"
@@ -1126,44 +1064,6 @@ const ApplicationDetailPage = () => {
                 <span className="text-xs font-medium leading-5 text-slate-500">
                   Mis à jour automatiquement depuis les décisions élèves.
                 </span>
-              </div>
-            </div>
-
-            <div
-              className={`shrink-0 rounded-[22px] border border-slate-200/90 bg-slate-50/80 p-4 transition ${
-                isTreatmentReadOnly ? "opacity-55 saturate-50" : ""
-              }`}
-            >
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Priorité
-                  </p>
-                  <div className="mt-1.5">
-                    {application.isPriority ? (
-                      <PriorityBadge isPriority={application.isPriority} />
-                    ) : (
-                      <span className="text-sm font-medium text-slate-600">
-                        Non prioritaire
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handlePriorityToggle}
-                  disabled={isTreatmentReadOnly || isPrioritySubmitting}
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:border-primary/25 hover:text-primary disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                >
-                  <StarIcon />
-                  <span>
-                    {isPrioritySubmitting
-                      ? "Mise à jour..."
-                      : application.isPriority
-                        ? "Retirer"
-                        : "Activer"}
-                  </span>
-                </button>
               </div>
             </div>
 
@@ -1240,29 +1140,37 @@ const ApplicationDetailPage = () => {
                   key={student.id}
                   className="rounded-[28px] border border-slate-200/90 bg-slate-50/80 p-5 shadow-[0_14px_30px_-26px_rgba(15,23,42,0.2)]"
                 >
-                  <div className="flex items-start gap-4">
-                    <PersonAvatar
-                      label={`${student.firstName} ${student.lastName}`}
-                      size="md"
-                      variant={getStudentAvatarVariant(student.gender)}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="break-words text-lg font-semibold text-slate-900">
-                          {student.firstName} {student.lastName}
-                        </h3>
-                      </div>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <LevelBadge
-                          code={student.level.code}
-                          label={student.level.label}
-                          size="sm"
-                        />
-                        <StudentAdmissionBadge
-                          status={getStudentAdmissionStatus(student)}
-                        />
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex min-w-0 items-start gap-4">
+                      <PersonAvatar
+                        label={`${student.firstName} ${student.lastName}`}
+                        size="md"
+                        variant={getStudentAvatarVariant(student.gender)}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="break-words text-lg font-semibold text-slate-900">
+                            {student.firstName} {student.lastName}
+                          </h3>
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <LevelBadge
+                            code={student.level.code}
+                            label={student.level.label}
+                            size="sm"
+                          />
+                          <StudentAdmissionBadge
+                            status={getStudentAdmissionStatus(student)}
+                          />
+                        </div>
                       </div>
                     </div>
+                    <Link
+                      to={`/students/${student.id}`}
+                      className="inline-flex w-fit shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-primary/25 hover:text-primary"
+                    >
+                      Voir l'élève
+                    </Link>
                   </div>
 
                   <div className="mt-5 grid gap-3 sm:grid-cols-2">

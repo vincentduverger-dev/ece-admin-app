@@ -1,6 +1,6 @@
 import {
-  memo,
   useCallback,
+  useDeferredValue,
   useEffect,
   useMemo,
   useState,
@@ -18,27 +18,23 @@ import PersonAvatar, {
   type PersonAvatarVariant
 } from "../components/ui/PersonAvatar";
 import PriorityBadge from "../components/ui/PriorityBadge";
-import StatusBadge from "../components/ui/StatusBadge";
-import { getActiveSchoolYear, getApplications, getLevels } from "../lib/api";
+import StudentStatusBadge from "../components/ui/StudentStatusBadge";
+import {
+  getActiveSchoolYear,
+  getLevels,
+  getSchoolYears,
+  getStudents
+} from "../lib/api";
 import type {
   ApplicationGender,
-  ApplicationListItem,
-  ApplicationStudent,
   LevelSummary,
-  SchoolYearSummary
+  SchoolYearSummary,
+  StudentFilterParams,
+  StudentListItem,
+  VisibleStudentAdmissionStatus
 } from "../types/application";
 
-type StudentListItem = {
-  application: ApplicationListItem;
-  student: ApplicationStudent;
-};
-
-type PageSize = 4 | 6 | 8 | 10 | 12;
-
-type IconProps = {
-  className?: string;
-};
-
+type PageSize = 4 | 6 | 8 | 10 | 12 | 15 | 18 | 20;
 type PaginationItem = number | "ellipsis-left" | "ellipsis-right";
 
 type PaginationControlsProps = {
@@ -47,34 +43,48 @@ type PaginationControlsProps = {
   onPageChange: (page: number) => void;
 };
 
-const pageSizeOptions: PageSize[] = [4, 6, 8, 10, 12];
+const pageSizeOptions: PageSize[] = [4, 6, 8, 10, 12, 15, 18, 20];
+const sortableFields: Array<NonNullable<StudentFilterParams["sortBy"]>> = [
+  "lastName",
+  "firstName",
+  "level",
+  "birthDate",
+  "submittedAt",
+  "status"
+];
+
+const formatDate = new Intl.DateTimeFormat("fr-FR", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric"
+});
 
 const getEnterStyle = (delay: number): CSSProperties => {
-  return {
-    "--ui-enter-delay": `${delay}ms`
-  } as CSSProperties;
+  return { "--ui-enter-delay": `${delay}ms` } as CSSProperties;
 };
 
 const formatSchoolYearLabel = (label: string): string => {
   return label.replace(/^(\d{4})-(\d{4})$/u, "$1 - $2");
 };
 
-const normalizeLevelCode = (value: string): string => {
-  return value.trim().toUpperCase();
+const isAbortError = (error: unknown): boolean => {
+  return error instanceof DOMException && error.name === "AbortError";
 };
 
-const getStudentAvatarVariant = (
-  gender: ApplicationGender
-): PersonAvatarVariant => {
-  if (gender === "BOY") {
-    return "boy";
+const getFamilyDisplayName = (student: StudentListItem): string => {
+  const family = student.application.family;
+  const familyNames = [family.fatherLastName, family.motherLastName]
+    .filter((value): value is string => Boolean(value?.trim()));
+
+  if (familyNames.length > 0) {
+    return Array.from(new Set(familyNames)).join(" / ");
   }
 
-  if (gender === "GIRL") {
-    return "girl";
-  }
+  return student.lastName || family.contactEmail || "Famille non renseignée";
+};
 
-  return "neutral";
+const getStudentCountLabel = (count: number): string => {
+  return `${count} élève${count > 1 ? "s" : ""}`;
 };
 
 const getPaginationItems = (
@@ -101,8 +111,8 @@ const getPaginationItems = (
     items.push("ellipsis-left");
   }
 
-  for (let page = startPage; page <= endPage; page += 1) {
-    items.push(page);
+  for (let pageNumber = startPage; pageNumber <= endPage; pageNumber += 1) {
+    items.push(pageNumber);
   }
 
   if (endPage < totalPages - 1) {
@@ -114,77 +124,21 @@ const getPaginationItems = (
   return items;
 };
 
-const getFamilyDisplayName = (application: ApplicationListItem): string => {
-  const familyNames = [
-    application.family.fatherLastName,
-    application.family.motherLastName
-  ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
-
-  if (familyNames.length > 0) {
-    return Array.from(new Set(familyNames)).join(" / ");
+const getStudentAvatarVariant = (
+  gender: ApplicationGender
+): PersonAvatarVariant => {
+  if (gender === "BOY") {
+    return "boy";
   }
 
-  const studentLastNames = application.students
-    .map((student) => student.lastName.trim())
-    .filter((value) => value.length > 0);
-
-  if (studentLastNames.length > 0) {
-    return Array.from(new Set(studentLastNames)).join(" / ");
+  if (gender === "GIRL") {
+    return "girl";
   }
 
-  return application.family.contactEmail ?? "Famille non renseignée";
+  return "neutral";
 };
 
-const getStudentSearchValue = ({ application, student }: StudentListItem): string => {
-  return [
-    student.firstName,
-    student.lastName,
-    student.level.code,
-    student.level.label,
-    getFamilyDisplayName(application),
-    application.family.contactEmail
-  ]
-    .filter((value): value is string => typeof value === "string")
-    .join(" ")
-    .toLowerCase();
-};
-
-const SearchIcon = ({ className = "h-4 w-4" }: IconProps) => {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <circle cx="7" cy="7" r="4.6" />
-      <path d="m10.3 10.3 3.2 3.2" />
-    </svg>
-  );
-};
-
-const ChevronRightIcon = ({ className = "h-4 w-4" }: IconProps) => {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <path d="m6.25 3.25 4.5 4.75-4.5 4.75" />
-    </svg>
-  );
-};
-
-const ChevronLeftIcon = ({ className = "h-4 w-4" }: IconProps) => {
+const ChevronLeftIcon = ({ className = "h-4 w-4" }: { className?: string }) => {
   return (
     <svg
       aria-hidden="true"
@@ -201,35 +155,28 @@ const ChevronLeftIcon = ({ className = "h-4 w-4" }: IconProps) => {
   );
 };
 
-const StudentPanelIcon = ({ className = "h-5 w-5" }: IconProps) => {
+const ChevronRightIcon = ({ className = "h-4 w-4" }: { className?: string }) => {
   return (
     <svg
       aria-hidden="true"
-      viewBox="0 0 20 20"
+      viewBox="0 0 16 16"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.7"
+      strokeWidth="1.8"
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
     >
-      <path d="M7.7 9.2a2.7 2.7 0 1 0 0-5.4 2.7 2.7 0 0 0 0 5.4Z" />
-      <path d="M13.7 8.5a2.1 2.1 0 1 0 0-4.2" />
-      <path d="M3.5 16.4a4.3 4.3 0 0 1 8.4 0" />
-      <path d="M12.7 15.6a3.4 3.4 0 0 1 3.8.8" />
+      <path d="m6.25 3.25 4.5 4.75-4.5 4.75" />
     </svg>
   );
 };
 
-const isAbortError = (error: unknown): boolean => {
-  return error instanceof DOMException && error.name === "AbortError";
-};
-
-const PaginationControls = memo(function PaginationControls({
+const PaginationControls = ({
   currentPage,
   totalPages,
   onPageChange
-}: PaginationControlsProps) {
+}: PaginationControlsProps) => {
   if (totalPages <= 1) {
     return null;
   }
@@ -239,7 +186,7 @@ const PaginationControls = memo(function PaginationControls({
     "inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-primary/25 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50";
 
   return (
-    <div className="mt-6 flex justify-center border-t border-slate-200/80 pt-5">
+    <div className="mt-6 flex justify-center border-t border-slate-200/80 pb-6 pt-5">
       <div className="flex flex-wrap items-center justify-center gap-2">
         <button
           type="button"
@@ -272,7 +219,7 @@ const PaginationControls = memo(function PaginationControls({
                 key={item}
                 className="inline-flex h-10 min-w-[2.5rem] items-center justify-center text-sm font-semibold text-slate-400"
               >
-                ...
+                …
               </span>
             )
           )}
@@ -294,167 +241,199 @@ const PaginationControls = memo(function PaginationControls({
       </div>
     </div>
   );
-});
+};
+
+const getParam = (params: URLSearchParams, key: string): string => {
+  return params.get(key)?.trim() ?? "";
+};
+
+const getStatusParam = (params: URLSearchParams): "" | VisibleStudentAdmissionStatus => {
+  const status = getParam(params, "status");
+
+  return status === "ACCEPTED" || status === "WAITLISTED" ? status : "";
+};
+
+const getSortByParam = (
+  params: URLSearchParams
+): NonNullable<StudentFilterParams["sortBy"]> => {
+  const sortBy = getParam(params, "sortBy");
+
+  return sortableFields.includes(sortBy as NonNullable<StudentFilterParams["sortBy"]>)
+    ? (sortBy as NonNullable<StudentFilterParams["sortBy"]>)
+    : "submittedAt";
+};
+
+const getInitialPage = (params: URLSearchParams): number => {
+  return Math.max(1, Number(getParam(params, "page")) || 1);
+};
+
+const getInitialPageSize = (params: URLSearchParams): PageSize => {
+  const requestedLimit = Number(getParam(params, "limit")) as PageSize;
+
+  return pageSizeOptions.includes(requestedLimit) ? requestedLimit : 4;
+};
 
 const StudentsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const requestedLevel = normalizeLevelCode(searchParams.get("level") ?? "");
   const [levels, setLevels] = useState<LevelSummary[]>([]);
-  const [applications, setApplications] = useState<ApplicationListItem[]>([]);
+  const [schoolYears, setSchoolYears] = useState<SchoolYearSummary[]>([]);
+  const [students, setStudents] = useState<StudentListItem[]>([]);
+  const [totalStudents, setTotalStudents] = useState(0);
   const [activeSchoolYear, setActiveSchoolYear] = useState<SchoolYearSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState<PageSize>(4);
-  const [search, setSearch] = useState("");
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [search, setSearch] = useState(() => getParam(searchParams, "search"));
+  const [page, setPage] = useState(() => getInitialPage(searchParams));
+  const [limit, setLimit] = useState<PageSize>(() => getInitialPageSize(searchParams));
+  const deferredSearch = useDeferredValue(search);
 
-  const selectedLevel = useMemo(() => {
-    return levels.find((level) => normalizeLevelCode(level.code) === requestedLevel) ?? null;
-  }, [levels, requestedLevel]);
+  const filters = useMemo<StudentFilterParams>(() => {
+    const isPriority = getParam(searchParams, "isPriority");
+    const sortOrder = getParam(searchParams, "sortOrder");
 
-  const levelStudentRows = useMemo<StudentListItem[]>(() => {
-    if (!requestedLevel) {
-      return [];
-    }
+    return {
+      search: deferredSearch.trim() || undefined,
+      status: getStatusParam(searchParams) || undefined,
+      levelId: getParam(searchParams, "levelId") || undefined,
+      schoolYearId: getParam(searchParams, "schoolYearId") || activeSchoolYear?.id,
+      isPriority: isPriority === "true" ? "true" : undefined,
+      familyId: getParam(searchParams, "familyId") || undefined,
+      page: "1",
+      limit: "5000",
+      sortBy: getSortByParam(searchParams),
+      sortOrder: sortOrder === "asc" ? "asc" : "desc"
+    };
+  }, [activeSchoolYear?.id, deferredSearch, searchParams]);
 
-    return applications.flatMap((application) =>
-      application.students
-        .filter((student) => normalizeLevelCode(student.level.code) === requestedLevel)
-        .map((student) => ({ application, student }))
-    );
-  }, [applications, requestedLevel]);
-  const studentRows = useMemo<StudentListItem[]>(() => {
-    const normalizedSearch = search.trim().toLowerCase();
-
-    if (!normalizedSearch) {
-      return levelStudentRows;
-    }
-
-    return levelStudentRows.filter((row) =>
-      getStudentSearchValue(row).includes(normalizedSearch)
-    );
-  }, [levelStudentRows, search]);
-
-  const studentsCountLabel = `${studentRows.length} élève${studentRows.length > 1 ? "s" : ""}`;
   const totalPages = useMemo(() => {
-    return Math.max(1, Math.ceil(studentRows.length / pageSize));
-  }, [pageSize, studentRows.length]);
-  const resolvedCurrentPage = Math.min(currentPage, totalPages);
-  const currentPageStudentRows = useMemo(() => {
-    const startIndex = (resolvedCurrentPage - 1) * pageSize;
+    return Math.max(1, Math.ceil(students.length / limit));
+  }, [limit, students.length]);
+  const currentPageStudents = useMemo(() => {
+    const startIndex = (page - 1) * limit;
 
-    return studentRows.slice(startIndex, startIndex + pageSize);
-  }, [pageSize, resolvedCurrentPage, studentRows]);
-  const visibleStart = studentRows.length === 0
-    ? 0
-    : (resolvedCurrentPage - 1) * pageSize + 1;
-  const visibleEnd = Math.min(resolvedCurrentPage * pageSize, studentRows.length);
-  const selectedLevelLabel = selectedLevel?.label ?? requestedLevel;
-  const activeSchoolYearLabel = activeSchoolYear
-    ? formatSchoolYearLabel(activeSchoolYear.label)
-    : "Toutes les années";
+    return students.slice(startIndex, startIndex + limit);
+  }, [limit, page, students]);
+
+  const selectedLevel = levels.find((level) => level.id === filters.levelId) ?? null;
+  const selectedSchoolYear =
+    schoolYears.find((schoolYear) => schoolYear.id === filters.schoolYearId) ?? null;
+  const activeSchoolYearLabel = selectedSchoolYear
+    ? formatSchoolYearLabel(selectedSchoolYear.label)
+    : activeSchoolYear
+      ? formatSchoolYearLabel(activeSchoolYear.label)
+      : "Toutes les années";
+  const studentListAnimationKey = [
+    page,
+    limit,
+    filters.search ?? "",
+    filters.status ?? "",
+    filters.levelId ?? "",
+    filters.schoolYearId ?? "",
+    filters.isPriority ?? "",
+    filters.familyId ?? "",
+    filters.sortBy ?? "",
+    filters.sortOrder ?? ""
+  ].join("|");
+
   const inputClassName =
     "w-full rounded-2xl border border-primary/15 bg-white/95 px-4 py-3 text-sm font-medium text-slate-900 shadow-[0_12px_26px_-24px_rgba(31,77,58,0.22)] outline-none transition hover:border-primary/30 focus:border-secondary focus:ring-2 focus:ring-secondary/20";
 
-  const handleLevelChange = useCallback(
-    (event: React.ChangeEvent<HTMLSelectElement>): void => {
-      const nextLevel = normalizeLevelCode(event.target.value);
+  const updateParams = useCallback(
+    (updates: Record<string, string | undefined>): void => {
       const nextParams = new URLSearchParams(searchParams);
 
-      if (nextLevel) {
-        nextParams.set("level", nextLevel);
-      } else {
-        nextParams.delete("level");
-      }
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value) {
+          nextParams.set(key, value);
+        } else {
+          nextParams.delete(key);
+        }
+      });
 
+      nextParams.delete("page");
+      nextParams.delete("limit");
+      setPage(1);
       setSearchParams(nextParams);
     },
     [searchParams, setSearchParams]
   );
 
-  const handleSearchChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>): void => {
-      setSearch(event.target.value);
-    },
-    []
-  );
+  useEffect(() => {
+    const requestedSearch = getParam(searchParams, "search");
 
-  const handlePageSizeChange = useCallback(
-    (event: React.ChangeEvent<HTMLSelectElement>): void => {
-      setPageSize(Number(event.target.value) as PageSize);
-    },
-    []
-  );
+    setSearch((currentSearch) =>
+      currentSearch === requestedSearch ? currentSearch : requestedSearch
+    );
+  }, [searchParams]);
 
-  const handlePageChange = useCallback(
-    (page: number): void => {
-      setCurrentPage(Math.min(totalPages, Math.max(1, page)));
-    },
-    [totalPages]
-  );
+  useEffect(() => {
+    setPage(1);
+  }, [deferredSearch]);
 
-  const loadStudentsContext = useCallback(async (signal?: AbortSignal): Promise<void> => {
-    setIsLoading(true);
-    setError(null);
+  useEffect(() => {
+    setPage((currentPage) => Math.min(currentPage, totalPages));
+  }, [totalPages]);
 
-    try {
-      const [loadedLevels, currentSchoolYear] = await Promise.all([
-        getLevels({ signal }),
-        getActiveSchoolYear({ signal }).catch(() => null)
-      ]);
+  const loadReferenceData = useCallback(async (signal: AbortSignal): Promise<void> => {
+    const [loadedLevels, loadedSchoolYears, loadedActiveSchoolYear] = await Promise.all([
+      getLevels({ signal }),
+      getSchoolYears({ signal }),
+      getActiveSchoolYear({ signal }).catch(() => null)
+    ]);
 
-      if (signal?.aborted) {
-        return;
-      }
-
-      const loadedApplications = await getApplications(
-        currentSchoolYear ? { schoolYearId: currentSchoolYear.id } : {},
-        { signal }
-      );
-
-      if (signal?.aborted) {
-        return;
-      }
-
-      setLevels(loadedLevels);
-      setActiveSchoolYear(currentSchoolYear);
-      setApplications(loadedApplications);
-    } catch (loadError) {
-      if (isAbortError(loadError) || signal?.aborted) {
-        return;
-      }
-
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Impossible de charger la liste des élèves."
-      );
-    } finally {
-      if (!signal?.aborted) {
-        setIsLoading(false);
-        setHasLoadedOnce(true);
-      }
+    if (signal.aborted) {
+      return;
     }
+
+    setLevels(loadedLevels);
+    setSchoolYears(loadedSchoolYears);
+    setActiveSchoolYear(loadedActiveSchoolYear);
   }, []);
 
   useEffect(() => {
     const controller = new AbortController();
 
-    void loadStudentsContext(controller.signal);
+    void loadReferenceData(controller.signal);
 
-    return () => {
-      controller.abort();
-    };
-  }, [loadStudentsContext]);
+    return () => controller.abort();
+  }, [loadReferenceData]);
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [requestedLevel, pageSize, search]);
+    const controller = new AbortController();
 
-  useEffect(() => {
-    setCurrentPage((page) => Math.min(page, totalPages));
-  }, [totalPages]);
+    setIsLoading(true);
+    setError(null);
+
+    void getStudents(filters, { signal: controller.signal })
+      .then((response) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setStudents(response.data);
+        setTotalStudents(response.meta.total);
+      })
+      .catch((loadError) => {
+        if (isAbortError(loadError) || controller.signal.aborted) {
+          return;
+        }
+
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Impossible de charger les élèves."
+        );
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+          setHasLoadedOnce(true);
+        }
+      });
+
+    return () => controller.abort();
+  }, [filters]);
 
   const pageTopBar = (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -462,26 +441,17 @@ const StudentsPage = () => {
         className="ui-animate-in ui-animate-in--subtle w-fit rounded-2xl border border-primary/10 bg-white/80 px-4 py-3 text-sm text-primaryDark shadow-[0_10px_22px_-22px_rgba(15,23,42,0.18)]"
         style={getEnterStyle(20)}
       >
-        <Breadcrumb
-          items={[
-            { label: "Tableau de bord", href: "/" },
-            { label: "Élèves par niveau" }
-          ]}
-        />
+        <Breadcrumb items={[{ label: "Tableau de bord", href: "/" }, { label: "Élèves" }]} />
       </div>
 
-      <div className="flex lg:justify-end">
-        <div
-          className="ui-animate-in ui-animate-in--subtle rounded-2xl border border-primary/10 bg-white/80 px-4 py-3 text-center text-sm text-primaryDark shadow-[0_10px_22px_-22px_rgba(15,23,42,0.18)]"
-          style={getEnterStyle(90)}
-        >
-          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-primaryLight">
-            Année active
-          </p>
-          <p className="mt-1 font-semibold">
-            {activeSchoolYearLabel}
-          </p>
-        </div>
+      <div
+        className="ui-animate-in ui-animate-in--subtle rounded-2xl border border-primary/10 bg-white/80 px-4 py-3 text-center text-sm text-primaryDark shadow-[0_10px_22px_-22px_rgba(15,23,42,0.18)]"
+        style={getEnterStyle(90)}
+      >
+        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-primaryLight">
+          Année affichée
+        </p>
+        <p className="mt-1 font-semibold">{activeSchoolYearLabel}</p>
       </div>
     </div>
   );
@@ -491,8 +461,8 @@ const StudentsPage = () => {
       <PageSectionHeader
         topBar={pageTopBar}
         eyebrow="Élèves"
-        title="Élèves par niveau demandé"
-        description="Retrouvez rapidement les élèves associés au niveau sélectionné depuis le tableau de bord."
+        title="Traitement des élèves"
+        description="Pilotez les décisions élève par élève avec les filtres utiles au suivi quotidien des inscriptions."
       />
     </div>
   );
@@ -506,15 +476,11 @@ const StudentsPage = () => {
     );
   }
 
-  if (error && applications.length === 0) {
+  if (error && students.length === 0) {
     return (
       <>
         {pageHeader}
-        <ErrorState
-          message={error}
-          actionLabel="Réessayer"
-          onAction={() => void loadStudentsContext()}
-        />
+        <ErrorState message={error} actionLabel="Réessayer" onAction={() => updateParams({})} />
       </>
     );
   }
@@ -528,150 +494,172 @@ const StudentsPage = () => {
         style={getEnterStyle(190)}
       >
         <div className="border-b border-secondary/30 bg-primary px-6 py-5 text-white sm:px-7">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex min-w-0 items-start gap-4">
-              <span className="mt-1 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-secondary shadow-[0_16px_30px_-22px_rgba(0,0,0,0.55)]">
-                <StudentPanelIcon />
-              </span>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-secondary">
-                  Poste élèves
-                </p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">
-                  {requestedLevel ? selectedLevelLabel : "Sélectionner un niveau"}
-                </h2>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-white/80">
-                  Consultez la cohorte d&apos;un niveau, recherchez un élève et
-                  accédez directement au dossier de chaque famille.
-                </p>
-              </div>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-secondary">
+                Poste principal
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold text-white">
+                {getStudentCountLabel(totalStudents)}
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-white/80">
+                Recherche, tri et décisions restent centrés sur les statuts élèves.
+              </p>
             </div>
-
-            <div className="flex flex-wrap items-center gap-2.5">
-              <span className="inline-flex items-center rounded-full border border-secondary/40 bg-secondary/20 px-4 py-2 text-sm font-semibold text-white">
-                {isLoading ? "Actualisation..." : studentsCountLabel}
-              </span>
-              <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white">
-                {activeSchoolYearLabel}
-              </span>
-              {requestedLevel ? (
-                <span className="inline-flex items-center rounded-full border border-secondary/40 bg-secondary/20 px-4 py-2 text-sm font-semibold text-white">
-                  {requestedLevel}
-                </span>
+            <div className="flex flex-wrap gap-2">
+              {filters.status ? <StudentStatusBadge status={filters.status} /> : null}
+              {selectedLevel ? (
+                <LevelBadge code={selectedLevel.code} label={selectedLevel.label} size="md" />
               ) : null}
+              {filters.isPriority === "true" ? <PriorityBadge isPriority /> : null}
             </div>
           </div>
         </div>
 
         <div className="bg-[#fffaf2] px-6 py-5 sm:px-7">
-          <div className="grid gap-4 xl:grid-cols-[minmax(260px,1.1fr)_minmax(260px,1fr)_auto] xl:items-end">
-            <label className="block">
+          <div className="grid gap-4 lg:grid-cols-4">
+            <label className="block lg:col-span-2">
               <span className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-primaryLight">
-                Recherche rapide
+                Recherche
               </span>
-              <div className="relative mt-2">
-                <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-primary">
-                  <SearchIcon className="h-5 w-5" />
-                </span>
-                <input
-                  type="search"
-                  value={search}
-                  onChange={handleSearchChange}
-                  placeholder="Élève, famille ou email..."
-                  className={`${inputClassName} h-14 pl-12 text-base`}
-                />
-              </div>
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Nom élève, parent, email ou téléphone..."
+                className={`${inputClassName} mt-2`}
+              />
             </label>
 
             <label className="block">
               <span className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-primaryLight">
-                Niveau
+                Statut élève
               </span>
               <select
-                value={requestedLevel}
-                onChange={handleLevelChange}
+                value={filters.status ?? ""}
+                onChange={(event) => updateParams({ status: event.target.value || undefined })}
                 className={`${inputClassName} mt-2`}
               >
-                <option value="">Choisir un niveau</option>
+                <option value="">Tous les statuts</option>
+                <option value="WAITLISTED">En attente</option>
+                <option value="ACCEPTED">Accepté</option>
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-primaryLight">
+                Priorité
+              </span>
+              <select
+                value={filters.isPriority ?? ""}
+                onChange={(event) => updateParams({ isPriority: event.target.value || undefined })}
+                className={`${inputClassName} mt-2`}
+              >
+                <option value="">Toutes</option>
+                <option value="true">Prioritaires</option>
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-primaryLight">
+                Niveau demandé
+              </span>
+              <select
+                value={filters.levelId ?? ""}
+                onChange={(event) => updateParams({ levelId: event.target.value || undefined })}
+                className={`${inputClassName} mt-2`}
+              >
+                <option value="">Tous les niveaux</option>
                 {levels.map((level) => (
-                  <option key={level.id} value={level.code}>
+                  <option key={level.id} value={level.id}>
                     {level.label} · {level.code.toUpperCase()}
                   </option>
                 ))}
               </select>
             </label>
 
-            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-              {requestedLevel ? (
-                <LevelBadge
-                  code={selectedLevel?.code ?? requestedLevel}
-                  label={selectedLevelLabel}
-                  size="md"
-                />
-              ) : null}
-              <span className="inline-flex items-center justify-center rounded-full border border-primary/15 bg-white px-4 py-2.5 text-sm font-semibold text-primaryDark">
-                {isLoading ? "Actualisation..." : studentsCountLabel}
+            <label className="block">
+              <span className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-primaryLight">
+                Année scolaire
               </span>
-            </div>
-          </div>
+              <select
+                value={filters.schoolYearId ?? ""}
+                onChange={(event) => updateParams({ schoolYearId: event.target.value || undefined })}
+                className={`${inputClassName} mt-2`}
+              >
+                <option value="">Toutes les années</option>
+                {schoolYears.map((schoolYear) => (
+                  <option key={schoolYear.id} value={schoolYear.id}>
+                    {formatSchoolYearLabel(schoolYear.label)}
+                    {schoolYear.isActive ? " · active" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-secondary/25 pt-4">
-            <span className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-primaryLight">
-              Vue active
-            </span>
-            {requestedLevel ? (
-              <span className="inline-flex items-center rounded-full border border-secondary/30 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
-                {selectedLevelLabel} · {requestedLevel}
+            <label className="block">
+              <span className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-primaryLight">
+                Famille
               </span>
-            ) : (
-              <span className="inline-flex items-center rounded-full border border-primary/15 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
-                Aucun niveau sélectionné
+              <input
+                value={filters.familyId ?? ""}
+                onChange={(event) => updateParams({ familyId: event.target.value.trim() || undefined })}
+                placeholder="Identifiant famille"
+                className={`${inputClassName} mt-2`}
+              />
+            </label>
+
+            <label className="block">
+              <span className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-primaryLight">
+                Tri
               </span>
-            )}
-            <span className="inline-flex items-center rounded-full border border-secondary/30 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
-              {activeSchoolYearLabel}
-            </span>
-            {search.trim() ? (
-              <span className="inline-flex items-center rounded-full border border-secondary/30 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
-                Recherche: {search.trim()}
+              <select
+                value={filters.sortBy}
+                onChange={(event) => updateParams({ sortBy: event.target.value })}
+                className={`${inputClassName} mt-2`}
+              >
+                <option value="lastName">Nom</option>
+                <option value="firstName">Prénom</option>
+                <option value="level">Niveau</option>
+                <option value="birthDate">Date de naissance</option>
+                <option value="submittedAt">Date de soumission</option>
+                <option value="status">Statut</option>
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-primaryLight">
+                Ordre
               </span>
-            ) : null}
+              <select
+                value={filters.sortOrder}
+                onChange={(event) => updateParams({ sortOrder: event.target.value })}
+                className={`${inputClassName} mt-2`}
+              >
+                <option value="desc">Décroissant</option>
+                <option value="asc">Croissant</option>
+              </select>
+            </label>
           </div>
         </div>
       </section>
 
       <section className="mt-6 space-y-4">
         {isLoading && hasLoadedOnce ? <LoadingState variant="card" /> : null}
-
-        {error && applications.length > 0 ? (
-          <ErrorState
-            message={`${error} Les derniers résultats chargés restent affichés.`}
-            actionLabel="Réessayer"
-            onAction={() => void loadStudentsContext()}
-          />
+        {error && students.length > 0 ? (
+          <ErrorState message={`${error} Les derniers résultats restent affichés.`} />
         ) : null}
 
-        {!requestedLevel ? (
-          <EmptyState
-            title="Aucun niveau sélectionné"
-            description="Choisissez un niveau pour afficher les élèves correspondants."
-          />
-        ) : null}
-
-        {requestedLevel && !isLoading && studentRows.length === 0 ? (
+        {!isLoading && students.length === 0 ? (
           <EmptyState
             title="Aucun élève trouvé"
-            description={
-              search.trim()
-                ? `Aucun élève en ${selectedLevelLabel} ne correspond à cette recherche.`
-                : `Aucun élève ne correspond au niveau ${selectedLevelLabel}.`
-            }
+            description="Aucun élève ne correspond aux filtres sélectionnés."
           />
         ) : null}
 
-        {studentRows.length > 0 ? (
+        {students.length > 0 ? (
           <section
-            className="ui-animate-in ui-surface-hover ui-surface-hover--soft ui-surface-hover--no-accent overflow-hidden rounded-[32px] border border-white/80 bg-white/92 shadow-[0_24px_48px_-34px_rgba(15,23,42,0.3)]"
+            className="ui-animate-in overflow-hidden rounded-[32px] border border-white/80 bg-white/92 shadow-[0_24px_48px_-34px_rgba(15,23,42,0.3)]"
             style={getEnterStyle(250)}
           >
             <div className="border-b border-slate-200/80 px-6 py-5 sm:px-7">
@@ -681,18 +669,22 @@ const StudentsPage = () => {
                     Résultats
                   </p>
                   <h2 className="mt-2 text-2xl font-semibold text-slate-900">
-                    {studentsCountLabel} en {selectedLevelLabel}
+                    {getStudentCountLabel(students.length)}
                   </h2>
                 </div>
                 <div className="flex flex-nowrap items-center gap-2">
                   <span className="inline-flex shrink-0 items-center rounded-full border border-primary/15 bg-primary/5 px-3.5 py-2 text-sm font-medium text-primaryDark">
-                    {visibleStart}-{visibleEnd} sur {studentRows.length}
+                    {currentPageStudents.length === 0 ? 0 : (page - 1) * limit + 1}-
+                    {Math.min(page * limit, students.length)} sur {students.length}
                   </span>
                   <label className="inline-flex min-w-0 shrink-0 items-center gap-2 rounded-full border border-slate-200 bg-slate-50 py-1.5 pl-3.5 pr-1.5 text-sm font-medium text-slate-700">
                     <span className="whitespace-nowrap">Élèves par page</span>
                     <select
-                      value={pageSize}
-                      onChange={handlePageSizeChange}
+                      value={limit}
+                      onChange={(event) => {
+                        setLimit(Number(event.target.value) as PageSize);
+                        setPage(1);
+                      }}
                       className="w-[4.25rem] rounded-full border border-slate-200 bg-white px-2.5 py-1 text-sm font-semibold text-slate-900 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
                     >
                       {pageSizeOptions.map((option) => (
@@ -702,100 +694,95 @@ const StudentsPage = () => {
                       ))}
                     </select>
                   </label>
-                  <LevelBadge
-                    code={selectedLevel?.code ?? requestedLevel}
-                    label={selectedLevelLabel}
-                    size="md"
-                  />
                 </div>
               </div>
             </div>
 
             <div className="px-4 py-4 sm:px-6">
               <div className="space-y-3">
-                {currentPageStudentRows.map(({ application, student }, index) => (
-                  <Link
-                    key={`${application.id}-${student.id}`}
-                    to={`/applications/${application.id}`}
-                    aria-label={`Ouvrir la demande associée à ${student.firstName} ${student.lastName}`}
-                    className="group ui-animate-in ui-surface-hover ui-surface-hover--soft block rounded-[28px] border border-slate-200/90 bg-slate-50/80 p-4 shadow-[0_14px_30px_-24px_rgba(15,23,42,0.16)] outline-none transition focus-visible:ring-4 focus-visible:ring-primary/20 sm:p-5"
-                    style={getEnterStyle(310 + index * 45)}
-                  >
-                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_76px_minmax(0,1.4fr)_170px_180px_108px] xl:items-center">
-                      <div className="min-w-0">
-                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                          Élève
-                        </p>
-                        <h3 className="mt-1 text-lg font-semibold text-slate-900">
-                          {student.firstName} {student.lastName}
-                        </h3>
-                        <div className="mt-2">
-                          <LevelBadge
-                            code={student.level.code}
-                            label={student.level.label}
-                            size="sm"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex xl:justify-center">
-                        <PersonAvatar
-                          label={`${student.firstName} ${student.lastName}`}
-                          size="md"
-                          variant={getStudentAvatarVariant(student.gender)}
-                        />
-                      </div>
-
-                      <div className="min-w-0">
-                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                          Famille
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-slate-900">
-                          Famille {getFamilyDisplayName(application)}
-                        </p>
-                        <p className="mt-1 break-all text-sm text-slate-500">
-                          {application.family.contactEmail ?? "Contact non renseigné"}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                          Année
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-slate-900">
-                          {formatSchoolYearLabel(application.schoolYear.label)}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                          Demande
-                        </p>
-                        <div className="mt-1 flex flex-wrap items-center gap-2">
-                          <StatusBadge status={application.status} />
-                          <PriorityBadge isPriority={application.isPriority} />
-                        </div>
-                      </div>
-
-                      <div className="xl:justify-self-end">
-                        <span
-                          className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition group-hover:border-primary/25 group-hover:text-primary hover:border-primary/25 hover:text-primary"
-                        >
-                          <span>Voir</span>
-                          <ChevronRightIcon />
-                        </span>
-                      </div>
+              {currentPageStudents.map((student, index) => (
+                <article
+                  key={`${studentListAnimationKey}-${student.id}`}
+                  className="ui-animate-in ui-surface-hover ui-surface-hover--soft grid gap-4 rounded-[28px] border border-slate-200/90 bg-slate-50/80 p-4 shadow-[0_14px_30px_-24px_rgba(15,23,42,0.16)] transition hover:bg-white lg:grid-cols-[minmax(0,1.25fr)_160px_minmax(0,1fr)_170px_150px] lg:items-center sm:p-5"
+                  style={getEnterStyle(300 + index * 30)}
+                >
+                  <div className="flex min-w-0 items-center gap-4">
+                    <PersonAvatar
+                      label={`${student.firstName} ${student.lastName}`}
+                      size="md"
+                      variant={getStudentAvatarVariant(student.gender)}
+                    />
+                    <div className="min-w-0">
+                      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Élève
+                      </p>
+                      <Link
+                        to={`/students/${student.id}`}
+                        className="mt-1 block text-lg font-semibold text-slate-900 transition hover:text-primary"
+                      >
+                        {student.firstName} {student.lastName}
+                      </Link>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Né(e) le {formatDate.format(new Date(student.birthDate))}
+                      </p>
                     </div>
-                  </Link>
-                ))}
-              </div>
+                  </div>
 
-              <PaginationControls
-                currentPage={resolvedCurrentPage}
-                totalPages={totalPages}
-                onPageChange={handlePageChange}
-              />
+                  <div>
+                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Niveau
+                    </p>
+                    <div className="mt-2">
+                      <LevelBadge code={student.level.code} label={student.level.label} size="sm" />
+                    </div>
+                  </div>
+
+                  <div className="min-w-0">
+                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Famille
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900">
+                      Famille {getFamilyDisplayName(student)}
+                    </p>
+                    <p className="mt-1 break-all text-sm text-slate-500">
+                      {student.application.family.contactEmail || "Email non renseigné"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Statut
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <StudentStatusBadge status={student.admissionStatus} />
+                      <PriorityBadge isPriority={student.isPriority} />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 lg:justify-end">
+                    <Link
+                      to={`/students/${student.id}`}
+                      className="inline-flex items-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primaryDark"
+                    >
+                      Fiche élève
+                    </Link>
+                    <Link
+                      to={`/applications/${student.application.id}`}
+                      className="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-primary/25 hover:text-primary"
+                    >
+                      Famille
+                    </Link>
+                  </div>
+                </article>
+              ))}
+              </div>
             </div>
+
+            <PaginationControls
+              currentPage={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+            />
           </section>
         ) : null}
       </section>

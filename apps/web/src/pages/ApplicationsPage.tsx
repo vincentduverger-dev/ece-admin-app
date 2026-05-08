@@ -36,7 +36,7 @@ type FilterState = {
 
 type SortOption = "createdAtDesc" | "createdAtAsc" | "priorityDesc";
 
-type PageSize = 4 | 6 | 8 | 10 | 12;
+type PageSize = 4 | 6 | 8 | 10 | 12 | 15 | 18 | 20;
 
 type StatusOption = {
   value: "" | ApplicationStatus;
@@ -66,7 +66,7 @@ type PaginationControlsProps = {
   onPageChange: (page: number) => void;
 };
 
-const pageSizeOptions: PageSize[] = [4, 6, 8, 10, 12];
+const pageSizeOptions: PageSize[] = [4, 6, 8, 10, 12, 15, 18, 20];
 
 const statusOptions: StatusOption[] = [
   { value: "", label: "Tous les statuts" },
