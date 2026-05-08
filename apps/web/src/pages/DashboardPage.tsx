@@ -4,10 +4,9 @@ import {
   useMemo,
   useState,
   type CSSProperties,
-  type JSX,
-  type KeyboardEvent
+  type JSX
 } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 import PageSectionHeader from "../components/layout/PageSectionHeader";
 import Breadcrumb from "../components/ui/Breadcrumb";
@@ -16,14 +15,14 @@ import ErrorState from "../components/ui/ErrorState";
 import LevelBadge from "../components/ui/LevelBadge";
 import LoadingState from "../components/ui/LoadingState";
 import PriorityBadge from "../components/ui/PriorityBadge";
-import StatusBadge from "../components/ui/StatusBadge";
+import StudentStatusBadge from "../components/ui/StudentStatusBadge";
 import { fetchDashboardStats, getActiveSchoolYear } from "../lib/api";
 import { getLevelVisualStyle } from "../lib/levelVisuals";
 import type { SchoolYearSummary } from "../types/application";
+import type { VisibleStudentAdmissionStatus } from "../types/application";
 import type {
-  DashboardApplicationStatus,
   DashboardLevelStat,
-  DashboardPriorityApplication,
+  DashboardStudentStats,
   DashboardStats
 } from "../types/dashboard";
 
@@ -34,7 +33,7 @@ type IconProps = {
 type DashboardMetricIcon = (props: IconProps) => JSX.Element;
 
 type StatusCardConfig = {
-  status: DashboardApplicationStatus;
+  status: VisibleStudentAdmissionStatus;
   label: string;
   description: string;
   getValue?: (data: DashboardStats) => number;
@@ -51,7 +50,7 @@ type MetricCardProps = {
   label: string;
   motionDelay?: number;
   surfaceClassName: string;
-  status: DashboardApplicationStatus;
+  status: VisibleStudentAdmissionStatus;
   value: number;
   valueClassName?: string;
 };
@@ -127,21 +126,6 @@ const getDonutSegmentPath = (
   ].join(" ");
 };
 
-const ReviewMetricIcon = ({ className = "h-5 w-5" }: IconProps) => {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      className={className}
-    >
-      <circle cx="10" cy="10" r="6.2" />
-      <path d="M10 6.8V10l2.5 1.7" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-};
-
 const AcceptedMetricIcon = ({ className = "h-5 w-5" }: IconProps) => {
   return (
     <svg
@@ -172,6 +156,24 @@ const WaitlistedMetricIcon = ({ className = "h-5 w-5" }: IconProps) => {
   );
 };
 
+const ProcessedMetricIcon = ({ className = "h-5 w-5" }: IconProps) => {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className={className}
+    >
+      <path d="M5 5.8h6.2" strokeLinecap="round" />
+      <path d="M5 10h4.6" strokeLinecap="round" />
+      <path d="M5 14.2h3.8" strokeLinecap="round" />
+      <path d="m12.2 12.7 1.6 1.6 3.1-3.4" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="3.4" y="3.4" width="13.2" height="13.2" rx="3" />
+    </svg>
+  );
+};
+
 const ChevronRightIcon = ({ className = "h-4 w-4" }: IconProps) => {
   return (
     <svg
@@ -189,58 +191,27 @@ const ChevronRightIcon = ({ className = "h-4 w-4" }: IconProps) => {
   );
 };
 
-const PartialMetricIcon = ({ className = "h-5 w-5" }: IconProps) => {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      className={className}
-    >
-      <path d="M4.5 10h11" strokeLinecap="round" />
-      <path d="m5.3 6.8 2.8 3.2-2.8 3.2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="m14.7 6.8-2.8 3.2 2.8 3.2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-};
-
 const statusCards: StatusCardConfig[] = [
   {
-    status: "IN_REVIEW",
-    label: "En revue",
-    description: "Demandes en cours d'analyse.",
-    valueClassName: "text-info",
-    surfaceClassName: "bg-info/10",
-    iconClassName: "bg-info text-white",
-    Icon: ReviewMetricIcon
-  },
-  {
     status: "ACCEPTED",
-    label: "Acceptées",
-    description: "Demandes entièrement acceptées.",
+    label: "Acceptés",
+    description: "Élèves acceptés pour l'année active.",
+    getValue: (dashboardData) =>
+      dashboardData.studentStats?.acceptedStudents ?? dashboardData.byStatus.ACCEPTED,
     valueClassName: "text-success",
     surfaceClassName: "bg-success/10",
     iconClassName: "bg-success text-white",
     Icon: AcceptedMetricIcon
   },
   {
-    status: "PARTIALLY_ACCEPTED",
-    label: "Partielles",
-    description: "Demandes avec acceptation partielle.",
-    valueClassName: "text-secondaryDark",
-    surfaceClassName: "bg-secondary/10",
-    iconClassName: "bg-secondary text-white",
-    Icon: PartialMetricIcon
-  },
-  {
     status: "WAITLISTED",
-    label: "Liste d'attente",
-    description: "Liste des élèves placés en attente.",
-    getValue: (dashboardData) => dashboardData.waitlistedStudents,
-    valueClassName: "text-primary",
-    surfaceClassName: "bg-primary/10",
-    iconClassName: "bg-primary text-white",
+    label: "En attente",
+    description: "Élèves explicitement mis en attente par l'administration.",
+    getValue: (dashboardData) =>
+      dashboardData.studentStats?.waitlistedStudents ?? dashboardData.waitlistedStudents,
+    valueClassName: "text-info",
+    surfaceClassName: "bg-info/10",
+    iconClassName: "bg-info text-white",
     Icon: WaitlistedMetricIcon
   }
 ];
@@ -249,57 +220,19 @@ const isAbortError = (error: unknown): boolean => {
   return error instanceof DOMException && error.name === "AbortError";
 };
 
-const getFamilyDisplayName = (
-  application: DashboardPriorityApplication
+const getPriorityStudentFamilyDisplayName = (
+  family: DashboardStudentStats["priorityStudents"][number]["application"]["family"]
 ): string => {
   const familyNames = [
-    application.family.fatherLastName,
-    application.family.motherLastName
+    family.fatherLastName,
+    family.motherLastName
   ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
 
   if (familyNames.length > 0) {
     return Array.from(new Set(familyNames)).join(" / ");
   }
 
-  const studentLastNames = application.students
-    .map((student) => student.lastName.trim())
-    .filter((value) => value.length > 0);
-
-  if (studentLastNames.length > 0) {
-    return Array.from(new Set(studentLastNames)).join(" / ");
-  }
-
-  return "Famille non renseignée";
-};
-
-const getPriorityChildrenLabel = (
-  application: DashboardPriorityApplication
-): string => {
-  if (application.students.length === 0) {
-    return "Aucun élève rattaché à cette demande.";
-  }
-
-  return application.students
-    .map((student) => `${student.firstName} ${student.lastName}`)
-    .join(" · ");
-};
-
-const getPriorityLevels = (
-  application: DashboardPriorityApplication
-): Array<{ code: string; label: string }> => {
-  const uniqueLevels = new Map<string, { code: string; label: string }>();
-
-  application.students.forEach((student) => {
-    const code = student.level.code.trim();
-    const label = student.level.label.trim();
-    const key = `${code}::${label}`;
-
-    if ((code.length > 0 || label.length > 0) && !uniqueLevels.has(key)) {
-      uniqueLevels.set(key, { code, label });
-    }
-  });
-
-  return Array.from(uniqueLevels.values());
+  return family.contactEmail ?? "Famille non renseignée";
 };
 
 const StatusOverviewIcon = ({ className = "h-5 w-5" }: IconProps) => {
@@ -335,8 +268,8 @@ const MetricCard = ({
 }: MetricCardProps) => {
   return (
     <Link
-      to={`/applications?status=${encodeURIComponent(status)}`}
-      aria-label={`Voir les demandes avec le statut ${label}`}
+      to={`/students?status=${encodeURIComponent(status)}`}
+      aria-label={`Voir les élèves avec le statut ${label}`}
       className={`ui-animate-in ui-surface-hover block rounded-[28px] border border-primary/10 p-5 shadow-[0_18px_40px_-30px_rgba(31,77,58,0.34)] outline-none transition hover:border-secondary/35 focus-visible:ring-4 focus-visible:ring-secondary/20 ${surfaceClassName}`}
       style={getEnterStyle(motionDelay)}
     >
@@ -376,7 +309,7 @@ const ProcessingMetricCard = ({
     <article
       className="ui-animate-in ui-surface-hover block rounded-[28px] border border-primary/10 bg-white/90 p-5 shadow-[0_18px_40px_-30px_rgba(31,77,58,0.34)] outline-none transition"
       style={getEnterStyle(motionDelay)}
-      aria-label={`${processedApplications} demandes traitees sur ${totalApplications}. ${remainingApplications} restantes.`}
+      aria-label={`${processedApplications} élèves traités sur ${totalApplications}. ${remainingApplications} à traiter.`}
     >
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -384,12 +317,12 @@ const ProcessingMetricCard = ({
             Traitement
           </p>
           <p className="mt-2 text-sm font-semibold text-slate-800">
-            {remainingApplications} restante
+            {remainingApplications} à traiter
             {remainingApplications !== 1 ? "s" : ""}
           </p>
         </div>
-        <span className="ui-surface-hover__icon inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-success text-white">
-          <AcceptedMetricIcon className="h-5 w-5" />
+        <span className="ui-surface-hover__icon inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-secondary text-white">
+          <ProcessedMetricIcon className="h-5 w-5" />
         </span>
       </div>
 
@@ -397,11 +330,11 @@ const ProcessingMetricCard = ({
         {processedApplications} / {totalApplications}
       </p>
       <p className="mt-2 text-sm font-semibold text-slate-800">
-        traitée{processedApplications !== 1 ? "s" : ""}
+        traité{processedApplications !== 1 ? "s" : ""}
       </p>
-      <div className="mt-4 overflow-hidden rounded-full bg-primary/10 p-1">
+      <div className="mt-4 overflow-hidden rounded-full bg-secondary/15 p-1">
         <div
-          className="h-3 rounded-full bg-success shadow-[0_10px_18px_-14px_rgba(34,197,94,0.7)] transition-[width] duration-500"
+          className="h-3 rounded-full bg-secondary shadow-[0_10px_18px_-14px_rgba(212,162,76,0.75)] transition-[width] duration-500"
           style={{ width: `${processedShare}%` }}
         />
       </div>
@@ -410,7 +343,6 @@ const ProcessingMetricCard = ({
 };
 
 const DashboardPage = () => {
-  const navigate = useNavigate();
   const [data, setData] = useState<DashboardStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -485,33 +417,41 @@ const DashboardPage = () => {
   }, [loadDashboard]);
 
   useEffect(() => {
+    const priorityStudentsCount = data?.studentStats?.priorityStudents.length ?? 0;
     const totalPages = Math.max(
       1,
-      Math.ceil((data?.priorityApplications.length ?? 0) / PRIORITY_DISPLAY_LIMIT)
+      Math.ceil(priorityStudentsCount / PRIORITY_DISPLAY_LIMIT)
     );
 
     setCurrentPriorityPage((currentPage) => Math.min(currentPage, totalPages));
-  }, [data?.priorityApplications.length]);
+  }, [data?.studentStats?.priorityStudents.length]);
 
   const dashboardView = useMemo(() => {
     if (!data) {
       return null;
     }
 
+    const priorityStudents = data.studentStats?.priorityStudents ?? [];
+    const priorityStudentsCount = priorityStudents.length;
     const totalPriorityPages = Math.max(
       1,
-      Math.ceil(data.priorityApplications.length / PRIORITY_DISPLAY_LIMIT)
+      Math.ceil(priorityStudentsCount / PRIORITY_DISPLAY_LIMIT)
     );
     const priorityStartIndex = (currentPriorityPage - 1) * PRIORITY_DISPLAY_LIMIT;
-    const visiblePriorityApplications = data.priorityApplications.slice(
+    const visiblePriorityStudents = priorityStudents.slice(
       priorityStartIndex,
       priorityStartIndex + PRIORITY_DISPLAY_LIMIT
     );
 
-    const maxLevelCount = Math.max(...data.byLevel.map((level) => level.count), 0);
-    const totalStudents = data.byLevel.reduce((sum, level) => sum + level.count, 0);
+    const studentStats = data.studentStats;
+    const levelStats = studentStats?.byLevel ?? data.byLevel;
+    const totalStudents =
+      studentStats?.totalStudents ?? levelStats.reduce((sum, level) => sum + level.count, 0);
+    const acceptedStudents = studentStats?.acceptedStudents ?? data.byStatus.ACCEPTED;
+    const waitlistedStudents = studentStats?.waitlistedStudents ?? data.waitlistedStudents;
+    const maxLevelCount = Math.max(...levelStats.map((level) => level.count), 0);
     let chartCursor = 0;
-    const levelBreakdown: LevelBreakdownItem[] = data.byLevel.map((level, index) => {
+    const levelBreakdown: LevelBreakdownItem[] = levelStats.map((level, index) => {
       const share =
         totalStudents === 0 ? 0 : Math.round((level.count / totalStudents) * 100);
       const rawShare = totalStudents === 0 ? 0 : (level.count / totalStudents) * 100;
@@ -561,34 +501,34 @@ const DashboardPage = () => {
       },
       null
     );
-    const processedApplications =
-      data.byStatus.ACCEPTED +
-      data.byStatus.PARTIALLY_ACCEPTED +
-      data.byStatus.WAITLISTED;
+    const processedApplications = acceptedStudents + waitlistedStudents;
     const remainingApplications = Math.max(
-      data.totalApplications - processedApplications,
+      totalStudents - processedApplications,
       0
     );
     const processedShare =
-      data.totalApplications === 0
+      totalStudents === 0
         ? 0
-        : Math.round((processedApplications / data.totalApplications) * 100);
+        : Math.round((processedApplications / totalStudents) * 100);
 
     return {
       levelBreakdown,
       levelChartGradient,
       processedApplications,
       processedShare,
+      priorityStudentsCount,
       remainingApplications,
       topLevel,
       totalStudents,
+      acceptedStudents,
+      waitlistedStudents,
       totalPriorityPages,
-      visiblePriorityApplications,
+      visiblePriorityStudents,
       visiblePriorityStart:
-        data.priorityApplications.length === 0 ? 0 : priorityStartIndex + 1,
+        priorityStudentsCount === 0 ? 0 : priorityStartIndex + 1,
       visiblePriorityEnd: Math.min(
         currentPriorityPage * PRIORITY_DISPLAY_LIMIT,
-        data.priorityApplications.length
+        priorityStudentsCount
       )
     };
   }, [currentPriorityPage, data]);
@@ -602,25 +542,6 @@ const DashboardPage = () => {
       Math.min(dashboardView?.totalPriorityPages ?? 1, page + 1)
     );
   }, [dashboardView?.totalPriorityPages]);
-
-  const openApplicationDetail = useCallback(
-    (applicationId: string): void => {
-      navigate(`/applications/${applicationId}`);
-    },
-    [navigate]
-  );
-
-  const handlePriorityCardKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLElement>, applicationId: string): void => {
-      if (event.key !== "Enter" && event.key !== " ") {
-        return;
-      }
-
-      event.preventDefault();
-      openApplicationDetail(applicationId);
-    },
-    [openApplicationDetail]
-  );
 
   const pageTopBar = (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -688,13 +609,13 @@ const DashboardPage = () => {
     );
   }
 
-  if (!data || data.totalApplications === 0) {
+  if (!data || (data.studentStats?.totalStudents ?? data.totalApplications) === 0) {
     return (
       <>
         {pageHeader}
         <EmptyState
           title="Aucune donnée disponible"
-          description="Le dashboard s'alimentera automatiquement dès qu'une demande et des élèves seront présents en base."
+          description="Le dashboard s'alimentera automatiquement dès que des élèves seront présents en base."
         />
       </>
     );
@@ -720,14 +641,14 @@ const DashboardPage = () => {
               </span>
               <div className="min-w-0">
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-secondary">
-                  Suivi des demandes
+                  Suivi des élèves
                 </p>
                 <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white">
-                  Demandes par statut
+                  Élèves par statut
                 </h2>
                 <p className="mt-3 max-w-4xl text-[1.02rem] leading-8 text-white/80">
-                  Visualisez la répartition des dossiers selon leur état de
-                  traitement pour prioriser les prochaines actions.
+                  Visualisez la répartition des élèves selon leur statut de
+                  traitement pour prioriser les prochaines décisions.
                 </p>
               </div>
             </div>
@@ -741,10 +662,10 @@ const DashboardPage = () => {
                   Total
                 </p>
                 <p className="mt-2 text-4xl font-semibold tracking-tight">
-                  {data.totalApplications}
+                  {dashboardView.totalStudents}
                 </p>
                 <p className="mt-1 text-sm font-medium text-white/80">
-                  demandes suivies
+                  élèves suivis
                 </p>
               </div>
             </div>
@@ -758,10 +679,10 @@ const DashboardPage = () => {
                 Vue active
               </span>
               <span className="inline-flex items-center rounded-full border border-primary/15 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
-                {data.totalApplications} demandes
+                {dashboardView.totalStudents} élèves
               </span>
               <span className="inline-flex items-center rounded-full border border-secondary/30 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
-                {data.priorityApplications.length} prioritaires
+                {dashboardView.priorityStudentsCount} prioritaires
               </span>
               <span className="inline-flex items-center rounded-full border border-secondary/30 bg-white px-3 py-1.5 text-xs font-semibold text-primaryDark">
                 {data.byLevel.length} niveaux
@@ -769,13 +690,13 @@ const DashboardPage = () => {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-4 md:grid-cols-3">
             <ProcessingMetricCard
               motionDelay={360}
               processedApplications={dashboardView.processedApplications}
               processedShare={dashboardView.processedShare}
               remainingApplications={dashboardView.remainingApplications}
-              totalApplications={data.totalApplications}
+              totalApplications={dashboardView.totalStudents}
             />
             {statusCards.map((card, index) => (
               <MetricCard
@@ -926,7 +847,7 @@ const DashboardPage = () => {
                             </p>
                           </div>
                           <p className="mt-1 text-xs font-medium text-slate-500">
-                            {level.count} demande{level.count > 1 ? "s" : ""}
+                            {level.count} élève{level.count > 1 ? "s" : ""}
                           </p>
                         </div>
                       );
@@ -984,10 +905,10 @@ const DashboardPage = () => {
                   {dashboardView.levelBreakdown.map((level) => (
                     <Link
                       key={`${level.code}-summary`}
-                      to={`/students?level=${encodeURIComponent(level.code)}`}
+                      to={`/students?levelId=${encodeURIComponent(level.id ?? "")}`}
                       title="Voir les élèves ayant demandé ce niveau"
                       aria-label={`Voir les élèves ayant demandé ce niveau: ${level.label}`}
-                      className="group grid gap-3 rounded-[22px] border border-slate-200/80 bg-slate-50/70 px-4 py-3 text-left transition hover:border-primary/20 hover:bg-white hover:shadow-[0_16px_30px_-28px_rgba(15,23,42,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 sm:grid-cols-[150px_minmax(0,1fr)_112px] sm:items-center"
+                      className="group grid gap-3 rounded-[22px] border border-slate-200/80 bg-slate-50/70 px-4 py-3 text-left transition hover:border-primary/20 hover:bg-white hover:shadow-[0_16px_30px_-28px_rgba(15,23,42,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 sm:grid-cols-[150px_minmax(0,1fr)_150px] sm:items-center"
                     >
                       <div className="flex min-w-0 items-center gap-3">
                         <span
@@ -1019,13 +940,15 @@ const DashboardPage = () => {
 
                       <div className="flex items-center justify-between gap-3 sm:justify-end">
                         <div className="flex items-baseline gap-3">
-                          <p className="text-lg font-semibold text-slate-900">
-                            {level.count}
-                          </p>
+                          <p className="text-lg font-semibold text-slate-900">{level.count}</p>
                           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                             {level.share}%
                           </p>
                         </div>
+                        <p className="text-xs font-medium text-slate-500">
+                          {level.availablePlaces ?? 0} place
+                          {(level.availablePlaces ?? 0) > 1 ? "s" : ""}
+                        </p>
                         <span
                           aria-hidden="true"
                           className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 transition group-hover:border-primary/20 group-hover:text-primary"
@@ -1049,148 +972,123 @@ const DashboardPage = () => {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primaryLight">
-                Demandes prioritaires
+                Élèves prioritaires
               </p>
               <h2 className="mt-2 text-2xl font-semibold text-slate-900">
-                Dossiers à traiter en priorité
+                Élèves à traiter en priorité
               </h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                Conservez les dossiers sensibles en haut de pile avec une lecture
-                rapide de la famille, des enfants concernés, du niveau demandé et
-                du statut actuel.
+                Conservez les situations sensibles en haut de pile avec une lecture
+                rapide de la famille, des élèves concernés, du niveau demandé et
+                du statut élève.
               </p>
             </div>
             <div className="rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primaryDark">
-              {data.priorityApplications.length} priorité
-              {data.priorityApplications.length > 1 ? "s" : ""}
+              {dashboardView.priorityStudentsCount} priorité
+              {dashboardView.priorityStudentsCount > 1 ? "s" : ""}
             </div>
           </div>
 
           <div className="mt-6 space-y-4">
-            {data.priorityApplications.length === 0 ? (
+            {dashboardView.priorityStudentsCount === 0 ? (
               <p className="rounded-2xl border border-dashed border-border bg-background/70 px-4 py-6 text-sm text-slate-500">
-                Aucune demande prioritaire pour le moment.
+                Aucun élève prioritaire pour le moment.
               </p>
             ) : (
-              dashboardView.visiblePriorityApplications.map((application, index) => {
-                const priorityLevels = getPriorityLevels(application);
+              dashboardView.visiblePriorityStudents.map((student, index) => {
+                const familyName = getPriorityStudentFamilyDisplayName(
+                  student.application.family
+                );
 
                 return (
                   <article
-                    key={application.id}
-                    role="link"
-                    tabIndex={0}
-                    aria-label={`Ouvrir la demande de la famille ${getFamilyDisplayName(application)}`}
-                    onClick={() => openApplicationDetail(application.id)}
-                    onKeyDown={(event) => handlePriorityCardKeyDown(event, application.id)}
-                    className="ui-animate-in ui-surface-hover ui-surface-hover--soft cursor-pointer rounded-[28px] border border-slate-200/90 bg-slate-50/80 p-5 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.18)] outline-none transition focus-visible:ring-4 focus-visible:ring-primary/20"
+                    key={student.id ?? `${student.firstName}-${student.lastName}-${index}`}
+                    className="ui-animate-in ui-surface-hover ui-surface-hover--soft rounded-[28px] border border-slate-200/90 bg-slate-50/80 p-5 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.18)] outline-none transition focus-within:ring-4 focus-within:ring-primary/20"
                     style={getEnterStyle(760 + index * 80)}
                   >
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2.5">
                           <h3 className="text-lg font-semibold text-slate-900">
-                            Famille {getFamilyDisplayName(application)}
+                            {student.firstName} {student.lastName}
                           </h3>
-                          <PriorityBadge isPriority={application.isPriority} />
+                          <PriorityBadge isPriority={Boolean(student.isPriority)} />
                         </div>
                         <p className="mt-2 text-sm text-slate-500">
-                          {application.schoolYear.label}
-                          {application.schoolYear.isActive ? " · année active" : ""}
+                          {student.application.schoolYear.label}
+                          {student.application.schoolYear.isActive ? " · année active" : ""}
                         </p>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <StatusBadge status={application.status} />
-                        <Link
-                          to={`/applications/${application.id}`}
-                          onClick={(event) => event.stopPropagation()}
-                          className="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-primary/30 hover:text-primary"
-                        >
-                          Voir la demande
-                        </Link>
-                      </div>
+                      <Link
+                        to={student.id ? `/students/${student.id}` : "/students?isPriority=true"}
+                        className="inline-flex w-fit items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-primary/30 hover:text-primary"
+                      >
+                        Fiche élève
+                      </Link>
                     </div>
 
                     <div className="mt-5 grid gap-3 md:grid-cols-2">
                       <div className="rounded-2xl border border-white bg-white/80 px-4 py-3">
                         <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                          Enfants
+                          Élève
                         </p>
-                        <p className="mt-2 text-sm leading-6 text-slate-700">
-                          {getPriorityChildrenLabel(application)}
-                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-semibold leading-6 text-slate-800">
+                            {student.firstName} {student.lastName}
+                          </span>
+                          <StudentStatusBadge status={student.admissionStatus ?? "PENDING"} />
+                        </div>
                       </div>
                       <div className="rounded-2xl border border-white bg-white/80 px-4 py-3">
                         <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
                           Niveau
                         </p>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {priorityLevels.length === 0 ? (
-                            <span className="text-sm leading-6 text-slate-500">
-                              Niveau non renseigné
-                            </span>
-                          ) : (
-                            priorityLevels.map((level) => (
-                              <LevelBadge
-                                key={`${application.id}-${level.code}-${level.label}`}
-                                code={level.code}
-                                label={level.label}
-                                size="sm"
-                              />
-                            ))
-                          )}
+                        <div className="mt-2">
+                          <LevelBadge
+                            code={student.level.code}
+                            label={student.level.label}
+                            size="sm"
+                          />
                         </div>
+                      </div>
+                      <div className="rounded-2xl border border-white bg-white/80 px-4 py-3">
+                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Famille
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-slate-700">
+                          Famille {familyName}
+                        </p>
                       </div>
                       <div className="rounded-2xl border border-white bg-white/80 px-4 py-3">
                         <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
                           Contact
                         </p>
                         <p className="mt-2 text-sm leading-6 text-slate-700">
-                          {application.family.contactEmail ? (
+                          {student.application.family.contactEmail ? (
                             <a
-                              href={`mailto:${application.family.contactEmail}`}
-                              onClick={(event) => event.stopPropagation()}
+                              href={`mailto:${student.application.family.contactEmail}`}
                               className="break-all text-primary hover:text-primaryDark"
                             >
-                              {application.family.contactEmail}
+                              {student.application.family.contactEmail}
                             </a>
                           ) : (
                             "Non renseigné"
                           )}
                         </p>
                       </div>
-                      <div className="rounded-2xl border border-white bg-white/80 px-4 py-3">
-                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                          Date
-                        </p>
-                        <p className="mt-2 text-sm leading-6 text-slate-700">
-                          {priorityDateFormatter.format(new Date(application.createdAt))}
-                        </p>
-                      </div>
                     </div>
 
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {application.students.length === 0 ? (
-                        <span className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
-                          Aucun élève rattaché
-                        </span>
-                      ) : (
-                        application.students.map((student) => (
-                          <span
-                            key={`${application.id}-${student.firstName}-${student.lastName}-${student.level.code}`}
-                            className="ui-surface-hover__chip inline-flex items-center gap-2 rounded-full bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 ring-1 ring-slate-200"
-                          >
-                            <span>
-                              {student.firstName} {student.lastName}
-                            </span>
-                            <LevelBadge
-                              code={student.level.code}
-                              label={student.level.label}
-                              size="xs"
-                            />
-                          </span>
-                        ))
-                      )}
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
+                        Signalé le{" "}
+                        {priorityDateFormatter.format(new Date(student.application.createdAt))}
+                      </span>
+                      <Link
+                        to={`/applications/${student.application.id}`}
+                        className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-primary ring-1 ring-slate-200 transition hover:text-primaryDark"
+                      >
+                        Voir la famille
+                      </Link>
                     </div>
                   </article>
                 );
@@ -1198,7 +1096,7 @@ const DashboardPage = () => {
             )}
           </div>
 
-          {data.priorityApplications.length > 0 ? (
+          {dashboardView.priorityStudentsCount > 0 ? (
             <div className="mt-6 flex justify-center border-t border-slate-200 pt-5">
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <button
@@ -1224,13 +1122,13 @@ const DashboardPage = () => {
             </div>
           ) : null}
 
-          {data.priorityApplications.length > 0 ? (
+          {dashboardView.priorityStudentsCount > 0 ? (
             <div className="mt-4 flex justify-center">
               <Link
-                to="/applications?isPriority=true"
+                to="/students?isPriority=true"
                 className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-primary transition hover:border-primary/25 hover:text-primaryDark"
               >
-                <span>Ouvrir toutes les demandes prioritaires</span>
+                <span>Ouvrir tous les élèves prioritaires</span>
                 <ChevronRightIcon />
               </Link>
             </div>
