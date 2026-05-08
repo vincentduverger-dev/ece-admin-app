@@ -146,7 +146,7 @@ const EmailsPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<EmailFilter>("ALL");
+  const [filter, setFilter] = useState<EmailFilter>("UNSENT");
 
   useEffect(() => {
     const controller = new AbortController();
