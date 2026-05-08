@@ -3,6 +3,7 @@ import {
   useDeferredValue,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties
 } from "react";
@@ -37,6 +38,19 @@ import type {
 type PageSize = 4 | 6 | 8 | 10 | 12 | 15 | 18 | 20;
 type PaginationItem = number | "ellipsis-left" | "ellipsis-right";
 
+type StudentListViewState = {
+  search: string;
+  status: "" | VisibleStudentAdmissionStatus;
+  levelId: string;
+  schoolYearId: string;
+  isPriority: "" | "true";
+  familyId: string;
+  page: number;
+  limit: PageSize;
+  sortBy: NonNullable<StudentFilterParams["sortBy"]>;
+  sortOrder: "asc" | "desc";
+};
+
 type PaginationControlsProps = {
   currentPage: number;
   totalPages: number;
@@ -44,6 +58,7 @@ type PaginationControlsProps = {
 };
 
 const pageSizeOptions: PageSize[] = [4, 6, 8, 10, 12, 15, 18, 20];
+const studentListViewStorageKey = "ece-admin.students.listViewState.v1";
 const sortableFields: Array<NonNullable<StudentFilterParams["sortBy"]>> = [
   "lastName",
   "firstName",
@@ -263,18 +278,105 @@ const getSortByParam = (
     : "submittedAt";
 };
 
-const getInitialPage = (params: URLSearchParams): number => {
-  return Math.max(1, Number(getParam(params, "page")) || 1);
+const isValidPageSize = (value: number): value is PageSize => {
+  return pageSizeOptions.includes(value as PageSize);
 };
 
-const getInitialPageSize = (params: URLSearchParams): PageSize => {
-  const requestedLimit = Number(getParam(params, "limit")) as PageSize;
+const hasParam = (params: URLSearchParams, key: string): boolean => {
+  return params.has(key) && getParam(params, key).length > 0;
+};
 
-  return pageSizeOptions.includes(requestedLimit) ? requestedLimit : 4;
+const readStoredStudentListViewState = (): Partial<StudentListViewState> => {
+  try {
+    const rawValue = window.localStorage.getItem(studentListViewStorageKey);
+
+    if (!rawValue) {
+      return {};
+    }
+
+    const value = JSON.parse(rawValue) as Partial<StudentListViewState>;
+
+    return value && typeof value === "object" ? value : {};
+  } catch {
+    return {};
+  }
+};
+
+const getInitialPage = (
+  params: URLSearchParams,
+  storedState: Partial<StudentListViewState>
+): number => {
+  if (hasParam(params, "page")) {
+    return Math.max(1, Number(getParam(params, "page")) || 1);
+  }
+
+  return Math.max(1, Number(storedState.page) || 1);
+};
+
+const getInitialPageSize = (
+  params: URLSearchParams,
+  storedState: Partial<StudentListViewState>
+): PageSize => {
+  if (hasParam(params, "limit")) {
+    const requestedLimit = Number(getParam(params, "limit"));
+
+    return isValidPageSize(requestedLimit) ? requestedLimit : 4;
+  }
+
+  const storedLimit = Number(storedState.limit);
+
+  return isValidPageSize(storedLimit) ? storedLimit : 4;
+};
+
+const getInitialStudentSearchParams = (
+  params: URLSearchParams,
+  storedState: Partial<StudentListViewState>
+): URLSearchParams => {
+  const nextParams = new URLSearchParams(params);
+  const storedValues: Record<string, string | undefined> = {
+    status: storedState.status,
+    levelId: storedState.levelId,
+    schoolYearId: storedState.schoolYearId,
+    isPriority: storedState.isPriority,
+    familyId: storedState.familyId,
+    sortBy: storedState.sortBy,
+    sortOrder: storedState.sortOrder
+  };
+
+  Object.entries(storedValues).forEach(([key, value]) => {
+    if (!hasParam(nextParams, key) && value) {
+      nextParams.set(key, value);
+    }
+  });
+
+  return nextParams;
+};
+
+const getInitialSearch = (
+  params: URLSearchParams,
+  storedState: Partial<StudentListViewState>
+): string => {
+  if (hasParam(params, "search")) {
+    return getParam(params, "search");
+  }
+
+  return typeof storedState.search === "string" ? storedState.search : "";
+};
+
+const writeStoredStudentListViewState = (state: StudentListViewState): void => {
+  try {
+    window.localStorage.setItem(studentListViewStorageKey, JSON.stringify(state));
+  } catch {
+    // Ignore private browsing or storage quota failures.
+  }
 };
 
 const StudentsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [initialListViewState] = useState(() => readStoredStudentListViewState());
+  const [studentParams, setStudentParams] = useState(() =>
+    getInitialStudentSearchParams(searchParams, initialListViewState)
+  );
   const [levels, setLevels] = useState<LevelSummary[]>([]);
   const [schoolYears, setSchoolYears] = useState<SchoolYearSummary[]>([]);
   const [students, setStudents] = useState<StudentListItem[]>([]);
@@ -283,28 +385,33 @@ const StudentsPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-  const [search, setSearch] = useState(() => getParam(searchParams, "search"));
-  const [page, setPage] = useState(() => getInitialPage(searchParams));
-  const [limit, setLimit] = useState<PageSize>(() => getInitialPageSize(searchParams));
+  const [search, setSearch] = useState(() =>
+    getInitialSearch(searchParams, initialListViewState)
+  );
+  const [page, setPage] = useState(() => getInitialPage(searchParams, initialListViewState));
+  const [limit, setLimit] = useState<PageSize>(() =>
+    getInitialPageSize(searchParams, initialListViewState)
+  );
+  const hasMountedSearchReset = useRef(false);
   const deferredSearch = useDeferredValue(search);
 
   const filters = useMemo<StudentFilterParams>(() => {
-    const isPriority = getParam(searchParams, "isPriority");
-    const sortOrder = getParam(searchParams, "sortOrder");
+    const isPriority = getParam(studentParams, "isPriority");
+    const sortOrder = getParam(studentParams, "sortOrder");
 
     return {
       search: deferredSearch.trim() || undefined,
-      status: getStatusParam(searchParams) || undefined,
-      levelId: getParam(searchParams, "levelId") || undefined,
-      schoolYearId: getParam(searchParams, "schoolYearId") || activeSchoolYear?.id,
+      status: getStatusParam(studentParams) || undefined,
+      levelId: getParam(studentParams, "levelId") || undefined,
+      schoolYearId: getParam(studentParams, "schoolYearId") || activeSchoolYear?.id,
       isPriority: isPriority === "true" ? "true" : undefined,
-      familyId: getParam(searchParams, "familyId") || undefined,
+      familyId: getParam(studentParams, "familyId") || undefined,
       page: "1",
       limit: "5000",
-      sortBy: getSortByParam(searchParams),
+      sortBy: getSortByParam(studentParams),
       sortOrder: sortOrder === "asc" ? "asc" : "desc"
     };
-  }, [activeSchoolYear?.id, deferredSearch, searchParams]);
+  }, [activeSchoolYear?.id, deferredSearch, studentParams]);
 
   const totalPages = useMemo(() => {
     return Math.max(1, Math.ceil(students.length / limit));
@@ -341,7 +448,7 @@ const StudentsPage = () => {
 
   const updateParams = useCallback(
     (updates: Record<string, string | undefined>): void => {
-      const nextParams = new URLSearchParams(searchParams);
+      const nextParams = new URLSearchParams(studentParams);
 
       Object.entries(updates).forEach(([key, value]) => {
         if (value) {
@@ -354,26 +461,51 @@ const StudentsPage = () => {
       nextParams.delete("page");
       nextParams.delete("limit");
       setPage(1);
+      setStudentParams(nextParams);
       setSearchParams(nextParams);
     },
-    [searchParams, setSearchParams]
+    [setSearchParams, studentParams]
   );
 
   useEffect(() => {
-    const requestedSearch = getParam(searchParams, "search");
+    if (!studentParams.has("search")) {
+      return;
+    }
+
+    const requestedSearch = getParam(studentParams, "search");
 
     setSearch((currentSearch) =>
       currentSearch === requestedSearch ? currentSearch : requestedSearch
     );
-  }, [searchParams]);
+  }, [studentParams]);
 
   useEffect(() => {
+    if (!hasMountedSearchReset.current) {
+      hasMountedSearchReset.current = true;
+      return;
+    }
+
     setPage(1);
   }, [deferredSearch]);
 
   useEffect(() => {
     setPage((currentPage) => Math.min(currentPage, totalPages));
   }, [totalPages]);
+
+  useEffect(() => {
+    writeStoredStudentListViewState({
+      search,
+      status: getStatusParam(studentParams),
+      levelId: getParam(studentParams, "levelId"),
+      schoolYearId: getParam(studentParams, "schoolYearId"),
+      isPriority: getParam(studentParams, "isPriority") === "true" ? "true" : "",
+      familyId: getParam(studentParams, "familyId"),
+      page,
+      limit,
+      sortBy: getSortByParam(studentParams),
+      sortOrder: getParam(studentParams, "sortOrder") === "asc" ? "asc" : "desc"
+    });
+  }, [limit, page, search, studentParams]);
 
   const loadReferenceData = useCallback(async (signal: AbortSignal): Promise<void> => {
     const [loadedLevels, loadedSchoolYears, loadedActiveSchoolYear] = await Promise.all([

@@ -4,6 +4,7 @@ import {
   useDeferredValue,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type KeyboardEvent,
@@ -38,6 +39,13 @@ type SortOption = "createdAtDesc" | "createdAtAsc" | "priorityDesc";
 
 type PageSize = 4 | 6 | 8 | 10 | 12 | 15 | 18 | 20;
 
+type ApplicationsListViewState = {
+  filters: FilterState;
+  sort: SortOption;
+  currentPage: number;
+  pageSize: PageSize;
+};
+
 type StatusOption = {
   value: "" | ApplicationStatus;
   label: string;
@@ -67,6 +75,7 @@ type PaginationControlsProps = {
 };
 
 const pageSizeOptions: PageSize[] = [4, 6, 8, 10, 12, 15, 18, 20];
+const applicationsListViewStorageKey = "ece-admin.applications.listViewState.v1";
 
 const statusOptions: StatusOption[] = [
   { value: "", label: "Tous les statuts" },
@@ -78,6 +87,42 @@ const statusOptions: StatusOption[] = [
 
 const isApplicationStatus = (value: string): value is ApplicationStatus => {
   return statusOptions.some((option) => option.value === value && option.value !== "");
+};
+
+const sortOptionValues: SortOption[] = ["createdAtDesc", "createdAtAsc", "priorityDesc"];
+
+const isSortOption = (value: string): value is SortOption => {
+  return sortOptionValues.includes(value as SortOption);
+};
+
+const isValidPageSize = (value: number): value is PageSize => {
+  return pageSizeOptions.includes(value as PageSize);
+};
+
+const readStoredApplicationsListViewState = (): Partial<ApplicationsListViewState> => {
+  try {
+    const rawValue = window.localStorage.getItem(applicationsListViewStorageKey);
+
+    if (!rawValue) {
+      return {};
+    }
+
+    const value = JSON.parse(rawValue) as Partial<ApplicationsListViewState>;
+
+    return value && typeof value === "object" ? value : {};
+  } catch {
+    return {};
+  }
+};
+
+const writeStoredApplicationsListViewState = (
+  state: ApplicationsListViewState
+): void => {
+  try {
+    window.localStorage.setItem(applicationsListViewStorageKey, JSON.stringify(state));
+  } catch {
+    // Ignore private browsing or storage quota failures.
+  }
 };
 
 const getRequestedStatusFilter = (
@@ -387,19 +432,26 @@ const PaginationControls = memo(function PaginationControls({
 const ApplicationsPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const [storedListViewState] = useState(() => readStoredApplicationsListViewState());
   const requestedSchoolYearId = searchParams.get("schoolYearId")?.trim() ?? "";
   const requestedStatus = getRequestedStatusFilter(searchParams);
   const requestedPriority = getRequestedPriorityFilter(searchParams);
+  const storedFilters = storedListViewState.filters;
+  const storedSort = storedListViewState.sort;
+  const storedPageSize = Number(storedListViewState.pageSize);
+  const hasStoredListViewState = Object.keys(storedListViewState).length > 0;
   const [hasInitializedSchoolYearFilter, setHasInitializedSchoolYearFilter] = useState(
-    requestedSchoolYearId.length > 0
+    requestedSchoolYearId.length > 0 || hasStoredListViewState
   );
   const [filters, setFilters] = useState<FilterState>(() => ({
-    status: requestedStatus,
-    schoolYearId: requestedSchoolYearId,
-    isPriority: requestedPriority,
-    search: ""
+    status: requestedStatus || (storedFilters?.status ?? ""),
+    schoolYearId: requestedSchoolYearId || storedFilters?.schoolYearId || "",
+    isPriority: requestedPriority || (storedFilters?.isPriority ?? ""),
+    search: storedFilters?.search ?? ""
   }));
-  const [sort, setSort] = useState<SortOption>("createdAtDesc");
+  const [sort, setSort] = useState<SortOption>(
+    isSortOption(storedSort ?? "") ? (storedSort as SortOption) : "createdAtDesc"
+  );
   const [applications, setApplications] = useState<ApplicationListItem[]>([]);
   const [schoolYears, setSchoolYears] = useState<SchoolYearSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -407,8 +459,13 @@ const ApplicationsPage = () => {
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSchoolYearsLoading, setIsSchoolYearsLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState<PageSize>(4);
+  const [currentPage, setCurrentPage] = useState(() =>
+    Math.max(1, Number(storedListViewState.currentPage) || 1)
+  );
+  const [pageSize, setPageSize] = useState<PageSize>(
+    isValidPageSize(storedPageSize) ? storedPageSize : 4
+  );
+  const hasMountedPageReset = useRef(false);
   const deferredSearch = useDeferredValue(filters.search);
   const applicationQueryParams = useMemo<ApplicationFilterParams>(() => {
     const params: ApplicationFilterParams = {};
@@ -762,12 +819,30 @@ const ApplicationsPage = () => {
   ]);
 
   useEffect(() => {
+    if (!hasMountedPageReset.current) {
+      hasMountedPageReset.current = true;
+      return;
+    }
+
     setCurrentPage(1);
   }, [filters.status, filters.schoolYearId, filters.isPriority, filters.search, pageSize, sort]);
 
   useEffect(() => {
     setCurrentPage((page) => Math.min(page, totalPages));
   }, [totalPages]);
+
+  useEffect(() => {
+    if (isWaitingForDefaultSchoolYear) {
+      return;
+    }
+
+    writeStoredApplicationsListViewState({
+      filters,
+      sort,
+      currentPage: resolvedCurrentPage,
+      pageSize
+    });
+  }, [filters, isWaitingForDefaultSchoolYear, pageSize, resolvedCurrentPage, sort]);
 
   const pageTopBar = (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">

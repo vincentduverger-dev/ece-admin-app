@@ -1022,16 +1022,51 @@ const DashboardPage = () => {
                             { label: "Acceptés", value: acceptedStudentsCount },
                             { label: "Places", value: availablePlaces },
                             { label: "Restantes", value: remainingPlaces }
-                          ].map((metric) => (
-                            <div key={metric.label} className="min-w-0 rounded-2xl border border-slate-200 bg-white/80 px-2.5 py-2">
-                              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                          ].map((metric) => {
+                            const isRemainingMetric = metric.label === "Restantes";
+
+                            return (
+                            <div
+                              key={metric.label}
+                              className={`min-w-0 rounded-2xl border px-2.5 py-2 transition ${
+                                isRemainingMetric
+                                  ? "shadow-[0_12px_24px_-22px_rgba(15,23,42,0.35)]"
+                                  : "border-slate-200 bg-white/80"
+                              }`}
+                              style={
+                                isRemainingMetric
+                                  ? {
+                                      backgroundColor: level.visual.codeBackground,
+                                      borderColor: level.visual.borderColor
+                                    }
+                                  : undefined
+                              }
+                            >
+                              <p
+                                className="text-[10px] font-semibold uppercase tracking-[0.14em]"
+                                style={
+                                  isRemainingMetric
+                                    ? { color: level.visual.codeTextColor }
+                                    : undefined
+                                }
+                              >
                                 {metric.label}
                               </p>
-                              <p className="mt-1 text-lg font-semibold text-slate-900">
+                              <p
+                                className={`mt-1 text-lg font-semibold ${
+                                  isRemainingMetric ? "" : "text-slate-900"
+                                }`}
+                                style={
+                                  isRemainingMetric
+                                    ? { color: level.visual.barColor }
+                                    : undefined
+                                }
+                              >
                                 {numberFormatter.format(metric.value)}
                               </p>
                             </div>
-                          ))}
+                            );
+                          })}
                           <div className="flex items-center justify-end sm:col-span-2 lg:col-span-1">
                             <span
                               aria-hidden="true"
@@ -1107,7 +1142,7 @@ const DashboardPage = () => {
                       </div>
                       <Link
                         to={student.id ? `/students/${student.id}` : "/students?isPriority=true"}
-                        className="inline-flex w-fit items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-primary/30 hover:text-primary"
+                        className="inline-flex w-fit items-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-[0_12px_24px_-18px_rgba(31,77,58,0.55)] transition hover:bg-primaryDark hover:shadow-[0_16px_28px_-18px_rgba(31,77,58,0.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                       >
                         Fiche élève
                       </Link>
@@ -1171,7 +1206,7 @@ const DashboardPage = () => {
                       </span>
                       <Link
                         to={`/applications/${student.application.id}`}
-                        className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-primary ring-1 ring-slate-200 transition hover:text-primaryDark"
+                        className="rounded-full border border-secondary/35 bg-secondary/15 px-3 py-1.5 text-xs font-semibold text-secondaryDark shadow-[0_10px_20px_-18px_rgba(212,162,76,0.55)] transition hover:border-secondary hover:bg-secondary hover:text-white hover:shadow-[0_14px_24px_-18px_rgba(212,162,76,0.75)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary"
                       >
                         Voir la famille
                       </Link>
