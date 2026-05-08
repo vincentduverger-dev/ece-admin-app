@@ -2,6 +2,7 @@ import {
   ApplicationStatus,
   EmailSendStatus,
   EmailType,
+  StudentAdmissionStatus,
   type Prisma
 } from "@prisma/client";
 import type { Request, Response } from "express";
@@ -40,16 +41,14 @@ const isApplicationStatus = (value: string): value is ApplicationStatus => {
   return Object.values(ApplicationStatus).includes(value as ApplicationStatus);
 };
 
-type StudentAdmissionStatus = "PENDING" | "ACCEPTED" | "REFUSED" | "WAITLISTED";
-const studentAdmissionStatuses: StudentAdmissionStatus[] = [
-  "PENDING",
-  "ACCEPTED",
-  "REFUSED",
-  "WAITLISTED"
+const visibleStudentAdmissionStatuses: StudentAdmissionStatus[] = [
+  StudentAdmissionStatus.PENDING,
+  StudentAdmissionStatus.ACCEPTED,
+  StudentAdmissionStatus.WAITLISTED
 ];
 
 const isStudentAdmissionStatus = (value: string): value is StudentAdmissionStatus => {
-  return studentAdmissionStatuses.includes(value as StudentAdmissionStatus);
+  return visibleStudentAdmissionStatuses.includes(value as StudentAdmissionStatus);
 };
 
 type ApplicationDecisionStatus = "ACCEPTED" | "WAITLISTED";
@@ -58,6 +57,7 @@ type ApplicationEmailType =
   | "WAITLIST"
   | "PARTIAL_DECISION"
   | "CUSTOM";
+type ReadyApplicationEmailType = Exclude<ApplicationEmailType, "CUSTOM">;
 
 const isApplicationDecisionStatus = (
   value: string
@@ -125,6 +125,44 @@ const getDecisionStatusFromEmailType = (
   return null;
 };
 
+const getRecommendedEmailTypeFromStudents = (
+  students: Array<{ admissionStatus: StudentAdmissionStatus }>
+): ReadyApplicationEmailType | null => {
+  if (students.length === 0) {
+    return null;
+  }
+
+  const allAccepted = students.every(
+    (student) => student.admissionStatus === StudentAdmissionStatus.ACCEPTED
+  );
+
+  if (allAccepted) {
+    return EmailType.ACCEPTANCE;
+  }
+
+  const allWaitlisted = students.every(
+    (student) => student.admissionStatus === StudentAdmissionStatus.WAITLISTED
+  );
+
+  if (allWaitlisted) {
+    return EmailType.WAITLIST;
+  }
+
+  const allReady = students.every(
+    (student) =>
+      student.admissionStatus === StudentAdmissionStatus.ACCEPTED ||
+      student.admissionStatus === StudentAdmissionStatus.WAITLISTED
+  );
+
+  return allReady ? EmailType.PARTIAL_DECISION : null;
+};
+
+const decisionEmailTypes = [
+  EmailType.ACCEPTANCE,
+  EmailType.WAITLIST,
+  EmailType.PARTIAL_DECISION
+] as const;
+
 const getRecalculatedApplicationStatus = (
   currentStatus: ApplicationStatus,
   students: Array<{ admissionStatus: StudentAdmissionStatus }>
@@ -133,18 +171,8 @@ const getRecalculatedApplicationStatus = (
     return currentStatus;
   }
 
-  const allPending = students.every(
-    (student) => student.admissionStatus === "PENDING"
-  );
-
-  if (allPending) {
-    return currentStatus === ApplicationStatus.IN_REVIEW
-      ? currentStatus
-      : ApplicationStatus.IN_REVIEW;
-  }
-
   const allAccepted = students.every(
-    (student) => student.admissionStatus === "ACCEPTED"
+    (student) => student.admissionStatus === StudentAdmissionStatus.ACCEPTED
   );
 
   if (allAccepted) {
@@ -153,8 +181,8 @@ const getRecalculatedApplicationStatus = (
 
   const allWaitlisted = students.every(
     (student) =>
-      student.admissionStatus === "WAITLISTED" ||
-      student.admissionStatus === "REFUSED"
+      student.admissionStatus === StudentAdmissionStatus.WAITLISTED ||
+      student.admissionStatus === StudentAdmissionStatus.REFUSED
   );
 
   if (allWaitlisted) {
@@ -162,15 +190,15 @@ const getRecalculatedApplicationStatus = (
   }
 
   const hasAccepted = students.some(
-    (student) => student.admissionStatus === "ACCEPTED"
+    (student) => student.admissionStatus === StudentAdmissionStatus.ACCEPTED
   );
   const hasWaitlisted = students.some(
     (student) =>
-      student.admissionStatus === "WAITLISTED" ||
-      student.admissionStatus === "REFUSED"
+      student.admissionStatus === StudentAdmissionStatus.WAITLISTED ||
+      student.admissionStatus === StudentAdmissionStatus.REFUSED
   );
   const hasPending = students.some(
-    (student) => student.admissionStatus === "PENDING"
+    (student) => student.admissionStatus === StudentAdmissionStatus.PENDING
   );
 
   if (hasAccepted && hasWaitlisted) {
@@ -291,6 +319,104 @@ export const getApplications = async (req: Request, res: Response): Promise<void
   });
 
   res.status(200).json(applications);
+};
+
+export const getApplicationsReadyForEmail = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const requestedSchoolYearId = getQueryParam(req.query.schoolYearId);
+  const activeSchoolYear = requestedSchoolYearId
+    ? null
+    : await prisma.schoolYear.findFirst({
+        where: { isActive: true },
+        select: { id: true },
+        orderBy: { startYear: "desc" }
+      });
+  const schoolYearId = requestedSchoolYearId ?? activeSchoolYear?.id;
+
+  if (!schoolYearId) {
+    res.status(200).json([]);
+    return;
+  }
+
+  const applications = await prisma.application.findMany({
+    where: {
+      schoolYearId,
+      students: {
+        some: {},
+        every: {
+          admissionStatus: {
+            in: [StudentAdmissionStatus.ACCEPTED, StudentAdmissionStatus.WAITLISTED]
+          }
+        }
+      }
+    },
+    orderBy: { updatedAt: "desc" },
+    include: {
+      family: true,
+      students: {
+        orderBy: [{ rankInForm: "asc" }, { createdAt: "asc" }],
+        include: {
+          level: true
+        }
+      },
+      emailLogs: {
+        where: {
+          sendStatus: EmailSendStatus.SENT,
+          emailType: {
+            in: [...decisionEmailTypes]
+          }
+        },
+        orderBy: [{ sentAt: "desc" }, { createdAt: "desc" }]
+      }
+    }
+  });
+
+  res.status(200).json(
+    applications
+      .map((application) => {
+        const recommendedEmailType = getRecommendedEmailTypeFromStudents(
+          application.students
+        );
+
+        if (!recommendedEmailType) {
+          return null;
+        }
+
+        const lastSentEmailLog = application.emailLogs[0] ?? null;
+
+        return {
+          id: application.id,
+          status: application.status,
+          decisionAt: application.decisionAt,
+          family: {
+            fatherLastName: application.family.fatherLastName,
+            fatherFirstName: application.family.fatherFirstName,
+            motherLastName: application.family.motherLastName,
+            motherFirstName: application.family.motherFirstName,
+            contactEmail: application.family.contactEmail,
+            contactPhone: application.family.contactPhone
+          },
+          students: application.students.map((student) => ({
+            id: student.id,
+            firstName: student.firstName,
+            lastName: student.lastName,
+            admissionStatus: student.admissionStatus,
+            level: {
+              code: student.level.code,
+              label: student.level.label
+            }
+          })),
+          recommendedEmailType,
+          hasSentEmail: Boolean(lastSentEmailLog),
+          lastEmailSentAt: lastSentEmailLog?.sentAt ?? lastSentEmailLog?.createdAt ?? null
+        };
+      })
+      .filter((application): application is NonNullable<typeof application> =>
+        application !== null
+      )
+  );
 };
 
 export const getApplicationById = async (req: Request, res: Response): Promise<void> => {

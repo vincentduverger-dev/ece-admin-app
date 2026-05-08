@@ -6,14 +6,21 @@ import type {
   ApplicationFilterParams,
   ApplicationEmailLog,
   ApplicationListItem,
+  LevelCapacitySummary,
   LevelSummary,
   ApplicationPriorityUpdateResult,
   ApplicationStatus,
   ApplicationStatusUpdateResult,
   CreateSchoolYearPayload,
   SchoolYearSummary,
+  StudentFilterParams,
   StudentAdmissionStatus,
-  StudentAdmissionStatusUpdateResult
+  StudentListItem,
+  StudentListResponse,
+  StudentAdmissionStatusUpdateResult,
+  UpdateLevelCapacitiesPayload,
+  ReadyEmailApplication,
+  ReadyEmailApplicationFilterParams
 } from "../types/application";
 import type { DashboardStats } from "../types/dashboard";
 import type { CsvImportHistoryItem, CsvImportPreview, CsvImportSummary } from "../types/import";
@@ -166,6 +173,33 @@ export const getApplications = async (
   return fetchJson<ApplicationListItem[]>(`/api/applications${queryString}`, init);
 };
 
+export const getStudents = async (
+  params: StudentFilterParams = {},
+  init?: RequestInit
+): Promise<StudentListResponse> => {
+  const queryString = buildQueryString({
+    search: params.search,
+    status: params.status,
+    levelId: params.levelId,
+    schoolYearId: params.schoolYearId,
+    isPriority: params.isPriority,
+    familyId: params.familyId,
+    page: params.page,
+    limit: params.limit,
+    sortBy: params.sortBy,
+    sortOrder: params.sortOrder
+  });
+
+  return fetchJson<StudentListResponse>(`/api/students${queryString}`, init);
+};
+
+export const getStudentById = async (
+  studentId: string,
+  init?: RequestInit
+): Promise<StudentListItem> => {
+  return fetchJson<StudentListItem>(`/api/students/${encodeURIComponent(studentId)}`, init);
+};
+
 export const getLevels = async (init?: RequestInit): Promise<LevelSummary[]> => {
   return fetchJson<LevelSummary[]>("/api/levels", init);
 };
@@ -186,6 +220,20 @@ export const getApplicationEmailLogs = async (
 ): Promise<ApplicationEmailLog[]> => {
   return fetchJson<ApplicationEmailLog[]>(
     `/api/applications/${encodeURIComponent(applicationId)}/email-logs`,
+    init
+  );
+};
+
+export const getReadyEmailApplications = async (
+  params: ReadyEmailApplicationFilterParams = {},
+  init?: RequestInit
+): Promise<ReadyEmailApplication[]> => {
+  const queryString = buildQueryString({
+    schoolYearId: params.schoolYearId
+  });
+
+  return fetchJson<ReadyEmailApplication[]>(
+    `/api/applications/ready-for-email${queryString}`,
     init
   );
 };
@@ -285,6 +333,25 @@ export const updateStudentAdmissionStatus = async (
   );
 };
 
+export const updateStudentPriority = async (
+  studentId: string,
+  isPriority: boolean,
+  init?: RequestInit
+): Promise<StudentListItem> => {
+  return fetchJson<StudentListItem>(
+    `/api/students/${encodeURIComponent(studentId)}/priority`,
+    {
+      ...init,
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...init?.headers
+      },
+      body: JSON.stringify({ isPriority })
+    }
+  );
+};
+
 export const getSchoolYears = async (
   init?: RequestInit
 ): Promise<SchoolYearSummary[]> => {
@@ -295,6 +362,35 @@ export const getActiveSchoolYear = async (
   init?: RequestInit
 ): Promise<SchoolYearSummary> => {
   return fetchJson<SchoolYearSummary>("/api/school-years/active", init);
+};
+
+export const getSchoolYearLevelCapacities = async (
+  schoolYearId: string,
+  init?: RequestInit
+): Promise<LevelCapacitySummary[]> => {
+  return fetchJson<LevelCapacitySummary[]>(
+    `/api/school-years/${encodeURIComponent(schoolYearId)}/level-capacities`,
+    init
+  );
+};
+
+export const updateSchoolYearLevelCapacities = async (
+  schoolYearId: string,
+  payload: UpdateLevelCapacitiesPayload,
+  init?: RequestInit
+): Promise<LevelCapacitySummary[]> => {
+  return fetchJson<LevelCapacitySummary[]>(
+    `/api/school-years/${encodeURIComponent(schoolYearId)}/level-capacities`,
+    {
+      ...init,
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        ...init?.headers
+      },
+      body: JSON.stringify(payload)
+    }
+  );
 };
 
 export const createSchoolYear = async (
