@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type ChangeEvent
+} from "react";
 import { Link } from "react-router-dom";
 
 import PageSectionHeader from "../components/layout/PageSectionHeader";
@@ -62,6 +68,12 @@ const formatOptionalDateTime = (value: string | null): string => {
   return value ? dateTimeFormatter.format(new Date(value)) : "Non envoyé";
 };
 
+const getEnterStyle = (delay: number): CSSProperties => {
+  return {
+    "--ui-enter-delay": `${delay}ms`
+  } as CSSProperties;
+};
+
 const formatParentName = (
   firstName: string | null | undefined,
   lastName: string | null | undefined
@@ -117,10 +129,12 @@ const getApplicationSearchText = (application: ReadyEmailApplication): string =>
 
 const SummaryCard = ({
   label,
+  motionDelay = 0,
   value,
   tone = "default"
 }: {
   label: string;
+  motionDelay?: number;
   value: number;
   tone?: "default" | "success" | "info" | "gold";
 }) => {
@@ -132,7 +146,10 @@ const SummaryCard = ({
   };
 
   return (
-    <article className={`rounded-[26px] border p-5 shadow-[0_18px_36px_-32px_rgba(15,23,42,0.35)] ${toneClassNames[tone]}`}>
+    <article
+      className={`ui-animate-in ui-surface-hover ui-surface-hover--soft rounded-[26px] border p-5 shadow-[0_18px_36px_-32px_rgba(15,23,42,0.35)] ${toneClassNames[tone]}`}
+      style={getEnterStyle(motionDelay)}
+    >
       <p className="text-3xl font-semibold">{value}</p>
       <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em]">
         {label}
@@ -230,11 +247,13 @@ const EmailsPage = () => {
   if (isLoading) {
     return (
       <>
-        <PageSectionHeader
-          eyebrow="E-mail"
-          title="E-mails de décision"
-          description="Demandes prêtes pour l'envoi aux familles."
-        />
+        <div className="ui-animate-in ui-animate-in--subtle" style={getEnterStyle(120)}>
+          <PageSectionHeader
+            eyebrow="E-mail"
+            title="E-mails de décision"
+            description="Demandes prêtes pour l'envoi aux familles."
+          />
+        </div>
         <LoadingState />
       </>
     );
@@ -243,11 +262,13 @@ const EmailsPage = () => {
   if (error && applications.length === 0) {
     return (
       <>
-        <PageSectionHeader
-          eyebrow="E-mail"
-          title="E-mails de décision"
-          description="Demandes prêtes pour l'envoi aux familles."
-        />
+        <div className="ui-animate-in ui-animate-in--subtle" style={getEnterStyle(120)}>
+          <PageSectionHeader
+            eyebrow="E-mail"
+            title="E-mails de décision"
+            description="Demandes prêtes pour l'envoi aux familles."
+          />
+        </div>
         <ErrorState
           message={error}
           actionLabel="Réessayer"
@@ -259,26 +280,31 @@ const EmailsPage = () => {
 
   return (
     <>
-      <PageSectionHeader
-        eyebrow="E-mail"
-        title="E-mails de décision"
-        description="Demandes prêtes pour l'envoi aux familles."
-        aside={
-          <span className="rounded-full border border-primary/15 bg-white px-4 py-2 text-sm font-semibold text-primaryDark">
-            {displayedApplications.length} dossier{displayedApplications.length > 1 ? "s" : ""}
-          </span>
-        }
-      />
+      <div className="ui-animate-in ui-animate-in--subtle" style={getEnterStyle(120)}>
+        <PageSectionHeader
+          eyebrow="E-mail"
+          title="E-mails de décision"
+          description="Demandes prêtes pour l'envoi aux familles."
+          aside={
+            <span className="rounded-full border border-primary/15 bg-white px-4 py-2 text-sm font-semibold text-primaryDark">
+              {displayedApplications.length} dossier{displayedApplications.length > 1 ? "s" : ""}
+            </span>
+          }
+        />
+      </div>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <SummaryCard label="Prêtes" value={summary.total} />
-        <SummaryCard label="Acceptées" value={summary.accepted} tone="success" />
-        <SummaryCard label="En attente" value={summary.waitlisted} tone="info" />
-        <SummaryCard label="Partielles" value={summary.partial} tone="gold" />
-        <SummaryCard label="Déjà envoyées" value={summary.sent} tone="default" />
+        <SummaryCard label="Prêtes" value={summary.total} motionDelay={180} />
+        <SummaryCard label="Acceptées" value={summary.accepted} tone="success" motionDelay={220} />
+        <SummaryCard label="En attente" value={summary.waitlisted} tone="info" motionDelay={260} />
+        <SummaryCard label="Partielles" value={summary.partial} tone="gold" motionDelay={300} />
+        <SummaryCard label="Déjà envoyées" value={summary.sent} tone="default" motionDelay={340} />
       </section>
 
-      <section className="mt-6 overflow-hidden rounded-[30px] border border-primary/15 bg-white/90 shadow-[0_24px_48px_-36px_rgba(15,23,42,0.32)]">
+      <section
+        className="ui-animate-in ui-surface-hover ui-surface-hover--soft ui-surface-hover--no-accent mt-6 overflow-hidden rounded-[30px] border border-primary/15 bg-white/90 shadow-[0_24px_48px_-36px_rgba(15,23,42,0.32)]"
+        style={getEnterStyle(400)}
+      >
         <div className="border-b border-secondary/25 bg-[#fffaf2] px-5 py-5 sm:px-6">
           <div className="grid gap-4 xl:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.2fr)] xl:items-center">
             <label className="block">
@@ -332,10 +358,11 @@ const EmailsPage = () => {
             />
           ) : (
             <div className="space-y-4">
-              {displayedApplications.map((application) => (
+              {displayedApplications.map((application, index) => (
                 <article
                   key={application.id}
-                  className="rounded-[26px] border border-slate-200/90 bg-white p-5 shadow-[0_18px_36px_-32px_rgba(15,23,42,0.35)]"
+                  className="ui-animate-in ui-surface-hover ui-surface-hover--soft rounded-[26px] border border-slate-200/90 bg-white p-5 shadow-[0_18px_36px_-32px_rgba(15,23,42,0.35)]"
+                  style={getEnterStyle(460 + index * 35)}
                 >
                   <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0">
@@ -390,14 +417,16 @@ const EmailsPage = () => {
                     ))}
                   </div>
 
-                  <div className="mt-5 flex justify-end">
-                    <Link
-                      to={`/applications/${application.id}/email`}
-                      className="inline-flex items-center rounded-full bg-secondary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-secondaryDark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary"
-                    >
-                      Préparer l'e-mail
-                    </Link>
-                  </div>
+                  {!application.hasSentEmail ? (
+                    <div className="mt-5 flex justify-end">
+                      <Link
+                        to={`/applications/${application.id}/email`}
+                        className="inline-flex items-center rounded-full bg-secondary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-secondaryDark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary"
+                      >
+                        Préparer l'e-mail
+                      </Link>
+                    </div>
+                  ) : null}
                 </article>
               ))}
             </div>
