@@ -20,14 +20,15 @@ Configuration de developpement locale pour lancer l'application complete avec Do
 cp .env.example .env
 ```
 
-3. Renseigner les variables Mailtrap dans `.env` si l'envoi mail doit etre teste :
+3. Renseigner les variables SMTP dans `.env` si l'envoi mail doit etre teste :
 
 ```env
-SMTP_HOST=sandbox.smtp.mailtrap.io
-SMTP_PORT=2525
-SMTP_USER=your-mailtrap-user
-SMTP_PASS=your-mailtrap-password
-SMTP_FROM="ECE Admissions <no-reply@ece.test>"
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=ece.inscriptions@gmail.com
+SMTP_PASS=replace_with_google_app_password_without_spaces
+MAIL_FROM="École ECE Narbonne — Service Inscriptions <ece.inscriptions@gmail.com>"
 ```
 
 4. Lancer toute la stack :
@@ -60,6 +61,18 @@ Password: change-me-now
 ```
 
 Ces valeurs se changent avec `ADMIN_EMAIL` et `ADMIN_PASSWORD` dans `.env`.
+
+## Configuration Gmail SMTP pour les tests réels
+
+Pour envoyer de vrais emails depuis Gmail, utiliser une adresse Gmail dediee aux inscriptions, par exemple `ece.inscriptions@gmail.com`. Activer la validation en deux etapes sur ce compte Google, puis generer un mot de passe d'application Google.
+
+Coller ce mot de passe d'application dans le vrai fichier `.env`, sur `SMTP_PASS`, sans espaces. Ne jamais commiter le vrai `.env` ni un vrai secret. La valeur de `.env.example` doit rester un placeholder.
+
+Apres modification de `.env`, redemarrer l'API Docker :
+
+```bash
+docker compose restart api
+```
 
 ## Commandes Utiles
 

@@ -132,7 +132,7 @@ export const config = {
     secure: readOptionalBoolean("SMTP_SECURE", false),
     user: readOptionalString("SMTP_USER"),
     pass: readOptionalString("SMTP_PASS"),
-    from: readOptionalString("SMTP_FROM")
+    from: readOptionalString("MAIL_FROM") ?? readOptionalString("SMTP_FROM")
   },
   admin: {
     email: readOptionalString("ADMIN_EMAIL"),
