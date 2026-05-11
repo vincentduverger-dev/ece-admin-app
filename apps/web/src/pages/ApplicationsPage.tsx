@@ -18,9 +18,11 @@ import EmptyState from "../components/ui/EmptyState";
 import ErrorState from "../components/ui/ErrorState";
 import LevelBadge from "../components/ui/LevelBadge";
 import LoadingState from "../components/ui/LoadingState";
+import { FamilyAvatar } from "../components/ui/PersonAvatar";
 import PriorityBadge from "../components/ui/PriorityBadge";
 import StatusBadge from "../components/ui/StatusBadge";
 import { getApplications, getSchoolYears } from "../lib/api";
+import { consumePostLoginFilterDefaults } from "../lib/postLoginFilterDefaults";
 import type {
   ApplicationFilterParams,
   ApplicationListItem,
@@ -432,8 +434,14 @@ const PaginationControls = memo(function PaginationControls({
 const ApplicationsPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [storedListViewState] = useState(() => readStoredApplicationsListViewState());
+  const [storedListViewState] = useState(() =>
+    consumePostLoginFilterDefaults("applications")
+      ? {}
+      : readStoredApplicationsListViewState()
+  );
   const requestedSchoolYearId = searchParams.get("schoolYearId")?.trim() ?? "";
+  const hasRequestedStatusFilter = searchParams.has("status");
+  const hasRequestedPriorityFilter = searchParams.has("isPriority");
   const requestedStatus = getRequestedStatusFilter(searchParams);
   const requestedPriority = getRequestedPriorityFilter(searchParams);
   const storedFilters = storedListViewState.filters;
@@ -444,9 +452,11 @@ const ApplicationsPage = () => {
     requestedSchoolYearId.length > 0 || hasStoredListViewState
   );
   const [filters, setFilters] = useState<FilterState>(() => ({
-    status: requestedStatus || (storedFilters?.status ?? ""),
+    status: hasRequestedStatusFilter ? requestedStatus : (storedFilters?.status ?? ""),
     schoolYearId: requestedSchoolYearId || storedFilters?.schoolYearId || "",
-    isPriority: requestedPriority || (storedFilters?.isPriority ?? ""),
+    isPriority: hasRequestedPriorityFilter
+      ? requestedPriority
+      : (storedFilters?.isPriority ?? ""),
     search: storedFilters?.search ?? ""
   }));
   const [sort, setSort] = useState<SortOption>(
@@ -594,21 +604,37 @@ const ApplicationsPage = () => {
     requestedSchoolYearId.length === 0 && !hasInitializedSchoolYearFilter;
 
   useEffect(() => {
+    if (!hasRequestedStatusFilter && !hasRequestedPriorityFilter) {
+      return;
+    }
+
     setFilters((currentFilters) => {
+      const nextStatus = hasRequestedStatusFilter
+        ? requestedStatus
+        : currentFilters.status;
+      const nextPriority = hasRequestedPriorityFilter
+        ? requestedPriority
+        : currentFilters.isPriority;
+
       if (
-        currentFilters.status === requestedStatus &&
-        currentFilters.isPriority === requestedPriority
+        currentFilters.status === nextStatus &&
+        currentFilters.isPriority === nextPriority
       ) {
         return currentFilters;
       }
 
       return {
         ...currentFilters,
-        status: requestedStatus,
-        isPriority: requestedPriority
+        status: nextStatus,
+        isPriority: nextPriority
       };
     });
-  }, [requestedPriority, requestedStatus]);
+  }, [
+    hasRequestedPriorityFilter,
+    hasRequestedStatusFilter,
+    requestedPriority,
+    requestedStatus
+  ]);
 
   const resetFilters = useCallback((): void => {
     setFilters({
@@ -1155,6 +1181,11 @@ const ApplicationsPage = () => {
               <div className="space-y-3">
                 {currentPageApplications.map((application, index) => {
                   const createdAtDate = new Date(application.createdAt);
+                  const familyDisplayName = getFamilyDisplayName(application);
+                  const familyAvatarLabel =
+                    familyDisplayName === "Famille non renseignée"
+                      ? familyDisplayName
+                      : `Famille ${familyDisplayName}`;
                   const rowSurfaceClassName = application.isPriority
                     ? "border-secondary/20 bg-secondary/5"
                     : "border-slate-200/90 bg-slate-50/80";
@@ -1164,23 +1195,26 @@ const ApplicationsPage = () => {
                       key={application.id}
                       role="link"
                       tabIndex={0}
-                      aria-label={`Ouvrir la demande de la famille ${getFamilyDisplayName(application)}`}
+                      aria-label={`Ouvrir la demande de la famille ${familyDisplayName}`}
                       onClick={() => openApplicationDetail(application.id)}
                       onKeyDown={(event) => handleApplicationRowKeyDown(event, application.id)}
                       className={`group ui-animate-in ui-surface-hover ui-surface-hover--soft cursor-pointer rounded-[28px] border p-4 shadow-[0_14px_30px_-24px_rgba(15,23,42,0.16)] outline-none transition focus-visible:ring-4 focus-visible:ring-primary/20 sm:p-5 ${rowSurfaceClassName}`}
                       style={getEnterStyle(310 + index * 55)}
                     >
                       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_170px_minmax(0,1.7fr)_180px_130px_108px] xl:items-center">
-                        <div className="min-w-0">
-                          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500 xl:hidden">
-                            Famille
-                          </p>
-                          <h3 className="mt-1 text-lg font-semibold text-slate-900 xl:mt-0">
-                            Famille {getFamilyDisplayName(application)}
-                          </h3>
-                          <p className="mt-1 break-all text-sm text-slate-500">
-                            {application.family.contactEmail ?? "Contact non renseigné"}
-                          </p>
+                        <div className="flex min-w-0 items-center gap-4">
+                          <FamilyAvatar label={familyAvatarLabel} size="md" />
+                          <div className="min-w-0">
+                            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500 xl:hidden">
+                              Famille
+                            </p>
+                            <h3 className="mt-1 text-lg font-semibold text-slate-900 xl:mt-0">
+                              Famille {familyDisplayName}
+                            </h3>
+                            <p className="mt-1 break-all text-sm text-slate-500">
+                              {application.family.contactEmail ?? "Contact non renseigné"}
+                            </p>
+                          </div>
                         </div>
 
                         <div>

@@ -4,6 +4,7 @@ import {
   useMemo,
   useState,
   type CSSProperties,
+  type FormEvent,
   type ReactNode
 } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -25,7 +26,8 @@ import { useToast } from "../context/ToastContext";
 import {
   getApplicationById,
   getApplicationEmailLogs,
-  sendApplicationEmail
+  sendApplicationEmail,
+  updateApplicationContactEmail
 } from "../lib/api";
 import {
   applicationEmailSendStatusLabels,
@@ -127,6 +129,18 @@ const formatParentName = (
   return parts.length > 0 ? parts.join(" ") : "Non renseigné";
 };
 
+const getActionErrorMessage = (fallbackMessage: string, error: unknown): string => {
+  if (!(error instanceof Error) || error.message.trim().length === 0) {
+    return fallbackMessage;
+  }
+
+  if (error.message === fallbackMessage) {
+    return fallbackMessage;
+  }
+
+  return `${fallbackMessage} ${error.message}`;
+};
+
 const getApplicationFamilyTitle = (
   application: ApplicationDetail | null
 ): string => {
@@ -216,6 +230,24 @@ const SendIcon = ({ className = "h-4 w-4" }: IconProps) => {
   );
 };
 
+const EditIcon = ({ className = "h-4 w-4" }: IconProps) => {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.6"
+      className={className}
+    >
+      <path d="M9.75 3.25 12.75 6.25" />
+      <path d="M3.5 10.5 10.75 3.25a2.12 2.12 0 0 1 3 3L6.5 13.5H3.25l.25-3Z" />
+    </svg>
+  );
+};
+
 const DetailField = ({ label, children }: DetailFieldProps) => {
   return (
     <div className="rounded-2xl border border-slate-200/90 bg-white/80 p-4 shadow-[0_10px_24px_-24px_rgba(15,23,42,0.18)]">
@@ -279,6 +311,10 @@ const ApplicationEmailPage = () => {
   const [isEmailSubmitting, setIsEmailSubmitting] = useState(false);
   const [isSendConfirmationOpen, setIsSendConfirmationOpen] = useState(false);
   const [hasEmailSendSuccess, setHasEmailSendSuccess] = useState(false);
+  const [isContactEmailModalOpen, setIsContactEmailModalOpen] = useState(false);
+  const [contactEmailDraft, setContactEmailDraft] = useState("");
+  const [contactEmailError, setContactEmailError] = useState<string | null>(null);
+  const [isUpdatingContactEmail, setIsUpdatingContactEmail] = useState(false);
 
   const resetEmailForm = useCallback((
     nextApplication?: ApplicationDetail,
@@ -548,6 +584,78 @@ const ApplicationEmailPage = () => {
     setIsSendConfirmationOpen(false);
   }, [selectedEmailType, emailSubject, emailBody]);
 
+  useEffect(() => {
+    setIsContactEmailModalOpen(false);
+    setContactEmailDraft("");
+    setContactEmailError(null);
+  }, [application?.id]);
+
+  const handleOpenContactEmailModal = useCallback((): void => {
+    setContactEmailDraft(application?.family.contactEmail ?? "");
+    setContactEmailError(null);
+    setIsContactEmailModalOpen(true);
+  }, [application?.family.contactEmail]);
+
+  const handleCloseContactEmailModal = useCallback((): void => {
+    if (isUpdatingContactEmail) {
+      return;
+    }
+
+    setIsContactEmailModalOpen(false);
+    setContactEmailError(null);
+  }, [isUpdatingContactEmail]);
+
+  const handleSubmitContactEmailUpdate = useCallback(
+    async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+      event.preventDefault();
+
+      if (!application) {
+        return;
+      }
+
+      const normalizedEmail = contactEmailDraft.trim();
+
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+        setContactEmailError("Veuillez saisir une adresse email valide.");
+        return;
+      }
+
+      setIsUpdatingContactEmail(true);
+      setContactEmailError(null);
+
+      try {
+        const updateResult = await updateApplicationContactEmail(
+          application.id,
+          normalizedEmail
+        );
+
+        setApplication((currentApplication) =>
+          currentApplication
+            ? {
+                ...currentApplication,
+                family: {
+                  ...currentApplication.family,
+                  ...updateResult.family
+                }
+              }
+            : currentApplication
+        );
+        setIsContactEmailModalOpen(false);
+        showSuccess("L'email de contact a bien été corrigé.");
+      } catch (updateError) {
+        setContactEmailError(
+          getActionErrorMessage(
+            "Impossible de corriger l'email de contact.",
+            updateError
+          )
+        );
+      } finally {
+        setIsUpdatingContactEmail(false);
+      }
+    },
+    [application, contactEmailDraft, showSuccess]
+  );
+
   const detailPath = applicationId ? `/applications/${applicationId}` : "/applications";
   const decisionEmailContext = useMemo(() => {
     return application ? getApplicationDecisionEmailContext(application) : null;
@@ -692,9 +800,21 @@ const ApplicationEmailPage = () => {
               <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Destinataire
               </p>
-              <p className="mt-2 break-all text-sm font-semibold text-slate-900">
-                {formatOptionalText(application.family.contactEmail)}
-              </p>
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <p className="min-w-0 break-all text-sm font-semibold text-slate-900">
+                  {formatOptionalText(application.family.contactEmail)}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleOpenContactEmailModal}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-primary/15 bg-primary/5 text-primary transition hover:border-secondary/40 hover:bg-secondary/10 hover:text-secondaryDark"
+                  aria-label="Modifier l'email de contact"
+                  title="Modifier l'email de contact"
+                  disabled={isEmailSubmitting}
+                >
+                  <EditIcon />
+                </button>
+              </div>
             </div>
 
             {decisionEmailContext.warnings.length > 0 ? (
@@ -882,7 +1002,21 @@ const ApplicationEmailPage = () => {
               <StatusBadge status={application.status} />
             </DetailField>
             <DetailField label="Contact">
-              {formatOptionalText(application.family.contactEmail)}
+              <div className="flex items-center justify-between gap-3">
+                <span className="min-w-0 break-all">
+                  {formatOptionalText(application.family.contactEmail)}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleOpenContactEmailModal}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-primary/15 bg-primary/5 text-primary transition hover:border-secondary/40 hover:bg-secondary/10 hover:text-secondaryDark"
+                  aria-label="Modifier l'email de contact"
+                  title="Modifier l'email de contact"
+                  disabled={isEmailSubmitting}
+                >
+                  <EditIcon />
+                </button>
+              </div>
             </DetailField>
           </div>
 
@@ -1056,6 +1190,82 @@ const ApplicationEmailPage = () => {
               </button>
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {isContactEmailModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-4 py-6 backdrop-blur-sm">
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="contact-email-edit-title"
+            className="w-full max-w-lg rounded-[28px] border border-white/80 bg-white p-6 shadow-[0_24px_70px_-24px_rgba(15,23,42,0.45)]"
+            onSubmit={handleSubmitContactEmailUpdate}
+          >
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-secondaryDark">
+              Correction administrative
+            </p>
+            <h2
+              id="contact-email-edit-title"
+              className="mt-2 text-2xl font-semibold text-slate-900"
+            >
+              Modifier l'email de contact ?
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              Cette adresse est utilisée pour le suivi et l'envoi des emails à
+              la famille. Corrigez-la uniquement en cas d'erreur de saisie
+              constatée.
+            </p>
+
+            <label className="mt-5 block">
+              <span className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Nouvel email de contact
+              </span>
+              <input
+                type="email"
+                value={contactEmailDraft}
+                onChange={(event) => {
+                  setContactEmailDraft(event.target.value);
+                  setContactEmailError(null);
+                }}
+                className="mt-2 w-full rounded-2xl border border-primary/15 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-primary/30 focus:border-secondary focus:ring-2 focus:ring-secondary/20"
+                placeholder="famille@example.com"
+                disabled={isUpdatingContactEmail}
+                autoFocus
+              />
+            </label>
+
+            <div className="mt-4 rounded-[20px] border border-warning/20 bg-warning/10 px-4 py-3 text-sm leading-6 text-slate-700">
+              Email actuel :{" "}
+              <span className="font-semibold text-slate-900">
+                {formatOptionalText(application.family.contactEmail)}
+              </span>
+            </div>
+
+            {contactEmailError ? (
+              <p className="mt-3 rounded-[18px] border border-danger/20 bg-danger/10 px-4 py-3 text-sm font-medium text-danger">
+                {contactEmailError}
+              </p>
+            ) : null}
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={handleCloseContactEmailModal}
+                disabled={isUpdatingContactEmail}
+                className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-primary/25 hover:text-primary disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Annuler
+              </button>
+              <button
+                type="submit"
+                disabled={isUpdatingContactEmail}
+                className="inline-flex items-center justify-center rounded-full bg-secondary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-secondaryDark disabled:cursor-wait disabled:opacity-70"
+              >
+                {isUpdatingContactEmail ? "Correction..." : "Corriger l'email"}
+              </button>
+            </div>
+          </form>
         </div>
       ) : null}
     </>
