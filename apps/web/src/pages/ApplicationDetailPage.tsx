@@ -20,8 +20,10 @@ import PersonAvatar, {
 import StatusBadge from "../components/ui/StatusBadge";
 import { useToast } from "../context/ToastContext";
 import {
+  fetchDashboardStats,
   getApplicationById,
   getApplicationEmailLogs,
+  getSchoolYearLevelCapacities,
   updateStudentAdmissionStatus
 } from "../lib/api";
 import {
@@ -38,6 +40,7 @@ import type {
   ApplicationStatus,
   StudentAdmissionStatus
 } from "../types/application";
+import type { DashboardLevelStat } from "../types/dashboard";
 
 type IconProps = {
   className?: string;
@@ -661,6 +664,12 @@ const ApplicationDetailPage = () => {
   const { showError, showSuccess } = useToast();
   const [application, setApplication] = useState<ApplicationDetail | null>(null);
   const [emailLogs, setEmailLogs] = useState<ApplicationEmailLog[]>([]);
+  const [levelCapacityByLevelId, setLevelCapacityByLevelId] = useState<
+    Record<string, { isConfigured: boolean; availablePlaces: number }>
+  >({});
+  const [activeLevelStatsByLevelId, setActiveLevelStatsByLevelId] = useState<
+    Record<string, DashboardLevelStat>
+  >({});
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [updatingStudentAdmissionId, setUpdatingStudentAdmissionId] =
@@ -693,6 +702,14 @@ const ApplicationDetailPage = () => {
           getApplicationById(applicationId, { signal: controller.signal }),
           getApplicationEmailLogs(applicationId, { signal: controller.signal })
         ]);
+        const [capacities, dashboardStats] = await Promise.all([
+          getSchoolYearLevelCapacities(applicationData.schoolYear.id, {
+            signal: controller.signal
+          }),
+          applicationData.schoolYear.isActive
+            ? fetchDashboardStats({ signal: controller.signal })
+            : Promise.resolve(null)
+        ]);
 
         if (controller.signal.aborted) {
           return;
@@ -700,6 +717,26 @@ const ApplicationDetailPage = () => {
 
         setApplication(applicationData);
         setEmailLogs(emailLogsData);
+        setLevelCapacityByLevelId(
+          Object.fromEntries(
+            capacities.map((capacity) => [
+              capacity.levelId,
+              {
+                isConfigured: capacity.id !== null,
+                availablePlaces: capacity.availablePlaces
+              }
+            ])
+          )
+        );
+        setActiveLevelStatsByLevelId(
+          Object.fromEntries(
+            (dashboardStats?.byLevel ?? [])
+              .filter((level): level is DashboardLevelStat & { id: string } =>
+                typeof level.id === "string"
+              )
+              .map((level) => [level.id, level])
+          )
+        );
       } catch (loadError) {
         if (isAbortError(loadError) || controller.signal.aborted) {
           return;
@@ -773,6 +810,19 @@ const ApplicationDetailPage = () => {
             )
           };
         });
+        if (application.schoolYear.isActive) {
+          const dashboardStats = await fetchDashboardStats();
+
+          setActiveLevelStatsByLevelId(
+            Object.fromEntries(
+              dashboardStats.byLevel
+                .filter((level): level is DashboardLevelStat & { id: string } =>
+                  typeof level.id === "string"
+                )
+                .map((level) => [level.id, level])
+            )
+          );
+        }
         showSuccess("La décision de l'élève a bien été mise à jour.");
       } catch (updateError) {
         showError(
@@ -1193,6 +1243,28 @@ const ApplicationDetailPage = () => {
                         const isCurrentStatus =
                           getStudentAdmissionStatus(student) === option.value;
                         const isSubmitting = updatingStudentAdmissionId === student.id;
+                        const levelId = student.level.id;
+                        const levelCapacity = levelId
+                          ? levelCapacityByLevelId[levelId]
+                          : undefined;
+                        const activeLevelStats = levelId
+                          ? activeLevelStatsByLevelId[levelId]
+                          : undefined;
+                        const isCapacityMissing =
+                          option.value === "ACCEPTED" &&
+                          getStudentAdmissionStatus(student) !== "ACCEPTED" &&
+                          levelCapacity?.isConfigured === false;
+                        const isLevelFull =
+                          option.value === "ACCEPTED" &&
+                          getStudentAdmissionStatus(student) !== "ACCEPTED" &&
+                          application.schoolYear.isActive &&
+                          typeof activeLevelStats?.remainingPlaces === "number" &&
+                          activeLevelStats.remainingPlaces <= 0;
+                        const acceptBlockMessage = isCapacityMissing
+                          ? "Places disponibles non renseignées pour ce niveau."
+                          : isLevelFull
+                          ? "Ce niveau est complet. Aucune place restante."
+                          : null;
                         const activeButtonClassName =
                           option.value === "ACCEPTED"
                             ? "border-success/20 bg-success/15 text-success"
@@ -1215,7 +1287,10 @@ const ApplicationDetailPage = () => {
                               )
                             }
                             disabled={
-                              isTreatmentReadOnly || isSubmitting || isCurrentStatus
+                              isTreatmentReadOnly ||
+                              isSubmitting ||
+                              isCurrentStatus ||
+                              Boolean(acceptBlockMessage)
                             }
                             className={`inline-flex min-h-10 items-center justify-center rounded-full border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed ${
                               isTreatmentReadOnly
@@ -1232,6 +1307,31 @@ const ApplicationDetailPage = () => {
                         );
                       })}
                     </div>
+                    {(() => {
+                      const levelId = student.level.id;
+                      const levelCapacity = levelId
+                        ? levelCapacityByLevelId[levelId]
+                        : undefined;
+                      const activeLevelStats = levelId
+                        ? activeLevelStatsByLevelId[levelId]
+                        : undefined;
+                      const isAccepted = getStudentAdmissionStatus(student) === "ACCEPTED";
+                      const message =
+                        !isAccepted && levelCapacity?.isConfigured === false
+                          ? "Places disponibles non renseignées pour ce niveau."
+                          : !isAccepted &&
+                            application.schoolYear.isActive &&
+                            typeof activeLevelStats?.remainingPlaces === "number" &&
+                            activeLevelStats.remainingPlaces <= 0
+                          ? "Ce niveau est complet. Aucune place restante."
+                          : null;
+
+                      return message ? (
+                        <p className="mt-3 rounded-2xl border border-warning/20 bg-warning/10 px-3 py-2 text-xs font-semibold text-slate-700">
+                          {message}
+                        </p>
+                      ) : null;
+                    })()}
                   </div>
                 </article>
               ))}

@@ -43,21 +43,48 @@ export const getDashboardStats = async (_req: Request, res: Response): Promise<v
         [ApplicationStatus.PARTIALLY_ACCEPTED]: 0
       },
       byLevel: levels.map((level) => ({
+        id: undefined,
         code: level.code,
         label: level.label,
-        count: 0
+        count: 0,
+        requestedStudentsCount: 0,
+        acceptedStudentsCount: 0,
+        availablePlaces: 0,
+        isCapacityConfigured: false,
+        remainingPlaces: 0
       })),
-      priorityApplications: []
+      priorityApplications: [],
+      studentStats: {
+        totalStudents: 0,
+        acceptedStudents: 0,
+        waitlistedStudents: 0,
+        byLevel: levels.map((level) => ({
+          id: undefined,
+          code: level.code,
+          label: level.label,
+          count: 0,
+          requestedStudentsCount: 0,
+          acceptedStudentsCount: 0,
+          availablePlaces: 0,
+          isCapacityConfigured: false,
+          remainingPlaces: 0
+        })),
+        priorityStudents: []
+      }
     });
     return;
   }
 
   const [
     totalApplications,
+    totalStudents,
+    acceptedStudents,
     waitlistedStudents,
     statusCounts,
     levels,
     studentCountsByLevel,
+    acceptedStudentCountsByLevel,
+    levelCapacities,
     priorityApplications
   ] = await Promise.all([
     prisma.application.count({
@@ -67,8 +94,26 @@ export const getDashboardStats = async (_req: Request, res: Response): Promise<v
     }),
     prisma.student.count({
       where: {
+        application: {
+          schoolYearId: activeSchoolYear.id
+        }
+      }
+    }),
+    prisma.student.count({
+      where: {
+        admissionStatus: StudentAdmissionStatus.ACCEPTED,
+        application: {
+          schoolYearId: activeSchoolYear.id
+        }
+      }
+    }),
+    prisma.student.count({
+      where: {
         admissionStatus: {
-          in: [StudentAdmissionStatus.WAITLISTED, StudentAdmissionStatus.REFUSED]
+          in: [
+            StudentAdmissionStatus.WAITLISTED,
+            StudentAdmissionStatus.REFUSED
+          ]
         },
         application: {
           schoolYearId: activeSchoolYear.id
@@ -89,7 +134,8 @@ export const getDashboardStats = async (_req: Request, res: Response): Promise<v
         id: true,
         code: true,
         label: true,
-        sortOrder: true
+        sortOrder: true,
+        availablePlaces: true
       },
       orderBy: {
         sortOrder: "asc"
@@ -106,10 +152,35 @@ export const getDashboardStats = async (_req: Request, res: Response): Promise<v
         _all: true
       }
     }),
+    prisma.student.groupBy({
+      by: ["levelId"],
+      where: {
+        admissionStatus: StudentAdmissionStatus.ACCEPTED,
+        application: {
+          schoolYearId: activeSchoolYear.id
+        }
+      },
+      _count: {
+        _all: true
+      }
+    }),
+    prisma.levelCapacity.findMany({
+      where: {
+        schoolYearId: activeSchoolYear.id
+      },
+      select: {
+        levelId: true,
+        availablePlaces: true
+      }
+    }),
     prisma.application.findMany({
       where: {
-        isPriority: true,
-        schoolYearId: activeSchoolYear.id
+        schoolYearId: activeSchoolYear.id,
+        students: {
+          some: {
+            isPriority: true
+          }
+        }
       },
       orderBy: {
         createdAt: "desc"
@@ -133,11 +204,18 @@ export const getDashboardStats = async (_req: Request, res: Response): Promise<v
           }
         },
         students: {
+          where: {
+            isPriority: true
+          },
           select: {
+            id: true,
             firstName: true,
             lastName: true,
+            admissionStatus: true,
+            isPriority: true,
             level: {
               select: {
+                id: true,
                 code: true,
                 label: true
               }
@@ -171,18 +249,70 @@ export const getDashboardStats = async (_req: Request, res: Response): Promise<v
   const studentCountsByLevelId = new Map(
     studentCountsByLevel.map((level) => [level.levelId, level._count._all])
   );
+  const acceptedStudentCountsByLevelId = new Map(
+    acceptedStudentCountsByLevel.map((level) => [level.levelId, level._count._all])
+  );
+  const levelCapacityByLevelId = new Map(
+    levelCapacities.map((capacity) => [capacity.levelId, capacity.availablePlaces])
+  );
+  const configuredLevelCapacityIds = new Set(
+    levelCapacities.map((capacity) => capacity.levelId)
+  );
 
-  const byLevel = levels.map((level) => ({
-    code: level.code,
-    label: level.label,
-    count: studentCountsByLevelId.get(level.id) ?? 0
-  }));
+  const byLevel = levels.map((level) => {
+    const requestedStudentsCount = studentCountsByLevelId.get(level.id) ?? 0;
+    const acceptedStudentsCount = acceptedStudentCountsByLevelId.get(level.id) ?? 0;
+    const availablePlaces = levelCapacityByLevelId.get(level.id) ?? 0;
+    const isCapacityConfigured = configuredLevelCapacityIds.has(level.id);
+
+    return {
+      id: level.id,
+      code: level.code,
+      label: level.label,
+      count: requestedStudentsCount,
+      requestedStudentsCount,
+      acceptedStudentsCount,
+      availablePlaces,
+      isCapacityConfigured,
+      remainingPlaces: availablePlaces - acceptedStudentsCount
+    };
+  });
+
+  const priorityStudents = priorityApplications.flatMap((application) =>
+    application.students.map((student) => ({
+      id: student.id,
+      firstName: student.firstName,
+      lastName: student.lastName,
+      admissionStatus:
+        student.admissionStatus === StudentAdmissionStatus.ACCEPTED
+          ? StudentAdmissionStatus.ACCEPTED
+          : student.admissionStatus === StudentAdmissionStatus.WAITLISTED ||
+            student.admissionStatus === StudentAdmissionStatus.REFUSED
+          ? StudentAdmissionStatus.WAITLISTED
+          : StudentAdmissionStatus.PENDING,
+      level: student.level,
+      application: {
+        id: application.id,
+        isPriority: student.isPriority,
+        createdAt: application.createdAt,
+        schoolYear: application.schoolYear,
+        family: application.family
+      }
+    }))
+  );
 
   res.status(200).json({
     totalApplications,
     waitlistedStudents,
     byStatus,
     byLevel,
-    priorityApplications
+    priorityApplications,
+    studentStats: {
+      totalStudents,
+      acceptedStudents,
+      waitlistedStudents,
+      byLevel,
+      priorityStudents
+    }
   });
 };
