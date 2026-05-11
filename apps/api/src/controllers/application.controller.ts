@@ -3,11 +3,11 @@ import {
   EmailSendStatus,
   EmailType,
   StudentAdmissionStatus,
-  type Prisma
+  Prisma
 } from "@prisma/client";
 import type { Request, Response } from "express";
 
-import { badRequest, notFound } from "../lib/errors";
+import { badRequest, conflict, notFound } from "../lib/errors";
 import { prisma } from "../prisma/client";
 import { sendApplicationMail } from "../services/mailer.service";
 
@@ -210,6 +210,105 @@ const getRecalculatedApplicationStatus = (
   }
 
   return ApplicationStatus.IN_REVIEW;
+};
+
+const missingCapacityMessage =
+  "Impossible d'accepter cet élève : les places disponibles ne sont pas renseignées pour ce niveau.";
+const fullCapacityMessage =
+  "Impossible d'accepter cet élève : il n'y a plus de place disponible pour ce niveau.";
+
+const lockLevelCapacityRows = async (
+  transaction: Prisma.TransactionClient,
+  schoolYearId: string,
+  levelIds: string[]
+): Promise<void> => {
+  if (levelIds.length === 0) {
+    return;
+  }
+
+  await transaction.$queryRaw`
+    SELECT id
+    FROM "LevelCapacity"
+    WHERE "schoolYearId" = ${schoolYearId}
+      AND "levelId" IN (${Prisma.join(levelIds)})
+    FOR UPDATE
+  `;
+};
+
+const assertAcceptanceCapacity = async (
+  transaction: Prisma.TransactionClient,
+  schoolYearId: string,
+  requestedAcceptancesByLevelId: Map<string, number>
+): Promise<void> => {
+  const levelIds = [...requestedAcceptancesByLevelId.keys()];
+
+  await lockLevelCapacityRows(transaction, schoolYearId, levelIds);
+
+  const [levels, capacities, acceptedStudentsByLevel] = await Promise.all([
+    transaction.level.findMany({
+      where: { id: { in: levelIds } },
+      select: { id: true, code: true }
+    }),
+    transaction.levelCapacity.findMany({
+      where: {
+        schoolYearId,
+        levelId: { in: levelIds }
+      },
+      select: {
+        levelId: true,
+        availablePlaces: true
+      }
+    }),
+    transaction.student.groupBy({
+      by: ["levelId"],
+      where: {
+        levelId: { in: levelIds },
+        admissionStatus: StudentAdmissionStatus.ACCEPTED,
+        application: {
+          schoolYearId
+        }
+      },
+      _count: {
+        _all: true
+      }
+    })
+  ]);
+
+  const levelById = new Map(levels.map((level) => [level.id, level]));
+  const capacityByLevelId = new Map(
+    capacities.map((capacity) => [capacity.levelId, capacity.availablePlaces])
+  );
+  const acceptedCountByLevelId = new Map(
+    acceptedStudentsByLevel.map((level) => [level.levelId, level._count._all])
+  );
+
+  for (const [levelId, requestedAcceptances] of requestedAcceptancesByLevelId) {
+    const level = levelById.get(levelId);
+    const availablePlaces = capacityByLevelId.get(levelId);
+    const acceptedStudentsCount = acceptedCountByLevelId.get(levelId) ?? 0;
+
+    if (availablePlaces === undefined) {
+      throw conflict(missingCapacityMessage, {
+        code: "LEVEL_CAPACITY_MISSING",
+        levelCode: level?.code ?? null,
+        availablePlaces: null,
+        acceptedStudentsCount,
+        remainingPlaces: null
+      });
+    }
+
+    const remainingPlaces = availablePlaces - acceptedStudentsCount;
+
+    if (remainingPlaces < requestedAcceptances) {
+      throw conflict(fullCapacityMessage, {
+        code: "LEVEL_CAPACITY_FULL",
+        levelCode: level?.code ?? null,
+        availablePlaces,
+        acceptedStudentsCount,
+        remainingPlaces
+      });
+    }
+  }
 };
 
 export const getApplications = async (req: Request, res: Response): Promise<void> => {
@@ -478,11 +577,7 @@ export const updateApplicationStatus = async (req: Request, res: Response): Prom
 
   const existingApplication = await prisma.application.findUnique({
     where: { id: applicationId },
-    select: {
-      id: true,
-      status: true,
-      decisionAt: true
-    }
+    select: { id: true }
   });
 
   if (!existingApplication) {
@@ -535,8 +630,15 @@ export const updateApplicationDecision = async (req: Request, res: Response): Pr
     where: { id: applicationId },
     select: {
       id: true,
+      schoolYearId: true,
       status: true,
-      decisionAt: true
+      decisionAt: true,
+      students: {
+        select: {
+          levelId: true,
+          admissionStatus: true
+        }
+      }
     }
   });
 
@@ -545,6 +647,27 @@ export const updateApplicationDecision = async (req: Request, res: Response): Pr
   }
 
   const updatedApplication = await prisma.$transaction(async (transaction) => {
+    if (status === StudentAdmissionStatus.ACCEPTED) {
+      const requestedAcceptancesByLevelId = new Map<string, number>();
+
+      for (const student of existingApplication.students) {
+        if (student.admissionStatus === StudentAdmissionStatus.ACCEPTED) {
+          continue;
+        }
+
+        requestedAcceptancesByLevelId.set(
+          student.levelId,
+          (requestedAcceptancesByLevelId.get(student.levelId) ?? 0) + 1
+        );
+      }
+
+      await assertAcceptanceCapacity(
+        transaction,
+        existingApplication.schoolYearId,
+        requestedAcceptancesByLevelId
+      );
+    }
+
     await transaction.student.updateMany({
       where: { applicationId },
       data: { admissionStatus: status }
@@ -581,8 +704,11 @@ export const updateStudentAdmissionStatus = async (
       select: {
         id: true,
         applicationId: true,
+        levelId: true,
+        admissionStatus: true,
         application: {
           select: {
+            schoolYearId: true,
             status: true
           }
         }
@@ -591,6 +717,17 @@ export const updateStudentAdmissionStatus = async (
 
     if (!existingStudent) {
       throw notFound("Student not found");
+    }
+
+    if (
+      admissionStatus === StudentAdmissionStatus.ACCEPTED &&
+      existingStudent.admissionStatus !== StudentAdmissionStatus.ACCEPTED
+    ) {
+      await assertAcceptanceCapacity(
+        transaction,
+        existingStudent.application.schoolYearId,
+        new Map([[existingStudent.levelId, 1]])
+      );
     }
 
     const updatedStudent = await transaction.student.update({

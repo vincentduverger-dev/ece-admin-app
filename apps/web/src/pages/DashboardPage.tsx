@@ -925,7 +925,14 @@ const DashboardPage = () => {
                       const availablePlaces = level.availablePlaces ?? 0;
                       const remainingPlaces = level.remainingPlaces ?? availablePlaces - acceptedStudentsCount;
                       const remainingRatio = getRemainingPlacesRatio(remainingPlaces, availablePlaces);
-                      const isCapacityMissing = availablePlaces === 0;
+                      const isCapacityMissing = level.isCapacityConfigured === false;
+                      const remainingLabel = isCapacityMissing
+                        ? "Non renseigné"
+                        : remainingPlaces < 0
+                        ? "Surcapacité"
+                        : remainingPlaces === 0
+                        ? "Complet"
+                        : `${numberFormatter.format(remainingPlaces)} / ${numberFormatter.format(availablePlaces)}`;
 
                       return (
                         <div key={`${level.code}-remaining-slider`}>
@@ -940,9 +947,7 @@ const DashboardPage = () => {
                               </span>
                             </div>
                             <span className="shrink-0 text-xs font-semibold text-slate-600">
-                              {isCapacityMissing
-                                ? "Non renseigné"
-                                : `${numberFormatter.format(remainingPlaces)} / ${numberFormatter.format(availablePlaces)}`}
+                              {remainingLabel}
                             </span>
                           </div>
                           <div
@@ -992,6 +997,14 @@ const DashboardPage = () => {
                     const acceptedStudentsCount = level.acceptedStudentsCount ?? 0;
                     const availablePlaces = level.availablePlaces ?? 0;
                     const remainingPlaces = level.remainingPlaces ?? availablePlaces - acceptedStudentsCount;
+                    const isCapacityMissing = level.isCapacityConfigured === false;
+                    const remainingLabel = isCapacityMissing
+                      ? "Non renseigné"
+                      : remainingPlaces < 0
+                      ? "Surcapacité"
+                      : remainingPlaces === 0
+                      ? "Complet"
+                      : numberFormatter.format(remainingPlaces);
 
                     return (
                       <Link
@@ -1021,7 +1034,7 @@ const DashboardPage = () => {
                             { label: "Demandes", value: level.requestedStudentsCount ?? level.count },
                             { label: "Acceptés", value: acceptedStudentsCount },
                             { label: "Places", value: availablePlaces },
-                            { label: "Restantes", value: remainingPlaces }
+                            { label: "Restantes", value: remainingLabel }
                           ].map((metric) => {
                             const isRemainingMetric = metric.label === "Restantes";
 
@@ -1062,7 +1075,9 @@ const DashboardPage = () => {
                                     : undefined
                                 }
                               >
-                                {numberFormatter.format(metric.value)}
+                                {typeof metric.value === "number"
+                                  ? numberFormatter.format(metric.value)
+                                  : metric.value}
                               </p>
                             </div>
                             );

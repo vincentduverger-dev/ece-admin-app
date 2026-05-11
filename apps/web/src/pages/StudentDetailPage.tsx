@@ -12,6 +12,8 @@ import PersonAvatar, {
 import PriorityBadge from "../components/ui/PriorityBadge";
 import StudentStatusBadge, { getVisibleStudentStatus } from "../components/ui/StudentStatusBadge";
 import {
+  fetchDashboardStats,
+  getSchoolYearLevelCapacities,
   getStudentById,
   updateStudentAdmissionStatus,
   updateStudentPriority
@@ -21,6 +23,7 @@ import type {
   StudentListItem,
   VisibleStudentAdmissionStatus
 } from "../types/application";
+import type { DashboardLevelStat } from "../types/dashboard";
 
 const formatDate = new Intl.DateTimeFormat("fr-FR", {
   day: "2-digit",
@@ -81,6 +84,12 @@ const BackIcon = ({ className = "h-4 w-4" }: { className?: string }) => {
 const StudentDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const [student, setStudent] = useState<StudentListItem | null>(null);
+  const [levelCapacityByLevelId, setLevelCapacityByLevelId] = useState<
+    Record<string, { isConfigured: boolean; availablePlaces: number }>
+  >({});
+  const [activeLevelStatsByLevelId, setActiveLevelStatsByLevelId] = useState<
+    Record<string, DashboardLevelStat>
+  >({});
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
@@ -99,12 +108,38 @@ const StudentDetailPage = () => {
 
       try {
         const loadedStudent = await getStudentById(id, { signal });
+        const [capacities, dashboardStats] = await Promise.all([
+          getSchoolYearLevelCapacities(loadedStudent.application.schoolYear.id, { signal }),
+          loadedStudent.application.schoolYear.isActive
+            ? fetchDashboardStats({ signal })
+            : Promise.resolve(null)
+        ]);
 
         if (signal?.aborted) {
           return;
         }
 
         setStudent(loadedStudent);
+        setLevelCapacityByLevelId(
+          Object.fromEntries(
+            capacities.map((capacity) => [
+              capacity.levelId,
+              {
+                isConfigured: capacity.id !== null,
+                availablePlaces: capacity.availablePlaces
+              }
+            ])
+          )
+        );
+        setActiveLevelStatsByLevelId(
+          Object.fromEntries(
+            (dashboardStats?.byLevel ?? [])
+              .filter((level): level is DashboardLevelStat & { id: string } =>
+                typeof level.id === "string"
+              )
+              .map((level) => [level.id, level])
+          )
+        );
       } catch (loadError) {
         if (isAbortError(loadError) || signal?.aborted) {
           return;
@@ -156,6 +191,19 @@ const StudentDetailPage = () => {
               }
             : currentStudent
         );
+        if (student.application.schoolYear.isActive) {
+          const dashboardStats = await fetchDashboardStats();
+
+          setActiveLevelStatsByLevelId(
+            Object.fromEntries(
+              dashboardStats.byLevel
+                .filter((level): level is DashboardLevelStat & { id: string } =>
+                  typeof level.id === "string"
+                )
+                .map((level) => [level.id, level])
+            )
+          );
+        }
       } catch (updateError) {
         setError(
           updateError instanceof Error
@@ -247,6 +295,20 @@ const StudentDetailPage = () => {
   const visibleStatus = getVisibleStudentStatus(student.admissionStatus);
   const isAccepted = visibleStatus === "ACCEPTED";
   const isWaitlisted = visibleStatus === "WAITLISTED";
+  const levelCapacity = levelCapacityByLevelId[student.levelId];
+  const activeLevelStats = activeLevelStatsByLevelId[student.levelId];
+  const isCapacityMissing = levelCapacity?.isConfigured === false;
+  const isLevelFull =
+    student.application.schoolYear.isActive &&
+    typeof activeLevelStats?.remainingPlaces === "number" &&
+    activeLevelStats.remainingPlaces <= 0;
+  const acceptBlockMessage = isCapacityMissing
+    ? "Places disponibles non renseignées pour ce niveau."
+    : isLevelFull
+    ? "Ce niveau est complet. Aucune place restante."
+    : null;
+  const isAcceptDisabled =
+    isUpdatingStatus || isAccepted || Boolean(acceptBlockMessage);
 
   return (
     <>
@@ -292,7 +354,7 @@ const StudentDetailPage = () => {
               </button>
               <button
                 type="button"
-                disabled={isUpdatingStatus || isAccepted}
+                disabled={isAcceptDisabled}
                 onClick={() => void handleStatusChange("ACCEPTED")}
                 className="rounded-full bg-success px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-55"
               >
@@ -308,6 +370,11 @@ const StudentDetailPage = () => {
               </button>
             </div>
           </div>
+          {acceptBlockMessage ? (
+            <p className="mt-4 rounded-2xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white">
+              {acceptBlockMessage}
+            </p>
+          ) : null}
         </div>
 
         <div className="grid items-start gap-4 bg-[#fffaf2] p-5 sm:p-6 lg:grid-cols-3">
