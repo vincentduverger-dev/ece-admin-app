@@ -617,6 +617,48 @@ export const updateApplicationPriority = async (req: Request, res: Response): Pr
   res.status(200).json(updatedApplication);
 };
 
+export const updateApplicationContactEmail = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const applicationId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const contactEmail = getQueryParam(req.body?.contactEmail);
+
+  if (!contactEmail || !isValidEmailAddress(contactEmail)) {
+    throw badRequest("Invalid contact email");
+  }
+
+  const existingApplication = await prisma.application.findUnique({
+    where: { id: applicationId },
+    select: {
+      id: true,
+      familyId: true
+    }
+  });
+
+  if (!existingApplication) {
+    throw notFound("Application not found");
+  }
+
+  const updatedFamily = await prisma.family.update({
+    where: { id: existingApplication.familyId },
+    data: { contactEmail },
+    select: {
+      id: true,
+      contactEmail: true,
+      contactPhone: true,
+      fatherLastName: true,
+      fatherFirstName: true,
+      motherLastName: true,
+      motherFirstName: true,
+      postalAddress: true,
+      familyStatus: true
+    }
+  });
+
+  res.status(200).json({ family: updatedFamily });
+};
+
 export const updateApplicationDecision = async (req: Request, res: Response): Promise<void> => {
   const applicationId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const status = getQueryParam(req.body?.status);
