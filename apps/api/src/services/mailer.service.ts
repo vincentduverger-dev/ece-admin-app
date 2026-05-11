@@ -15,6 +15,15 @@ type SendMailInput = {
   html?: string;
 };
 
+type SmtpErrorMetadata = {
+  name?: string;
+  message: string;
+  code?: unknown;
+  command?: unknown;
+  responseCode?: unknown;
+  response?: unknown;
+};
+
 const getSmtpConfig = () => {
   const { host, port, secure, user, pass, from } = config.email;
 
@@ -28,6 +37,43 @@ const getSmtpConfig = () => {
     secure,
     from,
     auth: { user, pass }
+  };
+};
+
+const redactSecret = (value: string): string => {
+  const { pass } = config.email;
+
+  if (!pass) {
+    return value;
+  }
+
+  return value.split(pass).join("[REDACTED]");
+};
+
+const getSmtpErrorMetadata = (error: unknown): SmtpErrorMetadata => {
+  if (!(error instanceof Error)) {
+    return {
+      message: redactSecret(String(error))
+    };
+  }
+
+  const errorWithMetadata = error as Error & {
+    code?: unknown;
+    command?: unknown;
+    responseCode?: unknown;
+    response?: unknown;
+  };
+
+  return {
+    name: error.name,
+    message: redactSecret(error.message),
+    code: errorWithMetadata.code,
+    command: errorWithMetadata.command,
+    responseCode: errorWithMetadata.responseCode,
+    response:
+      typeof errorWithMetadata.response === "string"
+        ? redactSecret(errorWithMetadata.response)
+        : errorWithMetadata.response
   };
 };
 
@@ -105,13 +151,18 @@ const sendMail = async ({
     auth: smtpConfig.auth
   });
 
-  await transporter.sendMail({
-    from: smtpConfig.from,
-    to,
-    subject,
-    text,
-    html
-  });
+  try {
+    await transporter.sendMail({
+      from: smtpConfig.from,
+      to,
+      subject,
+      text,
+      html
+    });
+  } catch (error) {
+    console.error("SMTP email sending failed", getSmtpErrorMetadata(error));
+    throw new Error("Email sending failed");
+  }
 };
 
 export const sendApplicationMail = async ({
