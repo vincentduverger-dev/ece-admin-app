@@ -8,6 +8,7 @@ import type {
   ApplicationListItem,
   LevelCapacitySummary,
   LevelSummary,
+  ApplicationContactEmailUpdateResult,
   ApplicationPriorityUpdateResult,
   ApplicationStatus,
   ApplicationStatusUpdateResult,
@@ -243,6 +244,31 @@ export const sendApplicationEmail = async (
   payload: ApplicationEmailSendPayload,
   init?: RequestInit
 ): Promise<ApplicationEmailLog> => {
+  if (payload.attachments && payload.attachments.length > 0) {
+    const formData = new FormData();
+
+    formData.set("emailType", payload.emailType);
+    formData.set("subject", payload.subject);
+    formData.set("body", payload.body);
+
+    if (payload.syncDecisionAt !== undefined) {
+      formData.set("syncDecisionAt", String(payload.syncDecisionAt));
+    }
+
+    payload.attachments.forEach((attachment) => {
+      formData.append("attachments", attachment, attachment.name);
+    });
+
+    return fetchJson<ApplicationEmailLog>(
+      `/api/applications/${encodeURIComponent(applicationId)}/send-email`,
+      {
+        ...init,
+        method: "POST",
+        body: formData
+      }
+    );
+  }
+
   return fetchJson<ApplicationEmailLog>(
     `/api/applications/${encodeURIComponent(applicationId)}/send-email`,
     {
@@ -291,6 +317,25 @@ export const updateApplicationPriority = async (
         ...init?.headers
       },
       body: JSON.stringify({ isPriority })
+    }
+  );
+};
+
+export const updateApplicationContactEmail = async (
+  applicationId: string,
+  contactEmail: string,
+  init?: RequestInit
+): Promise<ApplicationContactEmailUpdateResult> => {
+  return fetchJson<ApplicationContactEmailUpdateResult>(
+    `/api/applications/${encodeURIComponent(applicationId)}/contact-email`,
+    {
+      ...init,
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...init?.headers
+      },
+      body: JSON.stringify({ contactEmail })
     }
   );
 };

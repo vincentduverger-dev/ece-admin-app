@@ -127,6 +127,7 @@ export type ApplicationEmailLog = {
 };
 
 export type ApplicationEmailSendPayload = {
+  attachments?: File[];
   emailType: ApplicationEmailType;
   subject: string;
   body: string;
@@ -166,6 +167,10 @@ export type ApplicationStatusUpdateResult = {
 export type ApplicationPriorityUpdateResult = {
   id: string;
   isPriority: boolean;
+};
+
+export type ApplicationContactEmailUpdateResult = {
+  family: ApplicationDetailFamily;
 };
 
 export type ApplicationDecisionUpdatePayload = {
