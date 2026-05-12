@@ -26,6 +26,7 @@ import {
   getSchoolYears,
   getStudents
 } from "../lib/api";
+import { consumePostLoginFilterDefaults } from "../lib/postLoginFilterDefaults";
 import type {
   ApplicationGender,
   LevelSummary,
@@ -373,7 +374,11 @@ const writeStoredStudentListViewState = (state: StudentListViewState): void => {
 
 const StudentsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [initialListViewState] = useState(() => readStoredStudentListViewState());
+  const [initialListViewState] = useState(() =>
+    consumePostLoginFilterDefaults("students")
+      ? {}
+      : readStoredStudentListViewState()
+  );
   const [studentParams, setStudentParams] = useState(() =>
     getInitialStudentSearchParams(searchParams, initialListViewState)
   );
@@ -425,6 +430,7 @@ const StudentsPage = () => {
   const selectedLevel = levels.find((level) => level.id === filters.levelId) ?? null;
   const selectedSchoolYear =
     schoolYears.find((schoolYear) => schoolYear.id === filters.schoolYearId) ?? null;
+  const defaultSchoolYearId = activeSchoolYear?.id ?? "";
   const activeSchoolYearLabel = selectedSchoolYear
     ? formatSchoolYearLabel(selectedSchoolYear.label)
     : activeSchoolYear
@@ -442,6 +448,28 @@ const StudentsPage = () => {
     filters.sortBy ?? "",
     filters.sortOrder ?? ""
   ].join("|");
+  const hasActiveFilters = useMemo(() => {
+    return (
+      search.trim().length > 0 ||
+      Boolean(filters.status) ||
+      Boolean(filters.levelId) ||
+      filters.schoolYearId !== defaultSchoolYearId ||
+      Boolean(filters.isPriority) ||
+      Boolean(filters.familyId) ||
+      filters.sortBy !== "submittedAt" ||
+      filters.sortOrder !== "desc"
+    );
+  }, [
+    defaultSchoolYearId,
+    filters.familyId,
+    filters.isPriority,
+    filters.levelId,
+    filters.schoolYearId,
+    filters.sortBy,
+    filters.sortOrder,
+    filters.status,
+    search
+  ]);
 
   const inputClassName =
     "w-full rounded-2xl border border-primary/15 bg-white/95 px-4 py-3 text-sm font-medium text-slate-900 shadow-[0_12px_26px_-24px_rgba(31,77,58,0.22)] outline-none transition hover:border-primary/30 focus:border-secondary focus:ring-2 focus:ring-secondary/20";
@@ -466,6 +494,19 @@ const StudentsPage = () => {
     },
     [setSearchParams, studentParams]
   );
+
+  const resetFilters = useCallback((): void => {
+    const nextParams = new URLSearchParams();
+
+    if (defaultSchoolYearId) {
+      nextParams.set("schoolYearId", defaultSchoolYearId);
+    }
+
+    setSearch("");
+    setPage(1);
+    setStudentParams(nextParams);
+    setSearchParams(nextParams);
+  }, [defaultSchoolYearId, setSearchParams]);
 
   useEffect(() => {
     if (!studentParams.has("search")) {
@@ -638,12 +679,20 @@ const StudentsPage = () => {
                 Recherche, tri et décisions restent centrés sur les statuts élèves.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {filters.status ? <StudentStatusBadge status={filters.status} /> : null}
               {selectedLevel ? (
                 <LevelBadge code={selectedLevel.code} label={selectedLevel.label} size="md" />
               ) : null}
               {filters.isPriority === "true" ? <PriorityBadge isPriority /> : null}
+              <button
+                type="button"
+                onClick={resetFilters}
+                disabled={!hasActiveFilters}
+                className="inline-flex shrink-0 items-center rounded-full border border-white/25 bg-white px-4 py-2 text-sm font-semibold text-primaryDark transition hover:border-secondary hover:bg-secondary/10 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Réinitialiser
+              </button>
             </div>
           </div>
         </div>

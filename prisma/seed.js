@@ -39,6 +39,7 @@ const hashPassword = (password) => {
 };
 
 const LEVELS = [
+  { code: "TPS", label: "Toute Petite Section", sortOrder: 0, availablePlaces: 0 },
   { code: "PS", label: "Petite Section", sortOrder: 1, availablePlaces: 18 },
   { code: "MS", label: "Moyenne Section", sortOrder: 2, availablePlaces: 18 },
   { code: "GS", label: "Grande Section", sortOrder: 3, availablePlaces: 18 },
@@ -46,7 +47,14 @@ const LEVELS = [
   { code: "CE1", label: "CE1", sortOrder: 5, availablePlaces: 22 },
   { code: "CE2", label: "CE2", sortOrder: 6, availablePlaces: 22 },
   { code: "CM1", label: "CM1", sortOrder: 7, availablePlaces: 24 },
-  { code: "CM2", label: "CM2", sortOrder: 8, availablePlaces: 24 }
+  { code: "CM2", label: "CM2", sortOrder: 8, availablePlaces: 24 },
+  { code: "6E", label: "6e", sortOrder: 9, availablePlaces: 0 },
+  { code: "5E", label: "5e", sortOrder: 10, availablePlaces: 0 },
+  { code: "4E", label: "4e", sortOrder: 11, availablePlaces: 0 },
+  { code: "3E", label: "3e", sortOrder: 12, availablePlaces: 0 },
+  { code: "SECONDE", label: "Seconde", sortOrder: 13, availablePlaces: 0 },
+  { code: "PREMIERE", label: "Première", sortOrder: 14, availablePlaces: 0 },
+  { code: "TERMINALE", label: "Terminale", sortOrder: 15, availablePlaces: 0 }
 ];
 
 const ACTIVE_SCHOOL_YEAR = {
