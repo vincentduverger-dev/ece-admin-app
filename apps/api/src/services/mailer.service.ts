@@ -1,14 +1,23 @@
 import nodemailer from "nodemailer";
+import type Mail from "nodemailer/lib/mailer";
 
 import { config } from "../config/env";
 
+export type ApplicationMailAttachment = {
+  filename: string;
+  content: Buffer;
+  contentType?: string;
+};
+
 export type SendApplicationMailInput = {
+  attachments?: ApplicationMailAttachment[];
   to: string;
   subject: string;
   body: string;
 };
 
 type SendMailInput = {
+  attachments?: Mail.Attachment[];
   to: string;
   subject: string;
   text: string;
@@ -47,9 +56,6 @@ const buildEceLogoHtml = (): string => {
 
 const buildInstitutionalSignatureHtml = (): string => {
   return `<div style="border-top:1px solid #E5E7EB;margin:26px 0 0;padding:18px 0 0;">
-          <p style="margin:0 0 12px;color:#6B7280;font-size:14px;line-height:1.65;">
-            Cordialement,
-          </p>
           <p style="margin:0;color:#4B5563;font-size:14px;font-weight:700;line-height:1.55;">
             École ECE Narbonne<br />
             Service Inscriptions
@@ -168,6 +174,7 @@ const buildApplicationMailHtml = (subject: string, body: string): string => {
 };
 
 const sendMail = async ({
+  attachments,
   to,
   subject,
   text,
@@ -187,7 +194,8 @@ const sendMail = async ({
       to,
       subject,
       text: appendTextSignature(text),
-      html
+      html,
+      attachments
     });
   } catch (error) {
     console.error("SMTP email sending failed", getSmtpErrorMetadata(error));
@@ -196,11 +204,13 @@ const sendMail = async ({
 };
 
 export const sendApplicationMail = async ({
+  attachments = [],
   to,
   subject,
   body
 }: SendApplicationMailInput): Promise<void> => {
   await sendMail({
+    attachments,
     to,
     subject,
     text: body,

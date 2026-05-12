@@ -11,6 +11,43 @@ import { badRequest, conflict, notFound } from "../lib/errors";
 import { prisma } from "../prisma/client";
 import { sendApplicationMail } from "../services/mailer.service";
 
+const maxEmailAttachmentsTotalSize = 10 * 1024 * 1024;
+const dangerousAttachmentExtensions = new Set([
+  ".app",
+  ".bat",
+  ".cmd",
+  ".com",
+  ".cpl",
+  ".dll",
+  ".dmg",
+  ".exe",
+  ".gadget",
+  ".hta",
+  ".jar",
+  ".js",
+  ".jse",
+  ".lnk",
+  ".msi",
+  ".msp",
+  ".pif",
+  ".ps1",
+  ".scr",
+  ".sh",
+  ".vbs",
+  ".vbe",
+  ".wsf"
+]);
+const dangerousAttachmentMimeTypes = new Set([
+  "application/javascript",
+  "application/java-archive",
+  "application/vnd.microsoft.portable-executable",
+  "application/x-msdownload",
+  "application/x-msdos-program",
+  "application/x-msi",
+  "application/x-sh",
+  "text/javascript"
+]);
+
 const getQueryParam = (value: unknown): string | undefined => {
   if (typeof value === "string") {
     const trimmedValue = value.trim();
@@ -76,6 +113,50 @@ const isApplicationEmailType = (value: string): value is ApplicationEmailType =>
 
 const isValidEmailAddress = (value: string): boolean => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+};
+
+const getAttachmentExtension = (filename: string): string => {
+  const extensionStartIndex = filename.lastIndexOf(".");
+
+  return extensionStartIndex >= 0
+    ? filename.slice(extensionStartIndex).toLowerCase()
+    : "";
+};
+
+const getEmailAttachmentsFromRequest = (req: Request) => {
+  const files = Array.isArray(req.files)
+    ? req.files
+    : req.file
+      ? [req.file]
+      : [];
+
+  if (files.length === 0) {
+    return [];
+  }
+
+  const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+
+  if (totalSize > maxEmailAttachmentsTotalSize) {
+    throw badRequest("La taille totale des pièces jointes ne doit pas dépasser 10 Mo.");
+  }
+
+  for (const file of files) {
+    const extension = getAttachmentExtension(file.originalname);
+    const mimeType = file.mimetype.toLowerCase();
+
+    if (
+      dangerousAttachmentExtensions.has(extension) ||
+      dangerousAttachmentMimeTypes.has(mimeType)
+    ) {
+      throw badRequest(`Le fichier ${file.originalname} n'est pas autorisé.`);
+    }
+  }
+
+  return files.map((file) => ({
+    filename: file.originalname,
+    content: file.buffer,
+    contentType: file.mimetype
+  }));
 };
 
 const requiredStatusByEmailType: Partial<
@@ -813,6 +894,7 @@ export const sendApplicationEmail = async (req: Request, res: Response): Promise
   const body = getQueryParam(req.body?.body);
   const payloadRecipientEmail = getQueryParam(req.body?.recipientEmail);
   const shouldSyncDecisionAt = getBooleanPayloadParam(req.body?.syncDecisionAt);
+  const attachments = getEmailAttachmentsFromRequest(req);
 
   if (!emailType || !isApplicationEmailType(emailType)) {
     throw badRequest("Invalid email type");
@@ -863,6 +945,7 @@ export const sendApplicationEmail = async (req: Request, res: Response): Promise
 
   try {
     await sendApplicationMail({
+      attachments,
       to: recipientEmail,
       subject,
       body

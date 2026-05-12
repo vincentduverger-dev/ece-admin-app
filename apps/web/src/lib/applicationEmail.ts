@@ -70,7 +70,7 @@ export const applicationEmailTemplates: Record<
     body: "Votre demande est actuellement placée en liste d'attente, dans l'attente d'une place disponible."
   },
   PARTIAL_DECISION: {
-    subject: "ECE - décision partielle concernant votre demande d'inscription",
+    subject: "ECE - décision concernant votre demande d'inscription",
     body: "Nous vous informons de la décision concernant votre demande d'inscription."
   }
 };
@@ -103,7 +103,7 @@ const formatStudentLine = (
 
 const applicationStatusLabels = {
   ACCEPTED: "Acceptée",
-  PARTIALLY_ACCEPTED: "Décision partielle",
+  PARTIALLY_ACCEPTED: "Décision communiquée",
   WAITLISTED: "Liste d'attente",
   REFUSED: "Liste d'attente",
   IN_REVIEW: "En revue",

@@ -425,6 +425,12 @@ const StudentDetailPage = () => {
                   {family.contactPhone || "Téléphone non renseigné"}
                 </dd>
               </div>
+              <div>
+                <dt className="font-semibold text-slate-500">Adresse</dt>
+                <dd className="mt-1 whitespace-pre-line text-slate-900">
+                  {family.postalAddress || "Adresse non renseignée"}
+                </dd>
+              </div>
             </dl>
           </article>
 

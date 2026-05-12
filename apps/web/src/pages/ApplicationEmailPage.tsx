@@ -2,8 +2,11 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
+  type ChangeEvent,
   type CSSProperties,
+  type DragEvent,
   type FormEvent,
   type ReactNode
 } from "react";
@@ -72,6 +75,43 @@ const dateTimeFormatter = new Intl.DateTimeFormat("fr-FR", {
   dateStyle: "medium",
   timeStyle: "short"
 });
+const maxAttachmentTotalSize = 10 * 1024 * 1024;
+const maxAttachmentCount = 8;
+const dangerousAttachmentExtensions = new Set([
+  ".app",
+  ".bat",
+  ".cmd",
+  ".com",
+  ".cpl",
+  ".dll",
+  ".dmg",
+  ".exe",
+  ".gadget",
+  ".hta",
+  ".jar",
+  ".js",
+  ".jse",
+  ".lnk",
+  ".msi",
+  ".msp",
+  ".pif",
+  ".ps1",
+  ".scr",
+  ".sh",
+  ".vbs",
+  ".vbe",
+  ".wsf"
+]);
+const dangerousAttachmentMimeTypes = new Set([
+  "application/javascript",
+  "application/java-archive",
+  "application/vnd.microsoft.portable-executable",
+  "application/x-msdownload",
+  "application/x-msdos-program",
+  "application/x-msi",
+  "application/x-sh",
+  "text/javascript"
+]);
 
 const studentAdmissionStatusLabels: Record<StudentAdmissionStatus, string> = {
   PENDING: "En attente",
@@ -115,6 +155,40 @@ const formatOptionalDateTime = (value: string | null | undefined): string => {
   }
 
   return dateTimeFormatter.format(new Date(value));
+};
+
+const formatFileSize = (size: number): string => {
+  if (size < 1024) {
+    return `${size} o`;
+  }
+
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} Ko`;
+  }
+
+  return `${(size / (1024 * 1024)).toFixed(1)} Mo`;
+};
+
+const getAttachmentExtension = (filename: string): string => {
+  const extensionStartIndex = filename.lastIndexOf(".");
+
+  return extensionStartIndex >= 0
+    ? filename.slice(extensionStartIndex).toLowerCase()
+    : "";
+};
+
+const getAttachmentKindLabel = (file: File): string => {
+  if (file.type.startsWith("image/")) {
+    return "Image";
+  }
+
+  if (file.type === "application/pdf") {
+    return "PDF";
+  }
+
+  const extension = getAttachmentExtension(file.name);
+
+  return extension ? extension.slice(1).toUpperCase() : "Fichier";
 };
 
 const formatParentName = (
@@ -248,6 +322,61 @@ const EditIcon = ({ className = "h-4 w-4" }: IconProps) => {
   );
 };
 
+const AttachmentIcon = ({ className = "h-4 w-4" }: IconProps) => {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.55"
+      className={className}
+    >
+      <path d="M6.4 8.55 9.95 5a2.2 2.2 0 0 1 3.1 3.1l-4.6 4.6a3.2 3.2 0 0 1-4.53-4.52l4.7-4.7a1.45 1.45 0 0 1 2.05 2.05L6.15 10.05" />
+    </svg>
+  );
+};
+
+const FileIcon = ({ className = "h-4 w-4" }: IconProps) => {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.55"
+      className={className}
+    >
+      <path d="M4 1.75h5.1L12.5 5.2v9.05H4z" />
+      <path d="M9 1.9V5.3h3.35" />
+      <path d="M5.9 8.35h4.2" />
+      <path d="M5.9 10.75h3.2" />
+    </svg>
+  );
+};
+
+const RemoveIcon = ({ className = "h-4 w-4" }: IconProps) => {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.7"
+      className={className}
+    >
+      <path d="M4 4l8 8" />
+      <path d="M12 4l-8 8" />
+    </svg>
+  );
+};
+
 const DetailField = ({ label, children }: DetailFieldProps) => {
   return (
     <div className="rounded-2xl border border-slate-200/90 bg-white/80 p-4 shadow-[0_10px_24px_-24px_rgba(15,23,42,0.18)]">
@@ -294,6 +423,7 @@ const ApplicationEmailPage = () => {
   const { id: applicationId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { showError, showSuccess } = useToast();
+  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
   const [application, setApplication] = useState<ApplicationDetail | null>(null);
   const [emailLogs, setEmailLogs] = useState<ApplicationEmailLog[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -315,6 +445,9 @@ const ApplicationEmailPage = () => {
   const [contactEmailDraft, setContactEmailDraft] = useState("");
   const [contactEmailError, setContactEmailError] = useState<string | null>(null);
   const [isUpdatingContactEmail, setIsUpdatingContactEmail] = useState(false);
+  const [selectedAttachments, setSelectedAttachments] = useState<File[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [isAttachmentDragActive, setIsAttachmentDragActive] = useState(false);
 
   const resetEmailForm = useCallback((
     nextApplication?: ApplicationDetail,
@@ -480,6 +613,7 @@ const ApplicationEmailPage = () => {
         Boolean(getLatestSentDecisionEmailLog(emailLogs));
 
       return {
+        attachments: selectedAttachments,
         emailType: selectedEmailType,
         subject: normalizedSubject,
         body: normalizedBody,
@@ -490,6 +624,7 @@ const ApplicationEmailPage = () => {
       emailBody,
       emailLogs,
       emailSubject,
+      selectedAttachments,
       selectedEmailType,
       showError
     ]);
@@ -515,6 +650,8 @@ const ApplicationEmailPage = () => {
         resetEmailForm(application, refreshedEmailLogs);
         setIsSendConfirmationOpen(false);
         setHasEmailSendSuccess(true);
+        setSelectedAttachments([]);
+        setAttachmentError(null);
         showSuccess("L'email a été envoyé et enregistré dans l'historique.");
         navigate(`/applications/${application.id}`, { replace: true });
       } catch (sendError) {
@@ -580,6 +717,87 @@ const ApplicationEmailPage = () => {
     []
   );
 
+  const addAttachments = useCallback((files: File[]): void => {
+    if (files.length === 0) {
+      return;
+    }
+
+    setSelectedAttachments((currentAttachments) => {
+      const attachmentBySignature = new Map(
+        currentAttachments.map((file) => [
+          `${file.name}-${file.size}-${file.lastModified}`,
+          file
+        ])
+      );
+
+      for (const file of files) {
+        const extension = getAttachmentExtension(file.name);
+        const mimeType = file.type.toLowerCase();
+
+        if (
+          dangerousAttachmentExtensions.has(extension) ||
+          dangerousAttachmentMimeTypes.has(mimeType)
+        ) {
+          setAttachmentError(`Le fichier ${file.name} n'est pas autorisé.`);
+          return currentAttachments;
+        }
+
+        attachmentBySignature.set(
+          `${file.name}-${file.size}-${file.lastModified}`,
+          file
+        );
+      }
+
+      const nextAttachments = Array.from(attachmentBySignature.values());
+
+      if (nextAttachments.length > maxAttachmentCount) {
+        setAttachmentError(
+          `Vous pouvez ajouter ${maxAttachmentCount} pièces jointes au maximum.`
+        );
+        return currentAttachments;
+      }
+
+      const totalSize = nextAttachments.reduce((sum, file) => sum + file.size, 0);
+
+      if (totalSize > maxAttachmentTotalSize) {
+        setAttachmentError("La taille totale des pièces jointes ne doit pas dépasser 10 Mo.");
+        return currentAttachments;
+      }
+
+      setAttachmentError(null);
+      return nextAttachments;
+    });
+  }, []);
+
+  const handleAttachmentInputChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>): void => {
+      addAttachments(Array.from(event.target.files ?? []));
+      event.target.value = "";
+    },
+    [addAttachments]
+  );
+
+  const handleAttachmentDrop = useCallback(
+    (event: DragEvent<HTMLDivElement>): void => {
+      event.preventDefault();
+      setIsAttachmentDragActive(false);
+
+      if (isEmailSubmitting) {
+        return;
+      }
+
+      addAttachments(Array.from(event.dataTransfer.files));
+    },
+    [addAttachments, isEmailSubmitting]
+  );
+
+  const handleRemoveAttachment = useCallback((attachmentIndex: number): void => {
+    setSelectedAttachments((currentAttachments) =>
+      currentAttachments.filter((_, index) => index !== attachmentIndex)
+    );
+    setAttachmentError(null);
+  }, []);
+
   useEffect(() => {
     setIsSendConfirmationOpen(false);
   }, [selectedEmailType, emailSubject, emailBody]);
@@ -588,6 +806,9 @@ const ApplicationEmailPage = () => {
     setIsContactEmailModalOpen(false);
     setContactEmailDraft("");
     setContactEmailError(null);
+    setSelectedAttachments([]);
+    setAttachmentError(null);
+    setIsAttachmentDragActive(false);
   }, [application?.id]);
 
   const handleOpenContactEmailModal = useCallback((): void => {
@@ -815,6 +1036,107 @@ const ApplicationEmailPage = () => {
                   <EditIcon />
                 </button>
               </div>
+            </div>
+
+            <div
+              className={`rounded-[26px] border border-dashed p-4 transition ${
+                isAttachmentDragActive
+                  ? "border-secondary/60 bg-secondary/10"
+                  : "border-slate-200 bg-white/80"
+              }`}
+              onDragEnter={(event) => {
+                event.preventDefault();
+                if (!isEmailSubmitting) {
+                  setIsAttachmentDragActive(true);
+                }
+              }}
+              onDragOver={(event) => {
+                event.preventDefault();
+              }}
+              onDragLeave={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                  setIsAttachmentDragActive(false);
+                }
+              }}
+              onDrop={handleAttachmentDrop}
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Pièces jointes
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    Déposez les fichiers ici ou ajoutez-les depuis votre ordinateur.
+                  </p>
+                </div>
+                <input
+                  ref={attachmentInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={handleAttachmentInputChange}
+                  disabled={isEmailSubmitting}
+                />
+                <button
+                  type="button"
+                  onClick={() => attachmentInputRef.current?.click()}
+                  disabled={isEmailSubmitting}
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-4 py-2.5 text-sm font-semibold text-primary transition hover:border-secondary/40 hover:bg-secondary/10 hover:text-secondaryDark disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <AttachmentIcon />
+                  <span>Ajouter une pièce jointe</span>
+                </button>
+              </div>
+
+              {selectedAttachments.length > 0 ? (
+                <div className="mt-4 space-y-2">
+                  {selectedAttachments.map((attachment, attachmentIndex) => (
+                    <div
+                      key={`${attachment.name}-${attachment.size}-${attachment.lastModified}-${attachmentIndex}`}
+                      className="flex items-center gap-3 rounded-[18px] border border-slate-200 bg-slate-50 px-3 py-2.5"
+                    >
+                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-primary ring-1 ring-slate-200">
+                        <FileIcon />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-slate-900">
+                          {attachment.name}
+                        </p>
+                        <p className="mt-0.5 text-xs font-medium text-slate-500">
+                          {getAttachmentKindLabel(attachment)} · {formatFileSize(attachment.size)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveAttachment(attachmentIndex)}
+                        disabled={isEmailSubmitting}
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-danger/30 hover:bg-danger/10 hover:text-danger disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label={`Retirer ${attachment.name}`}
+                        title="Retirer la pièce jointe"
+                      >
+                        <RemoveIcon />
+                      </button>
+                    </div>
+                  ))}
+                  <p className="text-xs font-medium text-slate-500">
+                    Total :{" "}
+                    {formatFileSize(
+                      selectedAttachments.reduce((sum, file) => sum + file.size, 0)
+                    )}{" "}
+                    / 10 Mo
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-3 text-xs font-medium text-slate-500">
+                  Aucun fichier sélectionné. Maximum 10 Mo au total.
+                </p>
+              )}
+
+              {attachmentError ? (
+                <p className="mt-3 rounded-[18px] border border-danger/20 bg-danger/10 px-4 py-3 text-sm font-medium text-danger">
+                  {attachmentError}
+                </p>
+              ) : null}
             </div>
 
             {decisionEmailContext.warnings.length > 0 ? (
@@ -1161,6 +1483,22 @@ const ApplicationEmailPage = () => {
                   <span className="font-semibold text-slate-900">
                     {applicationEmailTypeLabels[selectedEmailType]}
                   </span>
+                </p>
+              </div>
+            ) : null}
+
+            {selectedAttachments.length > 0 ? (
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">
+                <p className="font-semibold text-slate-900">
+                  {selectedAttachments.length > 1
+                    ? `${selectedAttachments.length} pièces jointes seront envoyées.`
+                    : "1 pièce jointe sera envoyée."}
+                </p>
+                <p className="mt-1 text-xs font-medium text-slate-500">
+                  Total :{" "}
+                  {formatFileSize(
+                    selectedAttachments.reduce((sum, file) => sum + file.size, 0)
+                  )}
                 </p>
               </div>
             ) : null}
