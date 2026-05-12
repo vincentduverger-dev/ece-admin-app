@@ -1,0 +1,395 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+  color: #172033;
+  background:
+    radial-gradient(circle at top left, rgba(212, 162, 76, 0.12), transparent 28%),
+    radial-gradient(circle at top right, rgba(31, 77, 58, 0.12), transparent 32%),
+    repeating-linear-gradient(
+      0deg,
+      rgba(31, 77, 58, 0.026) 0,
+      rgba(31, 77, 58, 0.026) 1px,
+      transparent 1px,
+      transparent 15px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(31, 77, 58, 0.02) 0,
+      rgba(31, 77, 58, 0.02) 1px,
+      transparent 1px,
+      transparent 17px
+    ),
+    #f8f6f2;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: inherit;
+  color: inherit;
+}
+
+.app-background-texture {
+  background-color: #f8f6f2;
+  background-image:
+    radial-gradient(circle at top left, rgba(212, 162, 76, 0.12), transparent 28%),
+    radial-gradient(circle at top right, rgba(31, 77, 58, 0.12), transparent 32%),
+    radial-gradient(circle at 50% 78%, rgba(212, 162, 76, 0.07), transparent 26%),
+    repeating-linear-gradient(
+      0deg,
+      rgba(31, 77, 58, 0.028) 0,
+      rgba(31, 77, 58, 0.028) 1px,
+      transparent 1px,
+      transparent 15px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(31, 77, 58, 0.022) 0,
+      rgba(31, 77, 58, 0.022) 1px,
+      transparent 1px,
+      transparent 17px
+    ),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(248, 246, 242, 0.94));
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+@keyframes ui-surface-enter {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, var(--ui-enter-distance, 22px), 0)
+      scale(var(--ui-enter-scale, 0.985));
+    filter: blur(12px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes school-login-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-7px);
+  }
+}
+
+@keyframes school-login-draw {
+  0% {
+    stroke-dashoffset: 1;
+    opacity: 0;
+  }
+
+  20% {
+    opacity: 1;
+  }
+
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+@keyframes school-login-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+
+  70% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes mail-send-plane {
+  0%,
+  12% {
+    opacity: 0;
+    transform: translate3d(-70px, 18px, 0) rotate(-8deg) scale(0.86);
+  }
+
+  24% {
+    opacity: 1;
+  }
+
+  62% {
+    opacity: 1;
+    transform: translate3d(8px, -4px, 0) rotate(4deg) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(92px, -24px, 0) rotate(8deg) scale(0.92);
+  }
+}
+
+@keyframes mail-send-trail {
+  0% {
+    stroke-dashoffset: 1;
+    opacity: 0;
+  }
+
+  22% {
+    opacity: 0.85;
+  }
+
+  72% {
+    stroke-dashoffset: 0;
+    opacity: 0.55;
+  }
+
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+
+@keyframes mail-send-envelope {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  45% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes mail-send-dot {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.75);
+  }
+
+  45% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+}
+
+.mail-send-animation__trail {
+  stroke: rgba(212, 162, 76, 0.52);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: mail-send-trail 3.8s ease-in-out infinite;
+}
+
+.mail-send-animation__plane {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: mail-send-plane 3.8s ease-in-out infinite;
+}
+
+.mail-send-animation__envelope {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: mail-send-envelope 3.8s ease-in-out infinite;
+}
+
+.mail-send-animation__dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: mail-send-dot 3.8s ease-in-out infinite;
+}
+
+.mail-send-animation__dot:nth-of-type(2) {
+  animation-delay: 0.35s;
+}
+
+.mail-send-animation__dot:nth-of-type(3) {
+  animation-delay: 0.7s;
+}
+
+.ui-animate-in {
+  opacity: 0;
+  transform: translate3d(0, var(--ui-enter-distance, 22px), 0)
+    scale(var(--ui-enter-scale, 0.985));
+  animation: ui-surface-enter 720ms cubic-bezier(0.22, 1, 0.36, 1)
+    var(--ui-enter-delay, 0ms) forwards;
+  will-change: transform, opacity, filter;
+}
+
+.ui-animate-in--subtle {
+  --ui-enter-distance: 14px;
+  --ui-enter-scale: 0.992;
+}
+
+.ui-surface-hover {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  --ui-hover-border-color: rgba(212, 162, 76, 0.9);
+  transition:
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 260ms ease,
+    background-color 260ms ease,
+    filter 260ms ease;
+  will-change: transform, box-shadow;
+}
+
+.ui-surface-hover::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 0 rgba(212, 162, 76, 0);
+  transition:
+    box-shadow 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 260ms ease;
+  opacity: 0.92;
+}
+
+.ui-surface-hover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.3),
+      rgba(255, 255, 255, 0) 38%,
+      rgba(255, 255, 255, 0.16) 68%,
+      rgba(255, 255, 255, 0) 100%
+    );
+  opacity: 0;
+  transform: scale(0.985);
+  transition:
+    opacity 260ms ease,
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ui-surface-hover__icon,
+.ui-surface-hover__bar,
+.ui-surface-hover__chip {
+  transition:
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.ui-surface-hover--no-accent {
+  --ui-hover-border-color: transparent;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ui-surface-hover:hover {
+    transform: translateY(-6px) scale(1.008);
+    box-shadow: 0 26px 46px -32px rgba(15, 23, 42, 0.24);
+    filter: saturate(1.02);
+  }
+
+  .ui-surface-hover:hover::before {
+    box-shadow: inset 0 0 0 1.5px var(--ui-hover-border-color);
+  }
+
+  .ui-surface-hover:hover::after {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .ui-surface-hover--soft:hover {
+    transform: translateY(-3px) scale(1.004);
+    box-shadow: 0 18px 32px -28px rgba(15, 23, 42, 0.18);
+  }
+
+  .ui-surface-hover:hover .ui-surface-hover__icon {
+    transform: translateY(-2px) scale(1.08);
+  }
+
+  .ui-surface-hover:hover .ui-surface-hover__bar {
+    transform: scaleY(1.08);
+    box-shadow: 0 12px 24px -14px rgba(15, 23, 42, 0.48);
+  }
+
+  .ui-surface-hover:hover .ui-surface-hover__chip {
+    transform: translateX(2px);
+  }
+}
+
+.school-login-illustration__float {
+  animation: school-login-float 5.5s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.school-login-illustration__line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: school-login-draw 1.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.school-login-illustration__check,
+.school-login-illustration__spark {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: school-login-pop 520ms cubic-bezier(0.22, 1, 0.36, 1) 520ms forwards;
+}
+
+.school-login-illustration__check--late,
+.school-login-illustration__spark--late {
+  animation-delay: 760ms;
+}
+
+.success-feedback__check {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: school-login-draw 700ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-animate-in,
+  .ui-surface-hover,
+  .ui-surface-hover::before,
+  .ui-surface-hover::after,
+  .ui-surface-hover__icon,
+  .ui-surface-hover__bar,
+  .ui-surface-hover__chip,
+  .school-login-illustration__float,
+  .school-login-illustration__line,
+  .school-login-illustration__check,
+  .school-login-illustration__spark,
+  .success-feedback__check {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    filter: none;
+    transition: none;
+    stroke-dashoffset: 0;
+  }
+}

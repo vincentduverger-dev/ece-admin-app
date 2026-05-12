@@ -1,0 +1,232 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ApplicationStatus {
+  RECEIVED
+  IN_REVIEW
+  ACCEPTED
+  REFUSED
+  WAITLISTED
+  PARTIALLY_ACCEPTED
+}
+
+enum StudentAdmissionStatus {
+  PENDING
+  ACCEPTED
+  REFUSED
+  WAITLISTED
+}
+
+enum StudentGender {
+  BOY
+  GIRL
+  UNKNOWN
+}
+
+enum EmailType {
+  ACCEPTANCE
+  REFUSAL
+  WAITLIST
+  PARTIAL_DECISION
+  CUSTOM
+}
+
+enum EmailSendStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum CsvImportStatus {
+  SUCCESS
+  FAILED
+}
+
+model SchoolYear {
+  id           String        @id @default(cuid())
+  label        String        @unique
+  startYear    Int
+  endYear      Int
+  isActive     Boolean       @default(false)
+  applications Application[]
+  csvImportLogs CsvImportLog[]
+  levelCapacities LevelCapacity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Family {
+  id                 String  @id @default(cuid())
+  fatherLastName     String?
+  fatherFirstName    String?
+  fatherCity         String?
+  motherLastName     String?
+  motherFirstName    String?
+  motherCity         String?
+  familyStatus       String?
+  contactEmail       String
+  contactPhone       String?
+  postalAddress      String?
+  googleAccountEmail String?
+
+  applications Application[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([contactEmail])
+}
+
+model Application {
+  id                    String            @id @default(cuid())
+  familyId              String
+  schoolYearId          String
+  submittedAt           DateTime
+  declaredChildrenCount Int?
+  discoverySource       String?
+  status                ApplicationStatus @default(IN_REVIEW)
+  isPriority            Boolean           @default(false)
+  decisionAt            DateTime?
+  decisionNote          String?
+  rawCsvRowHash         String?           @unique
+
+  family     Family                @relation(fields: [familyId], references: [id], onDelete: Restrict)
+  schoolYear SchoolYear            @relation(fields: [schoolYearId], references: [id], onDelete: Restrict)
+  students   Student[]
+  emailLogs  ApplicationEmailLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([familyId])
+  @@index([schoolYearId])
+  @@index([status])
+  @@index([isPriority])
+}
+
+model Student {
+  id              String                 @id @default(cuid())
+  applicationId   String
+  levelId         String
+  lastName        String
+  firstName       String
+  gender          StudentGender          @default(UNKNOWN)
+  birthDate       DateTime
+  rankInForm      Int?
+  admissionStatus StudentAdmissionStatus @default(PENDING)
+  isPriority      Boolean                @default(false)
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  level       Level       @relation(fields: [levelId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([applicationId])
+  @@index([levelId])
+  @@index([isPriority])
+}
+
+model Level {
+  id              String @id @default(cuid())
+  code            String @unique
+  label           String
+  sortOrder       Int    @default(0)
+  availablePlaces Int    @default(0)
+
+  students Student[]
+  capacities LevelCapacity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sortOrder])
+}
+
+model LevelCapacity {
+  id              String @id @default(cuid())
+  schoolYearId    String
+  levelId         String
+  availablePlaces Int    @default(0)
+
+  schoolYear SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  level      Level      @relation(fields: [levelId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolYearId, levelId])
+  @@index([schoolYearId])
+  @@index([levelId])
+}
+
+model ApplicationEmailLog {
+  id             String          @id @default(cuid())
+  applicationId  String
+  emailType      EmailType
+  recipientEmail String
+  subject        String
+  bodySnapshot   String
+  sentAt         DateTime?
+  sendStatus     EmailSendStatus @default(PENDING)
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([applicationId])
+  @@index([sendStatus])
+}
+
+model CsvImportLog {
+  id                   String          @id @default(cuid())
+  schoolYearId         String?
+  fileName             String?
+  importedFamilies     Int             @default(0)
+  importedApplications Int             @default(0)
+  importedStudents     Int             @default(0)
+  skippedRows          Int             @default(0)
+  duplicateRows        Int             @default(0)
+  duplicateFamilies    Int             @default(0)
+  invalidRows          Int             @default(0)
+  totalRows            Int             @default(0)
+  status               CsvImportStatus @default(SUCCESS)
+  errorMessage         String?
+  createdAt            DateTime        @default(now())
+
+  schoolYear SchoolYear? @relation(fields: [schoolYearId], references: [id], onDelete: SetNull)
+
+  @@index([schoolYearId])
+  @@index([createdAt])
+  @@index([status])
+}
+
+model AdminAccount {
+  id           String               @id @default(cuid())
+  email        String               @unique
+  passwordHash String
+  resetTokens  PasswordResetToken[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PasswordResetToken {
+  id             String    @id @default(cuid())
+  adminAccountId String
+  tokenHash      String    @unique
+  expiresAt      DateTime
+  usedAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  adminAccount AdminAccount @relation(fields: [adminAccountId], references: [id], onDelete: Cascade)
+
+  @@index([adminAccountId])
+  @@index([expiresAt])
+}
