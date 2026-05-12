@@ -16,10 +16,12 @@ import {
   createSchoolYear,
   getActiveSchoolYear,
   getCsvImportHistory,
+  getSchoolYearLevelCapacities,
   previewCsvImport,
+  updateSchoolYearLevelCapacities,
   uploadCsvImport
 } from "../lib/api";
-import type { SchoolYearSummary } from "../types/application";
+import type { LevelCapacitySummary, SchoolYearSummary } from "../types/application";
 import type { CsvImportHistoryItem, CsvImportPreview, CsvImportSummary } from "../types/import";
 
 type IconProps = {
@@ -154,6 +156,23 @@ const getImportHistoryErrorMessage = (error: unknown): string => {
   }
 
   return `Impossible de charger l'historique des imports. ${error.message}`;
+};
+
+const getLevelCapacitiesErrorMessage = (error: unknown): string => {
+  if (!(error instanceof Error) || error.message.trim().length === 0) {
+    return "Impossible de charger les places disponibles.";
+  }
+
+  switch (error.message) {
+    case "School year not found":
+      return "La campagne sélectionnée est introuvable.";
+    case "Invalid available places value":
+      return "Les places disponibles doivent être des nombres entiers positifs ou nuls.";
+    case "Unknown level in capacities":
+      return "Un niveau sélectionné est introuvable.";
+    default:
+      return error.message;
+  }
 };
 
 const getImportErrorMessage = (error: unknown): string => {
@@ -536,6 +555,11 @@ const ImportCsvPage = () => {
   const [lastImportSummary, setLastImportSummary] = useState<CsvImportSummary | null>(null);
   const [pendingImportPreview, setPendingImportPreview] = useState<CsvImportPreview | null>(null);
   const [isComplementaryConfirmationOpen, setIsComplementaryConfirmationOpen] = useState(false);
+  const [levelCapacities, setLevelCapacities] = useState<LevelCapacitySummary[]>([]);
+  const [capacityDraft, setCapacityDraft] = useState<Record<string, string>>({});
+  const [capacityError, setCapacityError] = useState<string | null>(null);
+  const [isLoadingCapacities, setIsLoadingCapacities] = useState(false);
+  const [isSavingCapacities, setIsSavingCapacities] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -572,6 +596,60 @@ const ImportCsvPage = () => {
       controller.abort();
     };
   }, []);
+
+  useEffect(() => {
+    if (!activeSchoolYear) {
+      setLevelCapacities([]);
+      setCapacityDraft({});
+      setCapacityError(null);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    const loadLevelCapacities = async (): Promise<void> => {
+      setIsLoadingCapacities(true);
+      setCapacityError(null);
+
+      try {
+        const capacities = await getSchoolYearLevelCapacities(activeSchoolYear.id, {
+          signal: controller.signal
+        });
+
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setLevelCapacities(capacities);
+        setCapacityDraft(
+          Object.fromEntries(
+            capacities.map((capacity) => [
+              capacity.levelId,
+              String(capacity.availablePlaces)
+            ])
+          )
+        );
+      } catch (loadError) {
+        if (isAbortError(loadError) || controller.signal.aborted) {
+          return;
+        }
+
+        setLevelCapacities([]);
+        setCapacityDraft({});
+        setCapacityError(getLevelCapacitiesErrorMessage(loadError));
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoadingCapacities(false);
+        }
+      }
+    };
+
+    void loadLevelCapacities();
+
+    return () => {
+      controller.abort();
+    };
+  }, [activeSchoolYear]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -641,6 +719,17 @@ const ImportCsvPage = () => {
     isCreatingSchoolYear ||
     isSubmitting ||
     activeSchoolYear === null;
+  const configuredCapacityCount = levelCapacities.filter(
+    (capacity) => capacity.availablePlaces > 0
+  ).length;
+  const missingCapacityCount = Math.max(levelCapacities.length - configuredCapacityCount, 0);
+  const capacityStepStatus = !activeSchoolYear
+    ? "À faire"
+    : isLoadingCapacities
+      ? "En cours"
+      : configuredCapacityCount > 0
+        ? "Terminé"
+        : "À faire";
 
   const openFilePicker = useCallback((): void => {
     if (isUploadLocked) {
@@ -799,6 +888,87 @@ const ImportCsvPage = () => {
       setSchoolYearSetupError(null);
     }
   }, [schoolYearSetupError]);
+
+  const handleCapacityDraftChange = useCallback((
+    levelId: string,
+    value: string
+  ): void => {
+    const normalizedValue = value.replace(/[^\d]/gu, "");
+
+    setCapacityDraft((currentDraft) => ({
+      ...currentDraft,
+      [levelId]: normalizedValue
+    }));
+    setCapacityError(null);
+  }, []);
+
+  const handleCapacitySubmit = async (
+    event: React.FormEvent<HTMLFormElement>
+  ): Promise<void> => {
+    event.preventDefault();
+
+    if (!activeSchoolYear) {
+      const message = "Créez ou activez une campagne avant de renseigner les places.";
+
+      setCapacityError(message);
+      showError(message);
+      return;
+    }
+
+    const capacities = levelCapacities.map((capacity) => {
+      const draftValue = capacityDraft[capacity.levelId]?.trim() ?? "";
+      const availablePlaces = draftValue.length === 0
+        ? 0
+        : Number.parseInt(draftValue, 10);
+
+      return {
+        levelId: capacity.levelId,
+        availablePlaces
+      };
+    });
+    const invalidCapacity = capacities.find(
+      (capacity) =>
+        !Number.isInteger(capacity.availablePlaces) ||
+        capacity.availablePlaces < 0
+    );
+
+    if (invalidCapacity) {
+      const message = "Les places disponibles doivent être des nombres entiers positifs ou nuls.";
+
+      setCapacityError(message);
+      showError(message);
+      return;
+    }
+
+    setIsSavingCapacities(true);
+    setCapacityError(null);
+
+    try {
+      const savedCapacities = await updateSchoolYearLevelCapacities(activeSchoolYear.id, {
+        capacities
+      });
+
+      setLevelCapacities(savedCapacities);
+      setCapacityDraft(
+        Object.fromEntries(
+          savedCapacities.map((capacity) => [
+            capacity.levelId,
+            String(capacity.availablePlaces)
+          ])
+        )
+      );
+      showSuccess(
+        `Places disponibles enregistrées pour la campagne ${formatSchoolYearLabel(activeSchoolYear.label)}.`
+      );
+    } catch (saveError) {
+      const message = getLevelCapacitiesErrorMessage(saveError);
+
+      setCapacityError(message);
+      showError(message);
+    } finally {
+      setIsSavingCapacities(false);
+    }
+  };
 
   const handleSchoolYearSetupSubmit = async (
     event: React.FormEvent<HTMLFormElement>
@@ -979,6 +1149,53 @@ const ImportCsvPage = () => {
           <li>Chaque import génère un résumé des demandes importées.</li>
         </ul>
 
+        <section className="mt-5 grid gap-3 lg:grid-cols-3">
+          {[
+            {
+              label: "1. Campagne",
+              status: activeSchoolYear ? "Terminé" : "À faire",
+              description: activeSchoolYear
+                ? `Année active ${activeSchoolYearLabel}`
+                : "Créer ou activer une année scolaire."
+            },
+            {
+              label: "2. Places disponibles",
+              status: capacityStepStatus,
+              description: configuredCapacityCount > 0
+                ? `${configuredCapacityCount} niveau${configuredCapacityCount > 1 ? "x" : ""} renseigné${configuredCapacityCount > 1 ? "s" : ""}`
+                : "Renseigner les capacités d'accueil."
+            },
+            {
+              label: "3. Import CSV",
+              status: selectedFile || hasCompletedImportForActiveSchoolYear ? "En cours" : "À faire",
+              description: hasCompletedImportForActiveSchoolYear
+                ? "Ajouter des demandes complémentaires."
+                : "Importer les demandes de la campagne."
+            }
+          ].map((step) => (
+            <article
+              key={step.label}
+              className="rounded-[22px] border border-[#ebdfd2] bg-white/80 px-4 py-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{step.label}</p>
+                  <p className="mt-1 text-sm leading-5 text-slate-600">{step.description}</p>
+                </div>
+                <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
+                  step.status === "Terminé"
+                    ? "bg-primary/10 text-primaryDark"
+                    : step.status === "En cours"
+                      ? "bg-secondary/15 text-secondaryDark"
+                      : "bg-slate-100 text-slate-500"
+                }`}>
+                  {step.status}
+                </span>
+              </div>
+            </article>
+          ))}
+        </section>
+
         {canManageSchoolYear ? (
           <section
             className="ui-animate-in mt-5 overflow-hidden rounded-[32px] border border-primary/20 bg-[#fffdf8] shadow-[0_30px_66px_-44px_rgba(31,77,58,0.42)]"
@@ -1066,6 +1283,93 @@ const ImportCsvPage = () => {
           <p className="mt-5 rounded-[22px] border border-danger/15 bg-danger/5 px-4 py-3 text-sm text-danger">
             {activeSchoolYearError}
           </p>
+        ) : null}
+
+        {activeSchoolYear ? (
+          <section
+            className="ui-animate-in mt-5 rounded-[28px] border border-[#ebdfd2] bg-white/82 px-5 py-5 sm:px-6"
+            style={getEnterStyle(280)}
+          >
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primaryLight">
+                  Places disponibles
+                </p>
+                <h2 className="mt-2 font-serif text-[1.8rem] text-slate-900">
+                  Définir les places disponibles
+                </h2>
+                <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">
+                  Renseignez les capacités d&apos;accueil pour cette campagne avant
+                  d&apos;importer les demandes. Ces places sont propres à l&apos;année
+                  scolaire {activeSchoolYearLabel}.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3 text-sm text-primaryDark">
+                {configuredCapacityCount > 0
+                  ? `${configuredCapacityCount} niveau${configuredCapacityCount > 1 ? "x" : ""} configuré${configuredCapacityCount > 1 ? "s" : ""}`
+                  : "Aucune place renseignée"}
+              </div>
+            </div>
+
+            {isLoadingCapacities ? (
+              <div className="mt-5 flex justify-center rounded-2xl border border-dashed border-[#eadfcf] px-4 py-8">
+                <AppLoader label="Chargement des niveaux..." size="sm" />
+              </div>
+            ) : (
+              <form className="mt-5" onSubmit={(event) => void handleCapacitySubmit(event)}>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  {levelCapacities.map((capacity) => (
+                    <label
+                      key={capacity.levelId}
+                      className="rounded-2xl border border-[#eee3d7] bg-[#fffdf8] px-4 py-3"
+                    >
+                      <span className="flex items-center justify-between gap-3">
+                        <span>
+                          <span className="block text-sm font-semibold text-slate-900">
+                            {capacity.level.label}
+                          </span>
+                          <span className="mt-0.5 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                            {capacity.level.code}
+                          </span>
+                        </span>
+                      </span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        inputMode="numeric"
+                        value={capacityDraft[capacity.levelId] ?? ""}
+                        onChange={(event) => handleCapacityDraftChange(capacity.levelId, event.target.value)}
+                        disabled={isSavingCapacities || isSubmitting}
+                        className="mt-3 h-11 w-full rounded-xl border border-[#dfd1c0] bg-white px-3 text-base font-semibold text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-slate-100"
+                      />
+                    </label>
+                  ))}
+                </div>
+
+                <div className="mt-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <p className="text-sm leading-6 text-slate-600">
+                    {missingCapacityCount > 0
+                      ? `${missingCapacityCount} niveau${missingCapacityCount > 1 ? "x" : ""} sans place renseignée. Vous pourrez les compléter plus tard.`
+                      : "Toutes les capacités affichées sont renseignées pour cette campagne."}
+                  </p>
+                  <button
+                    type="submit"
+                    disabled={isSavingCapacities || isSubmitting || levelCapacities.length === 0}
+                    className="inline-flex items-center justify-center rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primaryDark disabled:cursor-wait disabled:bg-slate-300"
+                  >
+                    {isSavingCapacities ? "Enregistrement..." : "Enregistrer les places"}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {capacityError ? (
+              <p className="mt-4 rounded-2xl border border-danger/15 bg-danger/5 px-4 py-3 text-sm text-danger">
+                {capacityError}
+              </p>
+            ) : null}
+          </section>
         ) : null}
 
         <section className="mt-5 rounded-[24px] border border-primary/15 bg-primary/5 px-4 py-4 sm:px-5">
@@ -1208,6 +1512,13 @@ const ImportCsvPage = () => {
             {inlineMessage ? (
               <p className="mt-4 rounded-2xl border border-danger/15 bg-danger/5 px-4 py-3 text-sm text-danger">
                 {inlineMessage}
+              </p>
+            ) : null}
+
+            {activeSchoolYear && missingCapacityCount > 0 ? (
+              <p className="mt-4 rounded-2xl border border-secondary/25 bg-secondary/10 px-4 py-3 text-sm leading-6 text-slate-700">
+                Aucune place n&apos;a été renseignée pour certains niveaux. Vous
+                pouvez importer le CSV maintenant et compléter ces capacités plus tard.
               </p>
             ) : null}
           </div>

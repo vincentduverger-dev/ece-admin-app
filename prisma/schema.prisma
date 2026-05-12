@@ -55,6 +55,7 @@ model SchoolYear {
   isActive     Boolean       @default(false)
   applications Application[]
   csvImportLogs CsvImportLog[]
+  levelCapacities LevelCapacity[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -119,6 +120,7 @@ model Student {
   birthDate       DateTime
   rankInForm      Int?
   admissionStatus StudentAdmissionStatus @default(PENDING)
+  isPriority      Boolean                @default(false)
 
   application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   level       Level       @relation(fields: [levelId], references: [id], onDelete: Restrict)
@@ -128,6 +130,7 @@ model Student {
 
   @@index([applicationId])
   @@index([levelId])
+  @@index([isPriority])
 }
 
 model Level {
@@ -138,11 +141,29 @@ model Level {
   availablePlaces Int    @default(0)
 
   students Student[]
+  capacities LevelCapacity[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([sortOrder])
+}
+
+model LevelCapacity {
+  id              String @id @default(cuid())
+  schoolYearId    String
+  levelId         String
+  availablePlaces Int    @default(0)
+
+  schoolYear SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  level      Level      @relation(fields: [levelId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolYearId, levelId])
+  @@index([schoolYearId])
+  @@index([levelId])
 }
 
 model ApplicationEmailLog {

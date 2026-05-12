@@ -16,6 +16,24 @@ const schoolYearSelect = {
 
 const SCHOOL_YEAR_LABEL_PATTERN = /^(\d{4})-(\d{4})$/u;
 
+const levelCapacitySelect = {
+  id: true,
+  schoolYearId: true,
+  levelId: true,
+  availablePlaces: true,
+  createdAt: true,
+  updatedAt: true,
+  level: {
+    select: {
+      id: true,
+      code: true,
+      label: true,
+      sortOrder: true,
+      availablePlaces: true
+    }
+  }
+} satisfies Prisma.LevelCapacitySelect;
+
 const getSchoolYearIdFromRequest = (req: Request): string => {
   const schoolYearId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
@@ -64,6 +82,54 @@ const parseSchoolYearPayload = (
   };
 };
 
+const parseLevelCapacityPayload = (
+  payload: unknown
+): Array<{ levelId: string; availablePlaces: number }> => {
+  const body = (payload ?? {}) as {
+    capacities?: unknown;
+  };
+
+  if (!Array.isArray(body.capacities)) {
+    throw badRequest("Level capacities are required");
+  }
+
+  return body.capacities.map((item, index) => {
+    const capacity = item as {
+      levelId?: unknown;
+      availablePlaces?: unknown;
+    };
+
+    if (typeof capacity.levelId !== "string" || capacity.levelId.trim().length === 0) {
+      throw badRequest(`Level capacity ${index + 1} is missing a level id`);
+    }
+
+    if (
+      typeof capacity.availablePlaces !== "number" ||
+      !Number.isInteger(capacity.availablePlaces) ||
+      capacity.availablePlaces < 0
+    ) {
+      throw badRequest("Invalid available places value");
+    }
+
+    return {
+      levelId: capacity.levelId.trim(),
+      availablePlaces: capacity.availablePlaces
+    };
+  });
+};
+
+const mapLevelCapacity = (
+  capacity: Prisma.LevelCapacityGetPayload<{ select: typeof levelCapacitySelect }>
+) => ({
+  id: capacity.id,
+  schoolYearId: capacity.schoolYearId,
+  levelId: capacity.levelId,
+  availablePlaces: capacity.availablePlaces,
+  createdAt: capacity.createdAt,
+  updatedAt: capacity.updatedAt,
+  level: capacity.level
+});
+
 export const getSchoolYears = async (_req: Request, res: Response): Promise<void> => {
   const schoolYears = await prisma.schoolYear.findMany({
     select: schoolYearSelect,
@@ -85,6 +151,128 @@ export const getActiveSchoolYear = async (_req: Request, res: Response): Promise
   }
 
   res.status(200).json(schoolYear);
+};
+
+export const getSchoolYearLevelCapacities = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const schoolYearId = getSchoolYearIdFromRequest(req);
+
+  const schoolYear = await prisma.schoolYear.findUnique({
+    where: { id: schoolYearId },
+    select: { id: true }
+  });
+
+  if (!schoolYear) {
+    throw notFound("School year not found");
+  }
+
+  const [levels, capacities] = await Promise.all([
+    prisma.level.findMany({
+      select: {
+        id: true,
+        code: true,
+        label: true,
+        sortOrder: true,
+        availablePlaces: true
+      },
+      orderBy: { sortOrder: "asc" }
+    }),
+    prisma.levelCapacity.findMany({
+      where: { schoolYearId },
+      select: levelCapacitySelect
+    })
+  ]);
+
+  const capacitiesByLevelId = new Map(capacities.map((capacity) => [capacity.levelId, capacity]));
+
+  res.status(200).json(
+    levels.map((level) => {
+      const capacity = capacitiesByLevelId.get(level.id);
+
+      return capacity
+        ? mapLevelCapacity(capacity)
+        : {
+            id: null,
+            schoolYearId,
+            levelId: level.id,
+            availablePlaces: 0,
+            createdAt: null,
+            updatedAt: null,
+            level: {
+              id: level.id,
+              code: level.code,
+              label: level.label,
+              sortOrder: level.sortOrder,
+              availablePlaces: level.availablePlaces
+            }
+          };
+    })
+  );
+};
+
+export const updateSchoolYearLevelCapacities = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const schoolYearId = getSchoolYearIdFromRequest(req);
+  const capacities = parseLevelCapacityPayload(req.body);
+  const distinctLevelIds = [...new Set(capacities.map((capacity) => capacity.levelId))];
+
+  const updatedCapacities = await prisma.$transaction(async (tx) => {
+    const schoolYear = await tx.schoolYear.findUnique({
+      where: { id: schoolYearId },
+      select: { id: true }
+    });
+
+    if (!schoolYear) {
+      throw notFound("School year not found");
+    }
+
+    const levelCount = await tx.level.count({
+      where: {
+        id: {
+          in: distinctLevelIds
+        }
+      }
+    });
+
+    if (levelCount !== distinctLevelIds.length) {
+      throw badRequest("Unknown level in capacities");
+    }
+
+    for (const capacity of capacities) {
+      await tx.levelCapacity.upsert({
+        where: {
+          schoolYearId_levelId: {
+            schoolYearId,
+            levelId: capacity.levelId
+          }
+        },
+        update: {
+          availablePlaces: capacity.availablePlaces
+        },
+        create: {
+          schoolYearId,
+          levelId: capacity.levelId,
+          availablePlaces: capacity.availablePlaces
+        }
+      });
+    }
+
+    return tx.levelCapacity.findMany({
+      where: { schoolYearId },
+      select: levelCapacitySelect,
+      orderBy: {
+        level: {
+          sortOrder: "asc"
+        }
+      }
+    });
+  });
+
+  res.status(200).json(updatedCapacities.map(mapLevelCapacity));
 };
 
 export const createSchoolYear = async (req: Request, res: Response): Promise<void> => {

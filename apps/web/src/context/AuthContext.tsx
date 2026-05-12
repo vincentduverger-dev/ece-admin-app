@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { loginAdmin } from "../lib/api";
 import type { AuthUser } from "../lib/api";
+import { markPostLoginFilterDefaultsPending } from "../lib/postLoginFilterDefaults";
 
 const AUTH_TOKEN_STORAGE_KEY = "auth_token";
 const AUTH_USER_STORAGE_KEY = "auth_user";
@@ -138,6 +139,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const nextSession = await loginAdmin(email, password);
 
     persistAuthSession(nextSession);
+    markPostLoginFilterDefaultsPending();
     setSession(nextSession);
   };
 

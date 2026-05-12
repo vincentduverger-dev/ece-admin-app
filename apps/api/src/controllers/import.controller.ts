@@ -43,6 +43,7 @@ const ACCEPTED_CSV_MIME_TYPES = new Set([
 ]);
 
 const IMPORT_LEVEL_DEFINITIONS = new Map([
+  ["tps", { code: "TPS", label: "Toute Petite Section", sortOrder: 0, availablePlaces: 0 }],
   ["ps", { code: "PS", label: "Petite Section", sortOrder: 1, availablePlaces: 18 }],
   ["ms", { code: "MS", label: "Moyenne Section", sortOrder: 2, availablePlaces: 18 }],
   ["gs", { code: "GS", label: "Grande Section", sortOrder: 3, availablePlaces: 18 }],
