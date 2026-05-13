@@ -41,7 +41,6 @@ Au demarrage du service `api`, Docker execute automatiquement :
 
 - `npx prisma migrate deploy`
 - `npx prisma generate`
-- `npx prisma db seed` si `RUN_PRISMA_SEED=true`
 - `npm run dev -w apps/api`
 
 Le service `web` lance Vite en mode dev avec HMR.
@@ -116,11 +115,21 @@ Generer le client Prisma :
 docker compose exec api npx prisma generate
 ```
 
-Relancer le seed :
+Initialiser ou relancer le seed socle manuellement :
 
 ```bash
 docker compose exec api npx prisma db seed
 ```
+
+Ce seed manuel cree uniquement l'admin, les niveaux et l'annee scolaire active par defaut. Il ne cree pas de familles, demandes ou eleves fictifs.
+
+Ajouter volontairement les donnees de demonstration en developpement :
+
+```bash
+docker compose exec -e SEED_DEMO_DATA=true api npx prisma db seed
+```
+
+Ne pas utiliser `SEED_DEMO_DATA=true` sur un deploiement reel.
 
 Ouvrir Prisma Studio :
 
