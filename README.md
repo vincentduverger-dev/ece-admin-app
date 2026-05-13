@@ -55,7 +55,7 @@ Le service `web` lance Vite en mode dev avec HMR.
 Identifiants admin par defaut en dev :
 
 ```text
-Email: admin@example.com
+Email: ece.inscriptions@gmail.com
 Password: change-me-now
 ```
 

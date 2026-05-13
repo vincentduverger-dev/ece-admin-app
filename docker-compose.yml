@@ -39,7 +39,7 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       MAIL_FROM: ${MAIL_FROM:-}
       SMTP_FROM: ${SMTP_FROM:-}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-ece.inscriptions@gmail.com}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me-now}
       SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
       SYNC_ADMIN_PASSWORD_ON_SEED: ${SYNC_ADMIN_PASSWORD_ON_SEED:-true}
