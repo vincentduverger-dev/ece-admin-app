@@ -41,7 +41,7 @@ services:
       SMTP_FROM: ${SMTP_FROM:-}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me-now}
-      RUN_PRISMA_SEED: ${RUN_PRISMA_SEED:-true}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
       SYNC_ADMIN_PASSWORD_ON_SEED: ${SYNC_ADMIN_PASSWORD_ON_SEED:-true}
       CHOKIDAR_USEPOLLING: "true"
     ports:
@@ -52,7 +52,6 @@ services:
     command: >
       sh -c "npx prisma migrate deploy
       && npx prisma generate
-      && if [ \"${RUN_PRISMA_SEED:-true}\" = \"true\" ]; then npx prisma db seed; fi
       && npm run dev -w apps/api"
 
   web:

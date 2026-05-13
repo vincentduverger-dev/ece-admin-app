@@ -31,6 +31,8 @@ const createUtcDate = (year, month, day, hour = 9, minute = 0) =>
 
 const normalizeAdminEmail = (email) => email.trim().toLowerCase();
 
+const isEnvTrue = (value) => ["1", "true", "yes", "on"].includes(String(value ?? "").trim().toLowerCase());
+
 const hashPassword = (password) => {
   const salt = randomBytes(16).toString("base64url");
   const derivedKey = scryptSync(password, salt, 64);
@@ -369,20 +371,24 @@ const ensureActiveSchoolYear = async () =>
       where: { label: ACTIVE_SCHOOL_YEAR.label }
     });
 
+    const existingActiveSchoolYear = await tx.schoolYear.findFirst({
+      where: { isActive: true },
+      select: { id: true }
+    });
+
     if (existingSchoolYear) {
       return tx.schoolYear.update({
         where: { id: existingSchoolYear.id },
         data: {
           startYear: ACTIVE_SCHOOL_YEAR.startYear,
-          endYear: ACTIVE_SCHOOL_YEAR.endYear
+          endYear: ACTIVE_SCHOOL_YEAR.endYear,
+          isActive:
+            existingSchoolYear.isActive ||
+            !existingActiveSchoolYear ||
+            existingActiveSchoolYear.id === existingSchoolYear.id
         }
       });
     }
-
-    const existingActiveSchoolYear = await tx.schoolYear.findFirst({
-      where: { isActive: true },
-      select: { id: true }
-    });
 
     return tx.schoolYear.create({
       data: {
@@ -473,7 +479,7 @@ const ensureApplicationBundle = async (levelIdsByCode, schoolYearId, seedRecord)
 const ensureAdminAccount = async () => {
   const email = process.env.ADMIN_EMAIL?.trim();
   const password = process.env.ADMIN_PASSWORD?.trim();
-  const shouldSyncPassword = process.env.SYNC_ADMIN_PASSWORD_ON_SEED === "true";
+  const shouldSyncPassword = isEnvTrue(process.env.SYNC_ADMIN_PASSWORD_ON_SEED);
 
   if (!email || !password) {
     return null;
@@ -495,52 +501,64 @@ const main = async () => {
   const levelIdsByCode = await ensureLevels();
   const schoolYear = await ensureActiveSchoolYear();
   await ensureAdminAccount();
+  const shouldSeedDemoData = isEnvTrue(process.env.SEED_DEMO_DATA);
 
-  for (const seedRecord of APPLICATION_SEEDS) {
-    await ensureApplicationBundle(levelIdsByCode, schoolYear.id, seedRecord);
+  if (shouldSeedDemoData) {
+    for (const seedRecord of APPLICATION_SEEDS) {
+      await ensureApplicationBundle(levelIdsByCode, schoolYear.id, seedRecord);
+    }
   }
 
-  const [levelCount, activeYearCount, familyCount, applicationCount, studentCount, emailLogCount, adminCount] =
-    await Promise.all([
-      prisma.level.count({ where: { code: { in: LEVELS.map((level) => level.code) } } }),
-      prisma.schoolYear.count({ where: { label: ACTIVE_SCHOOL_YEAR.label, isActive: true } }),
-      prisma.family.count({
-        where: {
-          contactEmail: {
-            in: APPLICATION_SEEDS.map((seedRecord) => seedRecord.family.contactEmail)
-          }
+  const [levelCount, activeYearCount, adminCount] = await Promise.all([
+    prisma.level.count({ where: { code: { in: LEVELS.map((level) => level.code) } } }),
+    prisma.schoolYear.count({ where: { label: ACTIVE_SCHOOL_YEAR.label, isActive: true } }),
+    prisma.adminAccount.count()
+  ]);
+
+  if (!shouldSeedDemoData) {
+    console.log(
+      `Seed completed: ${levelCount} levels, ${activeYearCount} active school year, ${adminCount} admin accounts. Demo data skipped.`
+    );
+    return;
+  }
+
+  const [familyCount, applicationCount, studentCount, emailLogCount] = await Promise.all([
+    prisma.family.count({
+      where: {
+        contactEmail: {
+          in: APPLICATION_SEEDS.map((seedRecord) => seedRecord.family.contactEmail)
         }
-      }),
-      prisma.application.count({
-        where: {
+      }
+    }),
+    prisma.application.count({
+      where: {
+        rawCsvRowHash: {
+          in: APPLICATION_SEEDS.map((seedRecord) => seedRecord.application.rawCsvRowHash)
+        }
+      }
+    }),
+    prisma.student.count({
+      where: {
+        application: {
           rawCsvRowHash: {
             in: APPLICATION_SEEDS.map((seedRecord) => seedRecord.application.rawCsvRowHash)
           }
         }
-      }),
-      prisma.student.count({
-        where: {
-          application: {
-            rawCsvRowHash: {
-              in: APPLICATION_SEEDS.map((seedRecord) => seedRecord.application.rawCsvRowHash)
-            }
+      }
+    }),
+    prisma.applicationEmailLog.count({
+      where: {
+        application: {
+          rawCsvRowHash: {
+            in: APPLICATION_SEEDS.map((seedRecord) => seedRecord.application.rawCsvRowHash)
           }
         }
-      }),
-      prisma.applicationEmailLog.count({
-        where: {
-          application: {
-            rawCsvRowHash: {
-              in: APPLICATION_SEEDS.map((seedRecord) => seedRecord.application.rawCsvRowHash)
-            }
-          }
-        }
-      }),
-      prisma.adminAccount.count()
-    ]);
+      }
+    })
+  ]);
 
   console.log(
-    `Seed completed: ${levelCount} levels, ${activeYearCount} active school year, ${familyCount} families, ${applicationCount} applications, ${studentCount} students, ${emailLogCount} email logs, ${adminCount} admin accounts.`
+    `Seed completed: ${levelCount} levels, ${activeYearCount} active school year, ${familyCount} demo families, ${applicationCount} demo applications, ${studentCount} demo students, ${emailLogCount} demo email logs, ${adminCount} admin accounts.`
   );
 };
 
