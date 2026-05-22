@@ -132,8 +132,7 @@ const LoginPage = () => {
                 </SerifHeading>
                 <p className="mt-7 max-w-[540px] text-[1.18rem] leading-[2.05rem] text-slate-600 sm:text-[1.34rem] sm:leading-[2.35rem]">
                   Accédez à votre espace de gestion des demandes d&apos;inscription
-                  des élèves en tant qu&apos;administrateur de l&apos;École de la
-                  Culture et de l&apos;Éducation.
+                  des élèves en tant qu&apos;administrateur de l&apos;Académie Horizon.
                 </p>
               </div>
 

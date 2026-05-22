@@ -507,7 +507,7 @@ const ParentAvatar = ({
   const isFather = variant === "father";
   const imageSource = isFather
     ? "/profil/Profil_Dad.png"
-    : "/profil/Profil_mother.png";
+    : "/profil/Profil_mother2.png";
 
   return (
     <span
@@ -522,7 +522,9 @@ const ParentAvatar = ({
       <img
         src={imageSource}
         alt=""
-        className="h-[88%] w-[88%] object-contain object-bottom"
+        className={`rounded-full object-contain object-bottom ${
+          isFather ? "h-[96%] w-[96%]" : "h-[88%] w-[88%]"
+        }`}
         draggable={false}
       />
     </span>
