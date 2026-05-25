@@ -27,6 +27,11 @@ import type { DashboardStats } from "../types/dashboard";
 import type { CsvImportHistoryItem, CsvImportPreview, CsvImportSummary } from "../types/import";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+const AUTH_TOKEN_STORAGE_KEY = "auth_token";
+const AUTH_USER_STORAGE_KEY = "auth_user";
+const AUTH_UNAUTHORIZED_EVENT = "auth:unauthorized";
+
+const PUBLIC_API_PATH_PREFIXES = ["/api/auth/", "/api/health"];
 
 export type AuthUser = {
   role: "admin";
@@ -48,6 +53,62 @@ type DeleteSchoolYearResult = {
 
 const buildApiUrl = (path: string): string => {
   return `${API_BASE_URL}${path}`;
+};
+
+const isPublicApiPath = (path: string): boolean => {
+  return PUBLIC_API_PATH_PREFIXES.some((prefix) => path.startsWith(prefix));
+};
+
+const readAuthToken = (): string | null => {
+  try {
+    const token = window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+
+    return token && token.trim().length > 0 ? token : null;
+  } catch {
+    return null;
+  }
+};
+
+const clearStoredAuthSession = (): void => {
+  try {
+    window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+    window.localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+  } catch {
+    // Ignore storage cleanup failures.
+  }
+};
+
+const notifyUnauthorizedResponse = (): void => {
+  clearStoredAuthSession();
+  window.dispatchEvent(new Event(AUTH_UNAUTHORIZED_EVENT));
+};
+
+const buildApiHeaders = (
+  initHeaders: HeadersInit | undefined,
+  options?: {
+    contentType?: string;
+  }
+): Headers => {
+  const headers = new Headers(initHeaders);
+  const token = readAuthToken();
+
+  headers.set("Accept", "application/json");
+
+  if (options?.contentType && !headers.has("Content-Type")) {
+    headers.set("Content-Type", options.contentType);
+  }
+
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  return headers;
+};
+
+const handleUnauthorizedResponse = (path: string, response: Response): void => {
+  if (response.status === 401 && !isPublicApiPath(path)) {
+    notifyUnauthorizedResponse();
+  }
 };
 
 const buildQueryString = (
@@ -86,13 +147,11 @@ export const fetchJson = async <T>(
 ): Promise<T> => {
   const response = await fetch(buildApiUrl(path), {
     ...init,
-    headers: {
-      Accept: "application/json",
-      ...init?.headers
-    }
+    headers: buildApiHeaders(init?.headers)
   });
 
   if (!response.ok) {
+    handleUnauthorizedResponse(path, response);
     throw new Error(await getErrorMessage(response));
   }
 
@@ -113,10 +172,7 @@ export const loginAdmin = async (
   return fetchJson<LoginAdminResponse>("/api/auth/login", {
     ...init,
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...init?.headers
-    },
+    headers: buildApiHeaders(init?.headers, { contentType: "application/json" }),
     body: JSON.stringify({
       email,
       password
@@ -131,10 +187,7 @@ export const requestPasswordReset = async (
   return fetchJson<MessageResponse>("/api/auth/forgot-password", {
     ...init,
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...init?.headers
-    },
+    headers: buildApiHeaders(init?.headers, { contentType: "application/json" }),
     body: JSON.stringify({
       email
     })
@@ -149,10 +202,7 @@ export const resetPassword = async (
   return fetchJson<MessageResponse>("/api/auth/reset-password", {
     ...init,
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...init?.headers
-    },
+    headers: buildApiHeaders(init?.headers, { contentType: "application/json" }),
     body: JSON.stringify({
       token,
       password
@@ -502,14 +552,12 @@ const postCsvImportFile = async <TResponse>(
   const response = await fetch(buildApiUrl(path), {
     ...init,
     method: "POST",
-    headers: {
-      Accept: "application/json",
-      ...init?.headers
-    },
+    headers: buildApiHeaders(init?.headers),
     body: formData
   });
 
   if (!response.ok) {
+    handleUnauthorizedResponse(path, response);
     throw new Error(await getErrorMessage(response));
   }
 

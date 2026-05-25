@@ -7,6 +7,15 @@ import { AppError } from "./errors";
 import { hashPassword, verifyPassword } from "./password-hash";
 
 const ADMIN_ROLE = "admin" as const;
+const ADMIN_TOKEN_PREFIX = "admin";
+const ADMIN_TOKEN_TTL_MS = 12 * 60 * 60 * 1000;
+
+type AdminTokenPayload = {
+  email: string;
+  role: typeof ADMIN_ROLE;
+  iat: number;
+  nonce: string;
+};
 
 export const normalizeAdminEmail = (email: string): string => {
   return email.trim().toLowerCase();
@@ -47,6 +56,33 @@ const createConfiguredAdminAccount = async (): Promise<AdminAccount> => {
       passwordHash: await hashPassword(adminCredentials.password)
     }
   });
+};
+
+const isAdminTokenPayload = (value: unknown): value is AdminTokenPayload => {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const candidate = value as Partial<AdminTokenPayload>;
+
+  return (
+    typeof candidate.email === "string" &&
+    candidate.email.trim().length > 0 &&
+    candidate.role === ADMIN_ROLE &&
+    typeof candidate.iat === "number" &&
+    Number.isFinite(candidate.iat) &&
+    typeof candidate.nonce === "string" &&
+    candidate.nonce.trim().length > 0
+  );
+};
+
+const createAdminTokenSignature = (
+  encodedPayload: string,
+  adminAccount: AdminAccount
+): string => {
+  return createHmac("sha256", `${adminAccount.email}:${adminAccount.passwordHash}`)
+    .update(encodedPayload)
+    .digest("base64url");
 };
 
 export const findAdminAccountByEmail = async (
@@ -112,14 +148,48 @@ export const createAdminToken = async (email: string): Promise<string> => {
     nonce: randomBytes(16).toString("hex")
   };
   const encodedPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  const signature = createHmac(
-    "sha256",
-    `${adminAccount.email}:${adminAccount.passwordHash}`
-  )
-    .update(encodedPayload)
-    .digest("base64url");
+  const signature = createAdminTokenSignature(encodedPayload, adminAccount);
 
   return `admin.${encodedPayload}.${signature}`;
+};
+
+export const verifyAdminToken = async (token: string): Promise<boolean> => {
+  const [prefix, encodedPayload, signature, extraPart] = token.split(".");
+
+  if (
+    prefix !== ADMIN_TOKEN_PREFIX ||
+    !encodedPayload ||
+    !signature ||
+    extraPart !== undefined
+  ) {
+    return false;
+  }
+
+  let payload: unknown;
+
+  try {
+    payload = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8"));
+  } catch {
+    return false;
+  }
+
+  if (!isAdminTokenPayload(payload)) {
+    return false;
+  }
+
+  const tokenAgeMs = Date.now() - payload.iat;
+
+  if (tokenAgeMs < 0 || tokenAgeMs > ADMIN_TOKEN_TTL_MS) {
+    return false;
+  }
+
+  const adminAccount = await findAdminAccountByEmail(payload.email);
+
+  if (!adminAccount || !safeCompare(normalizeAdminEmail(payload.email), adminAccount.email)) {
+    return false;
+  }
+
+  return safeCompare(signature, createAdminTokenSignature(encodedPayload, adminAccount));
 };
 
 export { ADMIN_ROLE };

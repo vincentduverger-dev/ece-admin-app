@@ -7,6 +7,7 @@ import { markPostLoginFilterDefaultsPending } from "../lib/postLoginFilterDefaul
 
 const AUTH_TOKEN_STORAGE_KEY = "auth_token";
 const AUTH_USER_STORAGE_KEY = "auth_user";
+const AUTH_UNAUTHORIZED_EVENT = "auth:unauthorized";
 
 type AuthSession = {
   token: string | null;
@@ -133,6 +134,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     setSession(readStoredAuthSession());
     setIsLoadingAuth(false);
+  }, []);
+
+  useEffect(() => {
+    const handleUnauthorized = (): void => {
+      setSession(createEmptyAuthSession());
+    };
+
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
+
+    return () => {
+      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
+    };
   }, []);
 
   const login = async (email: string, password: string): Promise<void> => {
