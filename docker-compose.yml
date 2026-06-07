@@ -3,9 +3,9 @@ services:
     image: postgres:15-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-ece}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ecepassword}
-      POSTGRES_DB: ${POSTGRES_DB:-ece_db}
+      POSTGRES_USER: ${POSTGRES_USER:-horizon}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-horizonpassword}
+      POSTGRES_DB: ${POSTGRES_DB:-horizon_db}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -31,7 +31,7 @@ services:
       NODE_ENV: development
       PORT: 3000
       FRONTEND_URL: http://localhost:${WEB_PORT:-5173}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-ece}:${POSTGRES_PASSWORD:-ecepassword}@postgres:5432/${POSTGRES_DB:-ece_db}?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-horizon}:${POSTGRES_PASSWORD:-horizonpassword}@postgres:5432/${POSTGRES_DB:-horizon_db}?schema=public
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-}
       SMTP_SECURE: ${SMTP_SECURE:-false}
@@ -39,7 +39,7 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       MAIL_FROM: ${MAIL_FROM:-}
       SMTP_FROM: ${SMTP_FROM:-}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-ece.inscriptions@gmail.com}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-contact@academie-horizon.test}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me-now}
       SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
       SYNC_ADMIN_PASSWORD_ON_SEED: ${SYNC_ADMIN_PASSWORD_ON_SEED:-true}

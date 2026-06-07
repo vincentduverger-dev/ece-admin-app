@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { useLocation, useNavigate } from "react-router-dom";
 
+import { BRANDING } from "../../config/branding";
 import { getSchoolYears } from "../../lib/api";
 
 const isAbortError = (error: unknown): boolean => {
@@ -124,7 +125,10 @@ const FirstRunOnboarding = () => {
               id="first-run-onboarding-description"
               className="mt-5 space-y-3 text-base leading-8 text-slate-800 sm:text-[1.02rem]"
             >
-              <p>Bienvenue dans l&apos;application ECE de gestion des inscriptions.</p>
+              <p>
+                Bienvenue dans l&apos;application {BRANDING.schoolName} de gestion
+                des inscriptions.
+              </p>
               <p>
                 Pour commencer, veuillez créer une année scolaire avant
                 d&apos;importer les demandes.

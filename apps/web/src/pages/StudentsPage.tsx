@@ -59,7 +59,7 @@ type PaginationControlsProps = {
 };
 
 const pageSizeOptions: PageSize[] = [4, 6, 8, 10, 12, 15, 18, 20];
-const studentListViewStorageKey = "ece-admin.students.listViewState.v1";
+const studentListViewStorageKey = "horizon-admin.students.listViewState.v1";
 const sortableFields: Array<NonNullable<StudentFilterParams["sortBy"]>> = [
   "lastName",
   "firstName",

@@ -76,7 +76,7 @@ const APPLICATION_SEEDS = [
       motherFirstName: "Camille",
       motherCity: "Paris",
       familyStatus: "Maries",
-      contactEmail: "camille.martin.seed@ece.test",
+      contactEmail: "camille.martin.seed@academie-horizon.test",
       contactPhone: "0600000001",
       postalAddress: "12 rue des Tilleuls, 75015 Paris",
       googleAccountEmail: null
@@ -112,7 +112,7 @@ const APPLICATION_SEEDS = [
       motherFirstName: "Sophie",
       motherCity: "Issy-les-Moulineaux",
       familyStatus: "Union libre",
-      contactEmail: "famille.bernard.seed@ece.test",
+      contactEmail: "famille.bernard.seed@academie-horizon.test",
       contactPhone: "0600000002",
       postalAddress: "4 allee des Erables, 92130 Issy-les-Moulineaux",
       googleAccountEmail: null
@@ -156,7 +156,7 @@ const APPLICATION_SEEDS = [
       motherFirstName: "Sarah",
       motherCity: "Boulogne-Billancourt",
       familyStatus: "Maries",
-      contactEmail: "famille.petit.seed@ece.test",
+      contactEmail: "famille.petit.seed@academie-horizon.test",
       contactPhone: "0600000003",
       postalAddress: "18 avenue Victor Hugo, 92100 Boulogne-Billancourt",
       googleAccountEmail: null
@@ -184,8 +184,8 @@ const APPLICATION_SEEDS = [
     emailLogs: [
       {
         emailType: EmailType.ACCEPTANCE,
-        recipientEmail: "famille.petit.seed@ece.test",
-        subject: "ECE - decision d'admission",
+        recipientEmail: "famille.petit.seed@academie-horizon.test",
+        subject: "Académie Horizon - decision d'admission",
         bodySnapshot: "Votre demande d'inscription a ete acceptee pour l'annee 2026-2027.",
         sentAt: createUtcDate(2026, 2, 21, 9, 10),
         sendStatus: EmailSendStatus.SENT
@@ -201,7 +201,7 @@ const APPLICATION_SEEDS = [
       motherFirstName: "Elise",
       motherCity: "Vanves",
       familyStatus: "Separes",
-      contactEmail: "famille.laurent.seed@ece.test",
+      contactEmail: "famille.laurent.seed@academie-horizon.test",
       contactPhone: "0600000004",
       postalAddress: "7 rue Jean Bleuzen, 92170 Vanves",
       googleAccountEmail: null
@@ -229,8 +229,8 @@ const APPLICATION_SEEDS = [
     emailLogs: [
       {
         emailType: EmailType.WAITLIST,
-        recipientEmail: "famille.laurent.seed@ece.test",
-        subject: "ECE - decision concernant votre demande d'inscription",
+        recipientEmail: "famille.laurent.seed@academie-horizon.test",
+        subject: "Académie Horizon - decision concernant votre demande d'inscription",
         bodySnapshot:
           "La demande est actuellement placee en liste d'attente, dans l'attente d'une place disponible.",
         sentAt: null,
@@ -247,7 +247,7 @@ const APPLICATION_SEEDS = [
       motherFirstName: "Claire",
       motherCity: "Meudon",
       familyStatus: "Maries",
-      contactEmail: "famille.dubois.seed@ece.test",
+      contactEmail: "famille.dubois.seed@academie-horizon.test",
       contactPhone: "0600000005",
       postalAddress: "31 rue de la Republique, 92190 Meudon",
       googleAccountEmail: null
@@ -291,8 +291,8 @@ const APPLICATION_SEEDS = [
     emailLogs: [
       {
         emailType: EmailType.ACCEPTANCE,
-        recipientEmail: "famille.dubois.seed@ece.test",
-        subject: "ECE - decision d'admission",
+        recipientEmail: "famille.dubois.seed@academie-horizon.test",
+        subject: "Académie Horizon - decision d'admission",
         bodySnapshot: "L'admission est confirmee sous reserve de finalisation administrative.",
         sentAt: null,
         sendStatus: EmailSendStatus.PENDING
@@ -308,7 +308,7 @@ const APPLICATION_SEEDS = [
       motherFirstName: "Ines",
       motherCity: "Paris",
       familyStatus: "Monoparentale",
-      contactEmail: "famille.roux.seed@ece.test",
+      contactEmail: "famille.roux.seed@academie-horizon.test",
       contactPhone: "0600000006",
       postalAddress: "65 boulevard Lefebvre, 75015 Paris",
       googleAccountEmail: null

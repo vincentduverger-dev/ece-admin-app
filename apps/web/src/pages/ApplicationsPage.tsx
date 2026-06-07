@@ -77,7 +77,7 @@ type PaginationControlsProps = {
 };
 
 const pageSizeOptions: PageSize[] = [4, 6, 8, 10, 12, 15, 18, 20];
-const applicationsListViewStorageKey = "ece-admin.applications.listViewState.v1";
+const applicationsListViewStorageKey = "horizon-admin.applications.listViewState.v1";
 
 const statusOptions: StatusOption[] = [
   { value: "", label: "Tous les statuts" },

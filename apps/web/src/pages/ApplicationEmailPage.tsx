@@ -25,6 +25,7 @@ import PersonAvatar, {
 } from "../components/ui/PersonAvatar";
 import PriorityBadge from "../components/ui/PriorityBadge";
 import StatusBadge from "../components/ui/StatusBadge";
+import { BRANDING } from "../config/branding";
 import { useToast } from "../context/ToastContext";
 import {
   getApplicationById,
@@ -1226,7 +1227,7 @@ const ApplicationEmailPage = () => {
                   placeholder={
                     selectedEmailType === "CUSTOM"
                       ? "Saisir un sujet personnalisé"
-                      : "ECE - décision d'admission"
+                      : `${BRANDING.schoolName} - décision d'admission`
                   }
                 />
               </label>

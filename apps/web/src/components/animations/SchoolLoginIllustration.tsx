@@ -65,16 +65,12 @@ const SchoolLoginIllustration = ({ className = "" }: SchoolLoginIllustrationProp
             transform-origin: center;
           }
 
-          .school-login-svg-animation .school-login-flag-letter--e1 {
+          .school-login-svg-animation .school-login-flag-letter--a {
             animation-delay: 2060ms;
           }
 
-          .school-login-svg-animation .school-login-flag-letter--c {
+          .school-login-svg-animation .school-login-flag-letter--h {
             animation-delay: 2200ms;
-          }
-
-          .school-login-svg-animation .school-login-flag-letter--e2 {
-            animation-delay: 2340ms;
           }
 
           @keyframes school-login-bg-fade {
@@ -176,14 +172,11 @@ const SchoolLoginIllustration = ({ className = "" }: SchoolLoginIllustrationProp
         strokeLinejoin="round"
       >
         <path d="M278 75h62l-10 15 10 15h-62" fill="#FFF7E8" />
-        <text className="school-login-flag-letter school-login-flag-letter--e1" x="288" y="95">
-          E
+        <text className="school-login-flag-letter school-login-flag-letter--a" x="296" y="95">
+          A
         </text>
-        <text className="school-login-flag-letter school-login-flag-letter--c" x="304" y="95">
-          C
-        </text>
-        <text className="school-login-flag-letter school-login-flag-letter--e2" x="320" y="95">
-          E
+        <text className="school-login-flag-letter school-login-flag-letter--h" x="314" y="95">
+          H
         </text>
       </g>
 

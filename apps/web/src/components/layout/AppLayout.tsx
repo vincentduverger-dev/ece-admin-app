@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
+import { BRANDING } from "../../config/branding";
 import { useAuth } from "../../hooks/useAuth";
 import { getReadyEmailApplications } from "../../lib/api";
 import FirstRunOnboarding from "./FirstRunOnboarding";
@@ -256,23 +257,20 @@ const AppLayout = () => {
         style={brandTextureStyle}
       >
         <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-6 py-6 sm:gap-5 sm:px-10 sm:py-7 lg:gap-6 lg:px-14 lg:py-8">
-          <div className="flex min-w-0 items-center gap-4">
+          <div className="flex min-w-0 items-center gap-0">
             <img
-              src="/logo_ece.png"
-              alt="Logo ECE"
-              className="h-[82px] w-[82px] rounded-full border border-white/70 bg-white/40 object-cover p-0.5 shadow-[0_10px_30px_-18px_rgba(15,23,42,0.75)] sm:h-[96px] sm:w-[96px] lg:h-[112px] lg:w-[112px]"
+              src={BRANDING.logoPath}
+              alt={`Logo ${BRANDING.schoolName}`}
+              className="h-[88px] w-[88px] object-contain drop-shadow-[0_14px_24px_rgba(15,23,42,0.28)] sm:h-[104px] sm:w-[104px] lg:h-[118px] lg:w-[118px]"
             />
             <div className="min-w-0 text-white">
               <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
                 <p className="text-3xl font-semibold tracking-tight sm:text-[2.8rem]">
-                  ECE
-                </p>
-                <p className="text-xl font-medium text-white/90 sm:text-2xl">
-                  École de la Culture et de l&apos;Éducation
+                  {BRANDING.schoolName}
                 </p>
               </div>
               <p className="mt-1 text-sm text-white/75">
-                Interface d&apos;administration des demandes d&apos;inscription
+                {BRANDING.appSubtitle}
               </p>
             </div>
           </div>
@@ -291,10 +289,10 @@ const AppLayout = () => {
         </div>
       </header>
 
-      <div className="mx-auto max-w-[1600px] px-4 pb-6 pt-[134px] sm:px-6 sm:pt-[156px] lg:px-8 lg:pt-[192px]">
+      <div className="mx-auto max-w-[1600px] px-4 pb-6 pt-[158px] sm:px-6 sm:pt-[184px] lg:px-8 lg:pt-[212px]">
         <div className="lg:pl-[272px]">
           <aside
-            className="mb-4 overflow-hidden rounded-[30px] border border-primaryDark/10 text-white shadow-[0_24px_58px_-38px_rgba(15,23,42,0.78)] lg:fixed lg:top-[192px] lg:z-30 lg:mb-0 lg:max-h-[calc(100vh-216px)] lg:w-[248px] lg:overflow-y-auto"
+            className="mb-4 overflow-hidden rounded-[30px] border border-primaryDark/10 text-white shadow-[0_24px_58px_-38px_rgba(15,23,42,0.78)] lg:fixed lg:top-[212px] lg:z-30 lg:mb-0 lg:max-h-[calc(100vh-236px)] lg:w-[248px] lg:overflow-y-auto"
             style={{
               ...brandTextureStyle,
               ...desktopSidebarPositionStyle

@@ -5,6 +5,10 @@ import type {
   ApplicationEmailType,
   StudentAdmissionStatus
 } from "../types/application";
+import { BRANDING } from "../config/branding";
+
+const emailSubjectPrefix = BRANDING.schoolName;
+const emailSignatureName = `L'administration ${BRANDING.schoolName}`;
 
 export const applicationEmailTypeLabels: Record<ApplicationEmailType, string> = {
   ACCEPTANCE: "Acceptation",
@@ -58,19 +62,19 @@ export const applicationEmailTemplates: Record<
   }
 > = {
   ACCEPTANCE: {
-    subject: "ECE - décision d'admission",
+    subject: `${emailSubjectPrefix} - décision d'admission`,
     body: "Votre demande d'inscription a été acceptée."
   },
   REFUSAL: {
-    subject: "ECE - décision concernant votre demande d'inscription",
+    subject: `${emailSubjectPrefix} - décision concernant votre demande d'inscription`,
     body: "Votre demande est actuellement placée en liste d'attente, dans l'attente d'une place disponible."
   },
   WAITLIST: {
-    subject: "ECE - décision concernant votre demande d'inscription",
+    subject: `${emailSubjectPrefix} - décision concernant votre demande d'inscription`,
     body: "Votre demande est actuellement placée en liste d'attente, dans l'attente d'une place disponible."
   },
   PARTIAL_DECISION: {
-    subject: "ECE - décision concernant votre demande d'inscription",
+    subject: `${emailSubjectPrefix} - décision concernant votre demande d'inscription`,
     body: "Nous vous informons de la décision concernant votre demande d'inscription."
   }
 };
@@ -341,7 +345,7 @@ export const getApplicationDecisionEmailTemplate = (
         formatStudentSection("Enfant(s) accepté(s) :", application.students),
         "",
         "Cordialement,",
-        "L'administration de l'École de la Culture et de l'Éducation"
+        emailSignatureName
       ]
         .filter((line): line is string => line !== null)
         .join("\n")
@@ -359,7 +363,7 @@ export const getApplicationDecisionEmailTemplate = (
         formatStudentSection("Enfant(s) en liste d'attente :", application.students),
         "",
         "Cordialement,",
-        "L'administration de l'École de la Culture et de l'Éducation"
+        emailSignatureName
       ]
         .filter((line): line is string => line !== null)
         .join("\n")
@@ -384,7 +388,7 @@ export const getApplicationDecisionEmailTemplate = (
       sections.join("\n\n"),
       "",
       "Cordialement,",
-      "L'administration de l'École de la Culture et de l'Éducation"
+      emailSignatureName
     ].join("\n")
   };
 };
@@ -441,7 +445,7 @@ export const getApplicationDecisionChangeEmailTemplate = (
     .filter((section): section is string => section !== null);
 
   return {
-    subject: "ECE - mise à jour de votre demande d'inscription",
+    subject: `${emailSubjectPrefix} - mise à jour de votre demande d'inscription`,
     changedStudentsCount: changedStudents.length,
     body: [
       "Bonjour,",
@@ -459,7 +463,7 @@ export const getApplicationDecisionChangeEmailTemplate = (
       currentDecisionSections.join("\n\n"),
       "",
       "Cordialement,",
-      "L'administration de l'École de la Culture et de l'Éducation"
+      emailSignatureName
     ].join("\n")
   };
 };

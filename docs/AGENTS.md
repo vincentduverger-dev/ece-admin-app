@@ -1,6 +1,6 @@
 
 ## Mission
-Contribuer au projet ECE Admin App sans dériver du périmètre métier ni de l’architecture existante.
+Contribuer au projet Académie Horizon Admin App sans dériver du périmètre métier ni de l’architecture existante.
 
 ## Règles absolues
 - Respecter le workflow Git : main / dev / feature/*

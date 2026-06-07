@@ -16,6 +16,7 @@ import LevelBadge from "../components/ui/LevelBadge";
 import LoadingState from "../components/ui/LoadingState";
 import PriorityBadge from "../components/ui/PriorityBadge";
 import StudentStatusBadge from "../components/ui/StudentStatusBadge";
+import { BRANDING } from "../config/branding";
 import { fetchDashboardStats, getActiveSchoolYear } from "../lib/api";
 import { getLevelVisualStyle } from "../lib/levelVisuals";
 import type { SchoolYearSummary } from "../types/application";
@@ -72,8 +73,8 @@ const LEVEL_CHART_INNER_RADIUS = 64;
 const LEVEL_CHART_OUTER_RADIUS = 112;
 const LEVEL_CHART_TOOLTIP_RADIUS = 80;
 
-const dashboardHeaderEyebrow = "Administration ECE";
-const dashboardHeaderTitle = "Bienvenue dans l'espace d'administration ECE";
+const dashboardHeaderEyebrow = `Administration ${BRANDING.schoolName}`;
+const dashboardHeaderTitle = `Bienvenue dans l'espace d'administration ${BRANDING.schoolName}`;
 const dashboardHeaderDescription =
   "Centralisez le suivi des inscriptions, priorisez les demandes sensibles et gardez les indicateurs principaux visibles pour accélérer les décisions quotidiennes.";
 

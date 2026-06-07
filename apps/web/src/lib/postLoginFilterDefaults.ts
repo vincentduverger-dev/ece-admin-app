@@ -3,7 +3,7 @@ type FilterDefaultsPage = "students" | "applications";
 type PostLoginFilterDefaultsState = Partial<Record<FilterDefaultsPage, boolean>>;
 
 const postLoginFilterDefaultsStorageKey =
-  "ece-admin.postLoginFilterDefaults.v1";
+  "horizon-admin.postLoginFilterDefaults.v1";
 
 const readPostLoginFilterDefaultsState = (): PostLoginFilterDefaultsState => {
   try {

@@ -38,9 +38,9 @@ const avatarClassNames: Record<PersonAvatarVariant, string> = {
 const avatarImageSources: Record<PersonAvatarVariant, string> = {
   boy: "/profil/Profil_boy.png",
   girl: "/profil/Profil-Girl.png",
-  neutral: "/profil/Profil_family.png",
+  neutral: "/profil/Profil_family2.png",
   man: "/profil/Profil_Dad.png",
-  woman: "/profil/Profil_mother.png"
+  woman: "/profil/Profil_mother2.png"
 };
 
 const PersonAvatar = ({
@@ -57,7 +57,7 @@ const PersonAvatar = ({
       <img
         src={avatarImageSources[variant]}
         alt=""
-        className="h-[92%] w-[92%] object-contain object-bottom"
+        className="h-[92%] w-[92%] rounded-full object-contain object-bottom"
         draggable={false}
       />
     </span>
@@ -75,9 +75,9 @@ export const FamilyAvatar = ({
       className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 ring-1 ring-primary/15 ${familyAvatarSizeClassNames[size]}`}
     >
       <img
-        src="/profil/Profil_family.png"
+        src="/profil/Profil_family2.png"
         alt=""
-        className="h-[88%] w-[88%] object-contain object-center"
+        className="h-[88%] w-[88%] rounded-full object-contain object-center"
         draggable={false}
       />
     </span>

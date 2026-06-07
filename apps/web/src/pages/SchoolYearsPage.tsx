@@ -6,6 +6,7 @@ import Breadcrumb from "../components/ui/Breadcrumb";
 import EmptyState from "../components/ui/EmptyState";
 import ErrorState from "../components/ui/ErrorState";
 import LoadingState from "../components/ui/LoadingState";
+import { BRANDING } from "../config/branding";
 import { useToast } from "../context/ToastContext";
 import { activateSchoolYear, deleteSchoolYear, getSchoolYears } from "../lib/api";
 import type { SchoolYearSummary } from "../types/application";
@@ -306,7 +307,7 @@ const SchoolYearsPage = () => {
     <div className="ui-animate-in ui-animate-in--subtle" style={getEnterStyle(120)}>
       <PageSectionHeader
         topBar={pageTopBar}
-        eyebrow="Administration ECE"
+        eyebrow={`Administration ${BRANDING.schoolName}`}
         title="Années scolaires"
         description="Consultez les campagnes d’inscription créées et activez l’année à utiliser par défaut dans l’application."
         aside={pageHeaderAside}

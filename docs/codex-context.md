@@ -1,10 +1,10 @@
-Codex Context — Projet ECE
+Codex Context — Académie Horizon
 
 1. Vue d’ensemble du projet
 
 Nom du projet
 
-ECE Admin App
+Académie Horizon Admin App
 
 Finalité
 

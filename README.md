@@ -1,5 +1,5 @@
-# ece-admin-app
- Application web de gestion des demandes d'inscription - Projet ECE
+# horizon-admin-app
+ Application web de gestion des demandes d'inscription - Académie Horizon
 
 # Docker Setup
 
@@ -26,9 +26,9 @@ cp .env.example .env
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=465
 SMTP_SECURE=true
-SMTP_USER=ece.inscriptions@gmail.com
+SMTP_USER=contact@academie-horizon.test
 SMTP_PASS=replace_with_google_app_password_without_spaces
-MAIL_FROM="École ECE Narbonne — Service Inscriptions <ece.inscriptions@gmail.com>"
+MAIL_FROM="Académie Horizon — Service Inscriptions <contact@academie-horizon.test>"
 ```
 
 4. Lancer toute la stack :
@@ -55,7 +55,7 @@ Le service `web` lance Vite en mode dev avec HMR.
 Identifiants admin par defaut en dev :
 
 ```text
-Email: ece.inscriptions@gmail.com
+Email: contact@academie-horizon.test
 Password: change-me-now
 ```
 
@@ -63,7 +63,7 @@ Ces valeurs se changent avec `ADMIN_EMAIL` et `ADMIN_PASSWORD` dans `.env`.
 
 ## Configuration Gmail SMTP pour les tests réels
 
-Pour envoyer de vrais emails depuis Gmail, utiliser une adresse Gmail dediee aux inscriptions, par exemple `ece.inscriptions@gmail.com`. Activer la validation en deux etapes sur ce compte Google, puis generer un mot de passe d'application Google.
+Pour envoyer de vrais emails depuis Gmail, utiliser une adresse Gmail dediee aux inscriptions. Activer la validation en deux etapes sur ce compte Google, puis generer un mot de passe d'application Google.
 
 Coller ce mot de passe d'application dans le vrai fichier `.env`, sur `SMTP_PASS`, sans espaces. Ne jamais commiter le vrai `.env` ni un vrai secret. La valeur de `.env.example` doit rester un placeholder.
 
